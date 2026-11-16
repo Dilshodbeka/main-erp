@@ -1,0 +1,19 @@
+# Supabase CLI configuration for Aliya ERP.
+# Only what `supabase functions deploy` needs. Secrets are never stored here:
+# set them in Dashboard -> Project Settings -> Edge Functions -> Secrets,
+# or with `npx supabase secrets set NAME=value`.
+
+project_id = "aqwtodiizpojsxeobqtd"
+
+[api]
+enabled = true
+
+[functions.erp-access]
+verify_jwt = true
+
+[functions.telegram-send]
+verify_jwt = true
+
+[functions.telegram-webhook]
+# Telegram calls this endpoint without a Supabase JWT; it checks its own secret header.
+verify_jwt = false

@@ -1,0 +1,238 @@
+// Telegram Bot API webhook. Deploy without platform JWT verification:
+//   supabase functions deploy telegram-webhook --no-verify-jwt
+// Secrets: TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET.
+import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import {
+  MAX_TELEGRAM_FILE_BYTES,
+  constantTimeEqual,
+  parseTelegramUpdate,
+  sanitizeFileName,
+  storagePathFor,
+  type IncomingMessage,
+  type TelegramFileRef,
+} from '../_shared/telegram.ts';
+
+const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';
+const webhookSecret = Deno.env.get('TELEGRAM_WEBHOOK_SECRET') ?? '';
+const apiBase = (Deno.env.get('TELEGRAM_API_BASE') ?? 'https://api.telegram.org').replace(/\/+$/, '');
+
+let admin: SupabaseClient | null = null;
+const client = () => {
+  if (!admin) {
+    admin = createClient(supabaseUrl, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  }
+  return admin;
+};
+
+const json = (body: Record<string, unknown>, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+
+class TelegramError extends Error {
+  constructor(message: string) { super(message); this.name = 'TelegramError'; }
+}
+
+async function telegram<T>(method: string, payload: Record<string, unknown>): Promise<T> {
+  const response = await fetch(`${apiBase}/bot${botToken}/${method}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json().catch(() => null) as { ok?: boolean; result?: T; description?: string } | null;
+  if (!response.ok || !data?.ok) throw new TelegramError(data?.description || `Telegram HTTP ${response.status}`);
+  return data.result as T;
+}
+
+async function reply(chatId: string, text: string) {
+  try {
+    await telegram('sendMessage', { chat_id: chatId, text, link_preview_options: { is_disabled: true } });
+  } catch {
+    // A reply to an unlinked or blocked chat is best effort.
+  }
+}
+
+async function handleStart(incoming: IncomingMessage) {
+  const payload = incoming.startPayload ?? '';
+  if (!payload) {
+    await reply(incoming.chatId, 'Assalomu alaykum! Bu bot korxona mijozlari bilan aloqa uchun. Mijoz kartasidan bir martalik havola oling.');
+    return;
+  }
+  if (!/^[A-Za-z0-9_-]{16,64}$/.test(payload)) {
+    await reply(incoming.chatId, 'Havola kodi noto‘g‘ri. CRM’dan yangi havola oling.');
+    return;
+  }
+  const lookup = await client()
+    .from('erp_customers')
+    .select('id, company_id, telegram_chat_id, telegram_link_expires_at')
+    .eq('telegram_link_code', payload)
+    .maybeSingle();
+  if (lookup.error) {
+    console.error('Telegram link lookup failed', lookup.error.code);
+    await reply(incoming.chatId, 'Xatolik. Keyinroq qayta urinib ko‘ring.');
+    return;
+  }
+  if (lookup.data) {
+    await bindCustomer(lookup.data, incoming.chatId);
+    return;
+  }
+  await reply(incoming.chatId, 'Havola topilmadi yoki muddati tugagan. CRM’dan yangi havola oling.');
+}
+
+async function bindCustomer(customer: {
+  id: string; company_id: string; telegram_chat_id: string | null; telegram_link_expires_at: string | null;
+}, chatId: string) {
+  const expiresAt = customer.telegram_link_expires_at ? Date.parse(customer.telegram_link_expires_at) : 0;
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+    await client().from('erp_customers')
+      .update({ telegram_link_code: null, telegram_link_expires_at: null })
+      .eq('id', customer.id).eq('company_id', customer.company_id);
+    await reply(chatId, 'Havola muddati tugagan. CRM’dan yangi havola oling.');
+    return;
+  }
+  if (customer.telegram_chat_id) {
+    if (customer.telegram_chat_id !== chatId) {
+      await reply(chatId, 'Bu havola boshqa Telegram chatga bog‘langan. CRM’dan yangi havola oling.');
+      return;
+    }
+    await client().from('erp_customers')
+      .update({ telegram_link_code: null, telegram_link_expires_at: null })
+      .eq('id', customer.id).eq('company_id', customer.company_id);
+    await reply(chatId, 'Bu chat allaqachon bog‘langan.');
+    return;
+  }
+  const taken = await client()
+    .from('erp_customers').select('id')
+    .eq('telegram_chat_id', chatId).neq('id', customer.id).maybeSingle();
+  if (taken.data) {
+    await reply(chatId, 'Bu Telegram chat boshqa mijozga bog‘langan. CRM’dan yangi havola oling.');
+    return;
+  }
+  const updated = await client().from('erp_customers')
+    .update({
+      telegram_chat_id: chatId,
+      telegram_link_code: null,
+      telegram_link_expires_at: null,
+    })
+    .eq('id', customer.id).eq('company_id', customer.company_id).is('telegram_chat_id', null)
+    .select('id');
+  if (updated.error) {
+    if (updated.error.code === '23505') {
+      await reply(chatId, 'Bu Telegram chat allaqachon boshqa mijozga bog‘langan.');
+      return;
+    }
+    throw updated.error;
+  }
+  if (!updated.data?.length) {
+    await reply(chatId, 'Havola allaqachon ishlatilgan. CRM’dan yangi havola oling.');
+    return;
+  }
+  await reply(chatId, '✅ Telegram bog‘landi. Endi shu oynadan korxona bilan yozishishingiz mumkin.');
+}
+
+async function storeInboundFile(
+  companyId: string, chatId: string, updateId: number, messageId: string,
+  file: TelegramFileRef,
+) {
+  try {
+    const info = await telegram<{ file_path?: string; file_size?: number }>('getFile', { file_id: file.fileId });
+    if (!info?.file_path) throw new TelegramError('Telegram did not return a file path');
+    const response = await fetch(`${apiBase}/file/bot${botToken}/${info.file_path}`);
+    if (!response.ok) throw new TelegramError(`Telegram file download HTTP ${response.status}`);
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > MAX_TELEGRAM_FILE_BYTES) {
+      await client().from('erp_messages')
+        .update({ file_size: MAX_TELEGRAM_FILE_BYTES, text: `${file.fileName} — fayl 20 MB dan katta, yuklab olinmadi`.slice(0, 4096) })
+        .eq('id', messageId);
+      return;
+    }
+    const path = storagePathFor(companyId, 'inbound', chatId, updateId, file.fileName || sanitizeFileName(info.file_path));
+    const upload = await client().storage.from('telegram-files').upload(path, bytes, {
+      contentType: file.mimeType || 'application/octet-stream',
+      upsert: false,
+    });
+    if (upload.error) throw upload.error;
+    const signed = await client().storage.from('telegram-files').createSignedUrl(path, 60 * 60 * 24 * 7);
+    await client().from('erp_messages')
+      .update({ storage_path: path, file_url: signed.data?.signedUrl ?? null, file_size: bytes.byteLength })
+      .eq('id', messageId);
+  } catch (error) {
+    // Never log the bot token or the download URL; the row stays visible with metadata.
+    console.error('Telegram file processing failed', error instanceof Error ? error.name : 'unknown');
+  }
+}
+
+serve(async request => {
+  if (request.method !== 'POST') return json({ ok: false, code: 'method_not_allowed' }, 405);
+  if (!supabaseUrl || !serviceKey || !botToken || !webhookSecret) {
+    return json({ ok: false, code: 'telegram_not_configured' }, 500);
+  }
+  const provided = request.headers.get('x-telegram-bot-api-secret-token') ?? '';
+  if (!constantTimeEqual(provided, webhookSecret)) return json({ ok: false }, 401);
+
+  let payload: unknown;
+  try { payload = await request.json(); } catch { return json({ ok: true }); }
+  const incoming = parseTelegramUpdate(payload);
+  if (!incoming) return json({ ok: true });
+
+  try {
+    if (incoming.startPayload !== null) {
+      await handleStart(incoming);
+      return json({ ok: true });
+    }
+
+    const lookup = await client()
+      .from('erp_customers').select('id, company_id')
+      .eq('telegram_chat_id', incoming.chatId).maybeSingle();
+    if (lookup.error) {
+      console.error('Telegram customer lookup failed', lookup.error.code);
+      return json({ ok: true });
+    }
+    if (!lookup.data) {
+      await reply(incoming.chatId, 'Bu chat korxona mijoziga bog‘lanmagan. CRM’dagi mijoz kartasidan bir martalik havola oling.');
+      return json({ ok: true });
+    }
+    const customer = lookup.data;
+    const oversized = incoming.file ? incoming.file.fileSize > MAX_TELEGRAM_FILE_BYTES : false;
+    const note = oversized ? '\n[Fayl 20 MB dan katta — yuklab olinmadi]' : '';
+    const text = `${incoming.text}${note}`.trim().slice(0, 4096);
+
+    const inserted = await client().from('erp_messages').insert({
+      company_id: customer.company_id,
+      client_id: customer.id,
+      telegram_chat_id: incoming.chatId,
+      sender: 'client',
+      text,
+      file_url: null,
+      file_type: incoming.file && !oversized ? incoming.file.fileType : 'text',
+      file_name: incoming.file?.fileName ?? null,
+      file_size: incoming.file ? Math.min(incoming.file.fileSize, MAX_TELEGRAM_FILE_BYTES) : null,
+      storage_path: null,
+      telegram_message_id: incoming.telegramMessageId,
+      telegram_update_id: incoming.updateId,
+      is_read: false,
+      created_at: incoming.sentAt,
+    }).select('id').single();
+    if (inserted.error) {
+      if (inserted.error.code === '23505') return json({ ok: true, duplicate: true });
+      console.error('Telegram message insert failed', inserted.error.code);
+      return json({ ok: false }, 500);
+    }
+    if (incoming.file && !oversized) {
+      const task = storeInboundFile(
+        customer.company_id, incoming.chatId, incoming.updateId, inserted.data.id, incoming.file,
+      );
+      const runtime = (globalThis as { EdgeRuntime?: { waitUntil(promise: Promise<unknown>): void } }).EdgeRuntime;
+      if (runtime?.waitUntil) runtime.waitUntil(task);
+      else await task;
+    }
+    return json({ ok: true });
+  } catch (error) {
+    console.error('Telegram webhook failed', error instanceof Error ? error.name : 'unknown');
+    // Always acknowledge to stop Telegram retry storms; failures stay in function logs.
+    return json({ ok: true });
+  }
+});

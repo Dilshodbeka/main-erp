@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "erp-backup-gate",
+  "main": "./worker/backup-gate/index.ts",
+  "compatibility_date": "2026-10-31",
+  "workers_dev": true,
+  "kv_namespaces": [
+    {
+      "binding": "ERP_BACKUP",
+      "id": "d59437a0e2ec46fc94bb38d292a01369"
+    }
+  ]
+}
