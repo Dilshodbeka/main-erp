@@ -42,6 +42,12 @@ CREATE TABLE public.erp_profiles (
   name text NOT NULL CHECK (btrim(name) <> ''),
   role text NOT NULL CHECK (role IN ('admin', 'worker', 'display')),
   employee_id uuid,
+  permissions jsonb NOT NULL DEFAULT '[]'::jsonb
+    CHECK (jsonb_typeof(permissions) = 'array'),
+  scope_workshop_ids jsonb NOT NULL DEFAULT '[]'::jsonb
+    CHECK (jsonb_typeof(scope_workshop_ids) = 'array'),
+  scope_warehouse_ids jsonb NOT NULL DEFAULT '[]'::jsonb
+    CHECK (jsonb_typeof(scope_warehouse_ids) = 'array'),
   UNIQUE (company_id, employee_id),
   FOREIGN KEY (company_id, employee_id) REFERENCES public.erp_employees(company_id, id),
   CHECK ((role IN ('admin', 'display') AND employee_id IS NULL) OR (role = 'worker' AND employee_id IS NOT NULL))
@@ -421,6 +427,14 @@ ALTER TABLE public.erp_customers ADD COLUMN IF NOT EXISTS employee_id uuid
   REFERENCES public.erp_employees(id);
 CREATE UNIQUE INDEX IF NOT EXISTS erp_customers_employee_idx
   ON public.erp_customers(company_id, employee_id) WHERE employee_id IS NOT NULL;
+ALTER TABLE public.erp_customers ADD COLUMN IF NOT EXISTS seller_id uuid;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'erp_customers_seller_fk') THEN
+    ALTER TABLE public.erp_customers ADD CONSTRAINT erp_customers_seller_fk
+      FOREIGN KEY (company_id, seller_id) REFERENCES public.erp_employees(company_id, id);
+  END IF;
+END $$;
+CREATE INDEX IF NOT EXISTS erp_customers_seller_idx ON public.erp_customers(company_id, seller_id);
 CREATE INDEX erp_worker_deductions_company_idx
   ON public.erp_worker_deductions(company_id, employee_id, created_at);
 CREATE TABLE public.erp_shipments (
@@ -1627,9 +1641,61 @@ BEGIN
     'repaid', v_repaid, 'owed', greatest(round(v_amount - v_repaid, 2), 0));
 END;
 $$;
+CREATE OR REPLACE FUNCTION public.erp_has_permission(p_profile public.erp_profiles, p_key text)
+RETURNS boolean LANGUAGE sql STABLE AS $$
+  SELECT p_profile.role = 'admin' OR COALESCE(p_profile.permissions ? p_key, false);
+$$;
+CREATE OR REPLACE FUNCTION public.erp_command_permission(p_type text)
+RETURNS text LANGUAGE sql IMMUTABLE AS $$
+  SELECT CASE p_type
+    WHEN 'customer.create' THEN 'orders.create'
+    WHEN 'customer.claim' THEN 'customers.claim'
+    WHEN 'customer.assign' THEN 'customers.assign'
+    WHEN 'customer.pay' THEN 'payments.customer'
+    WHEN 'order.create' THEN 'orders.create'
+    WHEN 'series.create' THEN 'orders.create'
+    WHEN 'order.cancel' THEN 'orders.cancel'
+    WHEN 'order.launch' THEN 'orders.launch'
+    WHEN 'order.issue' THEN 'orders.issue_materials'
+    WHEN 'purchase.create' THEN 'purchases.create'
+    WHEN 'purchase.receive' THEN 'purchases.receive'
+    WHEN 'supplier.pay' THEN 'suppliers.pay'
+    WHEN 'inventory.count' THEN 'warehouse.count'
+    WHEN 'warehouse.transfer' THEN 'warehouse.transfer'
+    WHEN 'cash.post' THEN 'cash.post'
+    WHEN 'cash.reverse' THEN 'cash.reverse'
+    WHEN 'payroll.pay' THEN 'salaries.pay'
+    WHEN 'salary.plan.set' THEN 'salaries.pay'
+    WHEN 'salary.pay' THEN 'salaries.pay'
+    WHEN 'shipment.create' THEN 'shipments.create'
+    WHEN 'shipment.createStock' THEN 'shipments.create'
+    WHEN 'shipment.deliver' THEN 'shipments.deliver'
+    WHEN 'work.review' THEN 'work.review'
+    WHEN 'machine.create' THEN 'settings.catalog'
+    WHEN 'machine.update' THEN 'settings.catalog'
+    WHEN 'operation.create' THEN 'settings.catalog'
+    WHEN 'operation.update' THEN 'settings.catalog'
+    WHEN 'item.create' THEN 'settings.catalog'
+    WHEN 'item.update' THEN 'settings.catalog'
+    WHEN 'recipe.create' THEN 'settings.catalog'
+    WHEN 'recipe.version.create' THEN 'settings.catalog'
+    WHEN 'routeTemplate.create' THEN 'settings.catalog'
+    WHEN 'routeTemplate.update' THEN 'settings.catalog'
+    ELSE NULL
+  END;
+$$;
+CREATE OR REPLACE FUNCTION public.erp_can_touch_order(p_profile public.erp_profiles, p_customer_seller_id uuid)
+RETURNS boolean LANGUAGE sql STABLE AS $$
+  SELECT p_profile.role = 'admin'
+      OR public.erp_has_permission(p_profile, 'orders.edit_all')
+      OR (public.erp_has_permission(p_profile, 'orders.edit_own') AND p_customer_seller_id IS NOT NULL AND p_customer_seller_id = p_profile.employee_id);
+$$;
 CREATE FUNCTION public.erp_snapshot()
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE v_revision bigint; v_profile public.erp_profiles%ROWTYPE; v_company uuid; v_admin boolean; v_board boolean;
+  v_has_purchases_view boolean; v_has_cost_view boolean; v_has_cash_view boolean; v_has_salaries_view boolean;
+  v_has_orders_view_all boolean; v_has_shipments_view boolean; v_has_payments_customer boolean;
+  v_has_work_review boolean; v_has_production_view_all boolean; v_has_defects_view boolean; v_has_reports_view boolean;
 BEGIN
   v_profile := public.erp_current_profile();
   v_company := v_profile.company_id;
@@ -1637,19 +1703,34 @@ BEGIN
   SELECT revision INTO STRICT v_revision FROM public.erp_metadata WHERE company_id = v_company FOR SHARE;
   v_admin := v_profile.role = 'admin';
   v_board := v_profile.role = 'display';
+  v_has_purchases_view := public.erp_has_permission(v_profile, 'purchases.view');
+  v_has_cost_view := public.erp_has_permission(v_profile, 'cost.view');
+  v_has_cash_view := public.erp_has_permission(v_profile, 'cash.view');
+  v_has_salaries_view := public.erp_has_permission(v_profile, 'salaries.view');
+  v_has_orders_view_all := public.erp_has_permission(v_profile, 'orders.view_all');
+  v_has_shipments_view := public.erp_has_permission(v_profile, 'shipments.view');
+  v_has_payments_customer := public.erp_has_permission(v_profile, 'payments.customer');
+  v_has_work_review := public.erp_has_permission(v_profile, 'work.review');
+  v_has_production_view_all := public.erp_has_permission(v_profile, 'production.view_all');
+  v_has_defects_view := public.erp_has_permission(v_profile, 'defects.view');
+  v_has_reports_view := public.erp_has_permission(v_profile, 'reports.view');
   RETURN jsonb_build_object(
     'actor', jsonb_build_object('id', CASE WHEN v_profile.role = 'worker' THEN v_profile.employee_id ELSE v_profile.id END,
-      'name', v_profile.name, 'role', v_profile.role, 'companyId', v_company),
+      'name', v_profile.name, 'role', v_profile.role, 'companyId', v_company,
+      'permissions', v_profile.permissions, 'workshopIds', v_profile.scope_workshop_ids,
+      'warehouseIds', v_profile.scope_warehouse_ids),
     'state', jsonb_build_object(
       'version', 4, 'revision', v_revision, 'companyId', v_company,
       'customers', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'name', c.name,
-        'phone', CASE WHEN v_admin THEN c.phone ELSE '' END, 'address', CASE WHEN v_admin THEN c.address ELSE '' END,
-        'kind', c.kind, 'employeeId', c.employee_id) ORDER BY c.id), '[]'::jsonb)
-        FROM public.erp_customers c WHERE c.company_id = v_company AND (v_admin OR v_board
+        'phone', CASE WHEN v_admin OR v_has_orders_view_all THEN c.phone ELSE '' END,
+        'address', CASE WHEN v_admin OR v_has_orders_view_all THEN c.address ELSE '' END,
+        'kind', c.kind, 'employeeId', c.employee_id, 'sellerId', c.seller_id) ORDER BY c.id), '[]'::jsonb)
+        FROM public.erp_customers c WHERE c.company_id = v_company AND (v_admin OR v_board OR v_has_orders_view_all
+          OR c.seller_id = v_profile.employee_id
           OR EXISTS (SELECT 1 FROM public.erp_orders o JOIN public.erp_tasks t ON t.company_id = o.company_id AND t.order_id = o.id
             WHERE o.company_id = v_company AND o.customer_id = c.id AND t.employee_id = v_profile.employee_id))),
       'suppliers', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', s.id, 'name', s.name, 'phone', s.phone) ORDER BY s.id), '[]'::jsonb)
-        FROM public.erp_suppliers s WHERE s.company_id = v_company AND v_admin),
+        FROM public.erp_suppliers s WHERE s.company_id = v_company AND (v_admin OR v_has_purchases_view)),
       'employees', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', e.id, 'name', e.name, 'active', e.active, 'deactivatedAt', e.deactivated_at) ORDER BY e.id), '[]'::jsonb)
         FROM public.erp_employees e WHERE e.company_id = v_company AND (v_admin OR v_board OR e.id = v_profile.employee_id)),
       'machines', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', m.id, 'name', m.name,
@@ -1669,12 +1750,12 @@ BEGIN
             AND EXISTS (SELECT 1 FROM public.erp_tasks own WHERE own.company_id = t.company_id AND own.order_id = t.order_id
               AND own.employee_id = v_profile.employee_id)))),
       'items', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'name', i.name, 'unit', i.unit,
-        'minQty', CASE WHEN v_admin THEN i.min_qty ELSE 0 END, 'cost', CASE WHEN v_admin THEN i.cost ELSE 0 END,
+        'minQty', CASE WHEN v_admin THEN i.min_qty ELSE 0 END, 'cost', CASE WHEN v_admin OR v_has_cost_view THEN i.cost ELSE 0 END,
         'customerId', i.customer_id, 'kind', i.kind,
-        'salePrice', CASE WHEN v_admin THEN i.sale_price ELSE 0 END,
-        'lastPurchasePrice', CASE WHEN v_admin THEN i.last_purchase_price ELSE 0 END,
-        'materialCost', CASE WHEN v_admin THEN i.material_cost ELSE 0 END,
-        'laborCost', CASE WHEN v_admin THEN i.labor_cost ELSE 0 END,
+        'salePrice', CASE WHEN v_admin OR v_has_cost_view THEN i.sale_price ELSE 0 END,
+        'lastPurchasePrice', CASE WHEN v_admin OR v_has_cost_view THEN i.last_purchase_price ELSE 0 END,
+        'materialCost', CASE WHEN v_admin OR v_has_cost_view THEN i.material_cost ELSE 0 END,
+        'laborCost', CASE WHEN v_admin OR v_has_cost_view THEN i.labor_cost ELSE 0 END,
         'category', i.category, 'photo', i.photo) ORDER BY i.id), '[]'::jsonb)
         FROM public.erp_items i WHERE i.company_id = v_company AND (v_admin
           OR EXISTS (SELECT 1 FROM public.erp_order_materials m JOIN public.erp_tasks t ON t.company_id = m.company_id AND t.order_id = m.order_id
@@ -1693,65 +1774,74 @@ BEGIN
         'outputItemId', CASE WHEN v_admin THEN o.output_item_id ELSE NULL END,
         'recipeVersionId', CASE WHEN v_admin THEN o.recipe_version_id ELSE NULL END,
         'substitutions', CASE WHEN v_admin THEN o.substitutions ELSE '{}'::jsonb END,
-        'qty', o.qty, 'price', CASE WHEN v_admin THEN o.price ELSE 0 END, 'overhead', CASE WHEN v_admin THEN o.overhead ELSE 0 END,
-        'markup', CASE WHEN v_admin THEN o.markup ELSE 0 END,
+        'qty', o.qty, 'price', CASE WHEN v_admin OR v_has_cost_view THEN o.price ELSE 0 END, 'overhead', CASE WHEN v_admin OR v_has_cost_view THEN o.overhead ELSE 0 END,
+        'markup', CASE WHEN v_admin OR v_has_cost_view THEN o.markup ELSE 0 END,
         'dueDate', o.due_date, 'createdAt', o.created_at, 'status', o.status,
         'lines', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'kind', i.kind, 'title', i.title,
           'qty', i.qty, 'total', CASE WHEN v_admin THEN i.total ELSE 0 END, 'status', i.status) ORDER BY i.position), '[]'::jsonb)
           FROM public.erp_order_items i WHERE i.company_id = o.company_id AND i.order_id = o.id),
         'materials', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', m.id, 'lineId', m.line_id, 'itemId', m.item_id, 'qty', m.qty,
           'issuedQty', m.issued_qty,
-          'estimatedCost', CASE WHEN v_admin THEN m.estimated_cost ELSE 0 END, 'issued', m.issued_qty >= m.qty,
-          'actualCost', CASE WHEN v_admin THEN m.actual_cost ELSE 0 END) ORDER BY m.position, m.id), '[]'::jsonb)
+          'estimatedCost', CASE WHEN v_admin OR v_has_cost_view THEN m.estimated_cost ELSE 0 END, 'issued', m.issued_qty >= m.qty,
+          'actualCost', CASE WHEN v_admin OR v_has_cost_view THEN m.actual_cost ELSE 0 END) ORDER BY m.position, m.id), '[]'::jsonb)
           FROM public.erp_order_materials m WHERE m.company_id = o.company_id AND m.order_id = o.id),
         'route', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', t.id, 'lineId', t.line_id, 'operationId', t.operation_id, 'name', t.name,
           'executorKind', t.executor_kind,
           'employeeId', CASE WHEN v_admin OR v_board OR t.employee_id = v_profile.employee_id THEN t.employee_id::text ELSE '' END,
           'supplierId', CASE WHEN v_admin THEN t.supplier_id::text ELSE NULL END,
-          'rate', CASE WHEN v_admin OR t.employee_id = v_profile.employee_id THEN t.rate ELSE 0 END,
-          'supplierCost', CASE WHEN v_admin THEN t.supplier_cost ELSE 0 END,
-          'salePrice', CASE WHEN v_admin THEN t.sale_price ELSE 0 END,
+          'rate', CASE WHEN v_admin OR v_has_cost_view OR t.employee_id = v_profile.employee_id THEN t.rate ELSE 0 END,
+          'supplierCost', CASE WHEN v_admin OR v_has_cost_view THEN t.supplier_cost ELSE 0 END,
+          'salePrice', CASE WHEN v_admin OR v_has_cost_view THEN t.sale_price ELSE 0 END,
           'standardMinutes', t.standard_minutes,
           'planned', t.planned, 'completed', t.completed, 'status', t.status) ORDER BY t.position, t.id), '[]'::jsonb)
           FROM public.erp_tasks t WHERE t.company_id = o.company_id AND t.order_id = o.id
             AND (v_admin OR v_board OR t.executor_kind = 'employee'))
         ) ORDER BY o.created_at, o.id), '[]'::jsonb) FROM public.erp_orders o
-        WHERE o.company_id = v_company AND (v_admin OR v_board
+        WHERE o.company_id = v_company AND (v_admin OR v_board OR v_has_orders_view_all
+          OR EXISTS (SELECT 1 FROM public.erp_customers oc WHERE oc.company_id = o.company_id AND oc.id = o.customer_id AND oc.seller_id = v_profile.employee_id)
           OR EXISTS (SELECT 1 FROM public.erp_tasks t WHERE t.company_id = o.company_id AND t.order_id = o.id AND t.employee_id = v_profile.employee_id))),
       'purchases', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'number', p.number, 'supplierId', p.supplier_id, 'createdAt', p.created_at,
         'lines', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'itemId', l.item_id, 'qty', l.qty, 'price', l.price, 'received', l.received,
           'previousPurchasePrice', l.previous_purchase_price, 'newPurchasePrice', l.new_purchase_price,
           'previousAverageCost', l.previous_average_cost, 'newAverageCost', l.new_average_cost) ORDER BY l.position), '[]'::jsonb)
           FROM public.erp_purchase_lines l WHERE l.company_id = p.company_id AND l.purchase_id = p.id)
-        ) ORDER BY p.created_at, p.id), '[]'::jsonb) FROM public.erp_purchases p WHERE p.company_id = v_company AND v_admin),
+        ) ORDER BY p.created_at, p.id), '[]'::jsonb) FROM public.erp_purchases p WHERE p.company_id = v_company AND (v_admin OR v_has_purchases_view)),
       'movements', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', m.id, 'itemId', m.item_id, 'direction', m.direction, 'qty', m.qty,
-        'unitCost', m.unit_cost, 'source', m.source, 'sourceId', m.source_id, 'note', m.note, 'createdAt', m.created_at) ORDER BY m.created_at, m.id), '[]'::jsonb)
-        FROM public.erp_stock_movements m WHERE m.company_id = v_company AND v_admin),
+        'unitCost', CASE WHEN v_admin OR v_has_cost_view THEN m.unit_cost ELSE 0 END,
+        'source', m.source, 'sourceId', m.source_id,
+        'note', CASE WHEN v_admin THEN m.note ELSE '' END, 'createdAt', m.created_at) ORDER BY m.created_at, m.id), '[]'::jsonb)
+        FROM public.erp_stock_movements m WHERE m.company_id = v_company AND NOT v_board),
       'cash', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'direction', c.direction, 'amount', c.amount, 'account', c.account,
         'toAccount', c.to_account, 'source', c.source, 'sourceId', c.source_id, 'customerId', c.customer_id, 'category', c.category,
         'note', CASE WHEN v_admin THEN c.note ELSE '' END, 'number', c.number, 'reversalOf', c.reversal_of, 'createdAt', c.created_at) ORDER BY c.created_at, c.id), '[]'::jsonb)
-        FROM public.erp_cash c WHERE c.company_id = v_company AND v_admin),
+        FROM public.erp_cash c WHERE c.company_id = v_company AND (v_admin OR v_has_cash_view
+          OR (c.source = 'sale' AND c.customer_id IS NOT NULL AND EXISTS (
+            SELECT 1 FROM public.erp_customers cc WHERE cc.company_id = c.company_id AND cc.id = c.customer_id AND (
+              v_has_orders_view_all OR cc.seller_id = v_profile.employee_id
+              OR EXISTS (SELECT 1 FROM public.erp_orders o2 JOIN public.erp_tasks t2 ON t2.company_id = o2.company_id AND t2.order_id = o2.id
+                WHERE o2.company_id = cc.company_id AND o2.customer_id = cc.id AND t2.employee_id = v_profile.employee_id)))))),
       'reports', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', r.id, 'orderId', r.order_id, 'taskId', r.task_id, 'employeeId', r.employee_id,
         'qty', r.qty, 'status', r.status, 'note', r.note, 'createdAt', r.created_at) ORDER BY r.created_at, r.id), '[]'::jsonb)
-        FROM public.erp_work_reports r WHERE r.company_id = v_company AND (v_admin OR v_board OR r.employee_id = v_profile.employee_id)),
+        FROM public.erp_work_reports r WHERE r.company_id = v_company AND (v_admin OR v_board OR r.employee_id = v_profile.employee_id
+          OR v_has_work_review OR v_has_production_view_all)),
       'payroll', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'employeeId', p.employee_id, 'reportId', p.report_id, 'orderId', p.order_id,
         'taskId', p.task_id, 'amount', p.amount, 'status', p.status, 'createdAt', p.created_at) ORDER BY p.created_at, p.id), '[]'::jsonb)
-        FROM public.erp_payroll p WHERE p.company_id = v_company AND (v_admin OR p.employee_id = v_profile.employee_id)),
+        FROM public.erp_payroll p WHERE p.company_id = v_company AND (v_admin OR v_has_salaries_view OR p.employee_id = v_profile.employee_id)),
       'defects', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', d.id, 'reportId', d.report_id, 'orderId', d.order_id,
         'lineId', d.line_id, 'taskId', d.task_id, 'employeeId', d.employee_id, 'operationId', d.operation_id,
         'qty', d.qty, 'reason', d.reason, 'note', d.note, 'materials', d.materials, 'createdAt', d.created_at)
         ORDER BY d.created_at, d.id), '[]'::jsonb)
-        FROM public.erp_defects d WHERE d.company_id = v_company AND (v_admin OR d.employee_id = v_profile.employee_id)),
+        FROM public.erp_defects d WHERE d.company_id = v_company AND (v_admin OR v_has_defects_view OR d.employee_id = v_profile.employee_id)),
       'salaryPlans', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'employeeId', p.employee_id, 'amount', p.amount,
         'mode', p.mode, 'fromMonth', p.from_month, 'createdAt', p.created_at) ORDER BY p.from_month, p.created_at, p.id), '[]'::jsonb)
-        FROM public.erp_salary_plans p WHERE p.company_id = v_company AND v_admin),
+        FROM public.erp_salary_plans p WHERE p.company_id = v_company AND (v_admin OR v_has_salaries_view)),
       'expensePlans', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'planId', p.plan_id, 'title', p.title,
         'amount', p.amount, 'fromMonth', p.from_month, 'dueDay', p.due_day, 'supplierId', p.supplier_id,
         'createdAt', p.created_at) ORDER BY p.from_month, p.created_at, p.id), '[]'::jsonb)
-        FROM public.erp_expense_plans p WHERE p.company_id = v_company AND v_admin),
+        FROM public.erp_expense_plans p WHERE p.company_id = v_company AND (v_admin OR v_has_salaries_view)),
       'loans', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'title', l.title, 'kind', l.kind,
         'amount', l.amount, 'note', l.note, 'createdAt', l.created_at) ORDER BY l.created_at, l.id), '[]'::jsonb)
-        FROM public.erp_loans l WHERE l.company_id = v_company AND v_admin),
+        FROM public.erp_loans l WHERE l.company_id = v_company AND (v_admin OR v_has_reports_view)),
       'routeTemplates', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', t.id, 'name', t.name, 'kind', t.kind,
         'active', t.active, 'stages', t.stages) ORDER BY t.created_at, t.id), '[]'::jsonb)
         FROM public.erp_route_templates t WHERE t.company_id = v_company AND v_admin),
@@ -1762,16 +1852,22 @@ BEGIN
       'workerDeductions', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', d.id, 'employeeId', d.employee_id,
         'customerId', d.customer_id, 'amount', d.amount, 'direction', d.direction,
         'note', d.note, 'reversalOf', d.reversal_of, 'createdAt', d.created_at) ORDER BY d.created_at, d.id), '[]'::jsonb)
-        FROM public.erp_worker_deductions d WHERE d.company_id = v_company AND v_admin),
+        FROM public.erp_worker_deductions d WHERE d.company_id = v_company AND (v_admin OR EXISTS (
+          SELECT 1 FROM public.erp_customers cc WHERE cc.company_id = d.company_id AND cc.id = d.customer_id AND (
+            v_has_orders_view_all OR cc.seller_id = v_profile.employee_id
+            OR EXISTS (SELECT 1 FROM public.erp_orders o2 JOIN public.erp_tasks t2 ON t2.company_id = o2.company_id AND t2.order_id = o2.id
+              WHERE o2.company_id = cc.company_id AND o2.customer_id = cc.id AND t2.employee_id = v_profile.employee_id))))),
       'shipments', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', s.id, 'orderId', s.order_id, 'customerId', s.customer_id,
         'kind', s.kind, 'address', s.address, 'dueDate', s.due_date, 'status', s.status, 'createdAt', s.created_at,
         'deliveredAt', s.delivered_at, 'reversalOf', NULL,
         'lines', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'lineId', l.line_id, 'itemId', l.item_id, 'description', l.description,
-          'qty', l.qty, 'salePrice', l.sale_price, 'unitCost', l.unit_cost,
-          'materialCost', l.material_cost, 'laborCost', l.labor_cost) ORDER BY l.position, l.id), '[]'::jsonb)
+          'qty', l.qty, 'salePrice', CASE WHEN v_admin OR v_has_cost_view THEN l.sale_price ELSE 0 END,
+          'unitCost', CASE WHEN v_admin OR v_has_cost_view THEN l.unit_cost ELSE 0 END,
+          'materialCost', CASE WHEN v_admin OR v_has_cost_view THEN l.material_cost ELSE 0 END,
+          'laborCost', CASE WHEN v_admin OR v_has_cost_view THEN l.labor_cost ELSE 0 END) ORDER BY l.position, l.id), '[]'::jsonb)
           FROM public.erp_shipment_lines l WHERE l.company_id = s.company_id AND l.shipment_id = s.id)
         ) ORDER BY s.created_at, s.id), '[]'::jsonb)
-        FROM public.erp_shipments s WHERE s.company_id = v_company AND v_admin),
+        FROM public.erp_shipments s WHERE s.company_id = v_company AND (v_admin OR v_has_shipments_view)),
       'audit', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', a.id, 'actorId', a.actor_id, 'actorName', a.actor_name,
         'action', a.action, 'entityId', a.entity_id, 'createdAt', a.created_at) ORDER BY a.revision, a.id), '[]'::jsonb)
         FROM public.erp_audit a WHERE a.company_id = v_company AND v_admin)
@@ -1956,6 +2052,7 @@ DECLARE
   v_shipped numeric := 0;
   v_paid_by_cash numeric := 0;
   v_paid_by_deduct numeric := 0;
+  v_customer_seller_id uuid;
 BEGIN
   v_actor := public.erp_current_profile();
   v_company := v_actor.company_id;
@@ -1971,8 +2068,28 @@ BEGIN
   IF v_actor.role = 'display' THEN
     RAISE EXCEPTION 'Workshop display accounts are read-only' USING ERRCODE = '42501';
   END IF;
-  IF v_actor.role = 'worker' AND v_type NOT IN ('work.accept', 'work.start', 'work.submit', 'ticket.create', 'ticket.reply') THEN
-    RAISE EXCEPTION 'Workers may only perform their own assigned work' USING ERRCODE = '42501';
+  IF v_actor.role = 'worker' THEN
+    IF v_type IN ('work.accept', 'work.start', 'work.submit', 'ticket.create', 'ticket.reply') THEN
+      NULL; -- base actions: any worker may act on their own stages / tickets
+    ELSIF v_type IN ('order.update', 'orderLine.cancel', 'order.cancel', 'order.launch') THEN
+      SELECT cc.seller_id INTO v_customer_seller_id FROM public.erp_orders oo
+        JOIN public.erp_customers cc ON cc.company_id = oo.company_id AND cc.id = oo.customer_id
+        WHERE oo.company_id = v_company AND oo.id = public.erp_uuid(p_command -> 'orderId', 'orderId');
+      IF NOT FOUND THEN RAISE EXCEPTION 'Order not found' USING ERRCODE = '22023'; END IF;
+      IF NOT public.erp_can_touch_order(v_actor, v_customer_seller_id) THEN
+        RAISE EXCEPTION 'You may only manage orders of your own customers' USING ERRCODE = '42501';
+      END IF;
+      IF v_type = 'order.cancel' AND NOT public.erp_has_permission(v_actor, 'orders.cancel') THEN
+        RAISE EXCEPTION 'Administrator action required' USING ERRCODE = '42501';
+      END IF;
+      IF v_type = 'order.launch' AND NOT public.erp_has_permission(v_actor, 'orders.launch') THEN
+        RAISE EXCEPTION 'Administrator action required' USING ERRCODE = '42501';
+      END IF;
+    ELSE
+      IF NOT public.erp_has_permission(v_actor, public.erp_command_permission(v_type)) THEN
+        RAISE EXCEPTION 'Administrator action required' USING ERRCODE = '42501';
+      END IF;
+    END IF;
   END IF;
   SELECT * INTO v_prior FROM public.erp_audit WHERE company_id = v_company AND request_id = p_request_id;
   IF FOUND THEN
@@ -2004,9 +2121,30 @@ BEGIN
       ELSE
         v_employee_id := NULL;
       END IF;
-      INSERT INTO public.erp_customers(company_id, name, phone, address, kind, employee_id) VALUES (v_company,
+      INSERT INTO public.erp_customers(company_id, name, phone, address, kind, employee_id, seller_id) VALUES (v_company,
         btrim(public.erp_text(p_command -> 'name', 'name')), public.erp_text(p_command -> 'phone', 'phone', true),
-        public.erp_text(p_command -> 'address', 'address', true), v_kind, v_employee_id) RETURNING id INTO v_entity;
+        public.erp_text(p_command -> 'address', 'address', true), v_kind, v_employee_id,
+        CASE WHEN v_actor.role = 'worker' AND public.erp_has_permission(v_actor, 'customers.claim') THEN v_actor.employee_id ELSE NULL END)
+        RETURNING id INTO v_entity;
+    WHEN 'customer.claim' THEN
+      v_entity := public.erp_uuid(p_command -> 'customerId', 'customerId');
+      SELECT * INTO v_customer_row FROM public.erp_customers WHERE company_id = v_company AND id = v_entity;
+      IF NOT FOUND THEN RAISE EXCEPTION 'Customer not found' USING ERRCODE = '22023'; END IF;
+      IF v_customer_row.seller_id IS NOT NULL THEN RAISE EXCEPTION 'Customer already assigned' USING ERRCODE = '22023'; END IF;
+      UPDATE public.erp_customers SET seller_id = v_actor.employee_id WHERE company_id = v_company AND id = v_entity;
+    WHEN 'customer.assign' THEN
+      v_entity := public.erp_uuid(p_command -> 'customerId', 'customerId');
+      SELECT * INTO v_customer_row FROM public.erp_customers WHERE company_id = v_company AND id = v_entity;
+      IF NOT FOUND THEN RAISE EXCEPTION 'Customer not found' USING ERRCODE = '22023'; END IF;
+      IF p_command ? 'sellerId' AND p_command -> 'sellerId' <> 'null'::jsonb AND btrim(p_command ->> 'sellerId') <> '' THEN
+        v_ref := public.erp_uuid(p_command -> 'sellerId', 'sellerId');
+        IF NOT EXISTS (SELECT 1 FROM public.erp_employees WHERE company_id = v_company AND id = v_ref AND active) THEN
+          RAISE EXCEPTION 'Active employee not found' USING ERRCODE = '22023';
+        END IF;
+      ELSE
+        v_ref := NULL;
+      END IF;
+      UPDATE public.erp_customers SET seller_id = v_ref WHERE company_id = v_company AND id = v_entity;
     WHEN 'supplier.create' THEN
       INSERT INTO public.erp_suppliers(company_id, name, phone) VALUES (v_company,
         btrim(public.erp_text(p_command -> 'name', 'name')), public.erp_text(p_command -> 'phone', 'phone', true)) RETURNING id INTO v_entity;

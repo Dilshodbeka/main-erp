@@ -22,9 +22,9 @@ describe('supplier stage cost SQL contract', () => {
     expect(schema.match(/WHEN t\.supplier_cost > 0 THEN round\(t\.supplier_cost, 2\)/g)?.length).toBeGreaterThanOrEqual(3);
   });
 
-  it('blocks acceptance without a sum and snapshots it for admins only', () => {
+  it('blocks acceptance without a sum and snapshots it behind cost.view', () => {
     expect(schema).toContain("RAISE EXCEPTION 'Supplier amount is required before acceptance'");
-    expect(schema).toContain("'supplierCost', CASE WHEN v_admin THEN t.supplier_cost ELSE 0 END");
+    expect(schema).toContain("'supplierCost', CASE WHEN v_admin OR v_has_cost_view THEN t.supplier_cost ELSE 0 END");
   });
 
   it('ships the generated migration', () => {

@@ -1,3 +1,4 @@
+import { PERMISSION_KEYS, PRESETS, type Permission, type PresetKey } from './permissions';
 import type { Employee, Role } from './types';
 
 export type AccessRole = 'worker' | 'display';
@@ -9,6 +10,7 @@ export interface AccessAccount {
   role: Role;
   employeeId: string | null;
   employeeName: string | null;
+  permissions: string[];
 }
 
 export interface AccessDraft {
@@ -18,6 +20,10 @@ export interface AccessDraft {
   email: string;
   password: string;
   confirm: string;
+  preset: PresetKey | '';
+  permissions: Permission[];
+  scopeWorkshopIds: string[];
+  scopeWarehouseIds: string[];
 }
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -31,6 +37,16 @@ function passwordError(password: string, confirm: string): string {
 
 export function resetPasswordError(password: string, confirm: string): string {
   return passwordError(password, confirm);
+}
+
+// Пресет — ярлык; галочки поверх пресета добавляются, снятые — убираются.
+export function resolvePermissions(preset: PresetKey | '', overrides: Permission[]): Permission[] {
+  const valid = overrides.filter(p => (PERMISSION_KEYS as readonly string[]).includes(p));
+  if (!preset) return valid;
+  const set = new Set<Permission>(PRESETS[preset]);
+  for (const key of PRESETS[preset]) if (!valid.includes(key)) set.delete(key);
+  for (const key of valid) set.add(key);
+  return [...set];
 }
 
 export function accessErrorText(code: string, message = ''): string {

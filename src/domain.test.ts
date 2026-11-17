@@ -88,6 +88,60 @@ function production(overrides: Partial<OrderInput> = {}) {
   return { ...f, state, orderId, taskId: state.orders[0].route[0]?.id };
 }
 
+describe('permissions gate', () => {
+  it('worker without rights still does own work', () => {
+    const p = production();
+    const s = run(p.state, { type: 'work.accept', orderId: p.orderId, taskId: p.taskId }, p.worker);
+    expect(s.orders[0].route[0].status).toBe('accepted');
+  });
+  it('worker without rights cannot create customer', () => {
+    const s = fixture().state;
+    atomic(s, { type: 'customer.create', name: 'X', phone: '', address: '', kind: 'customer' },
+      { id: s.employees[0].id, name: 'Sotuvchi', role: 'worker', companyId: s.companyId, permissions: [] });
+  });
+  it('seller with orders.create creates customer and auto-claims it', () => {
+    const s = fixture().state;
+    const seller = { id: s.employees[0].id, name: 'Sotuvchi', role: 'worker' as const, companyId: s.companyId, permissions: ['orders.create', 'customers.claim'] };
+    const next = run(s, { type: 'customer.create', name: 'X', phone: '', address: '', kind: 'customer' }, seller);
+    expect(next.customers.at(-1)!.sellerId).toBe(s.employees[0].id);
+  });
+  it('seller edits own order, not others', () => {
+    const f = fixture();
+    const seller = { id: f.employeeId, name: 'Sotuvchi', role: 'worker' as const, companyId: f.state.companyId, permissions: ['orders.create', 'orders.edit_own', 'customers.claim'] };
+    let s = run(f.state, { type: 'customer.create', name: 'Mine', phone: '', address: '', kind: 'customer' }, seller);
+    const mine = s.customers.at(-1)!;
+    const input: OrderInput = {
+      kind: 'product', customerId: mine.id, title: 'A', qty: 1, price: 10, overhead: 0,
+      dueDate: '2026-12-01', advance: 0, account: 'cash',
+      materials: [{ itemId: f.itemId, qty: 1 }],
+      route: [{ operationId: f.operationId, employeeId: f.employeeId, rate: 2 }],
+    };
+    s = run(s, { type: 'order.create', input }, seller);
+    const order = s.orders.at(-1)!;
+    expect(mine.sellerId).toBe(f.employeeId);
+    run(s, { type: 'order.update', orderId: order.id, title: 'A2', qty: 1, price: 10, overhead: 0, dueDate: '2026-12-02', materials: [{ itemId: f.itemId, qty: 1 }], route: [{ operationId: f.operationId, employeeId: f.employeeId, rate: 2 }] }, seller);
+    const other = { id: f.otherEmployeeId, name: 'Other', role: 'worker' as const, companyId: s.companyId, permissions: ['orders.edit_own'] };
+    atomic(s, { type: 'order.update', orderId: order.id, title: 'X', qty: 1, price: 10, overhead: 0, dueDate: '2026-12-02' }, other);
+  });
+  it('customer.claim only when unassigned and has right', () => {
+    const f = fixture();
+    const seller = { id: f.employeeId, name: 'S', role: 'worker' as const, companyId: f.state.companyId, permissions: ['customers.claim'] };
+    let s = f.state;
+    const c = s.customers[0];
+    s = run(s, { type: 'customer.claim', customerId: c.id }, seller);
+    expect(s.customers.find(x => x.id === c.id)!.sellerId).toBe(f.employeeId);
+    atomic(s, { type: 'customer.claim', customerId: c.id }, seller); // already assigned
+  });
+  it('customer.assign requires right', () => {
+    const f = fixture();
+    const sellerNoRight = { id: f.employeeId, name: 'S', role: 'worker' as const, companyId: f.state.companyId, permissions: [] };
+    atomic(f.state, { type: 'customer.assign', customerId: f.state.customers[0].id, sellerId: f.employeeId }, sellerNoRight);
+    const seller = { id: f.employeeId, name: 'S', role: 'worker' as const, companyId: f.state.companyId, permissions: ['customers.assign'] };
+    const next = run(f.state, { type: 'customer.assign', customerId: f.state.customers[0].id, sellerId: f.employeeId }, seller);
+    expect(next.customers[0].sellerId).toBe(f.employeeId);
+  });
+});
+
 function composite() {
   const f = fixture();
   let state = receive(f.state, f.supplierId, f.itemId, 10, 5);

@@ -30,6 +30,9 @@ function verifiedSnapshot(value: Snapshot): Snapshot {
     || typeof actor.name !== 'string' || !['admin', 'worker', 'display'].includes(actor.role)) {
     throw new TransportError('Server natijani to‘g‘ri snapshot bilan tasdiqlamadi. Yozuv avvalgi ID bilan navbatda qoladi.', 'network');
   }
+  actor.permissions = Array.isArray(actor.permissions) ? actor.permissions : [];
+  actor.workshopIds = Array.isArray(actor.workshopIds) ? actor.workshopIds : [];
+  actor.warehouseIds = Array.isArray(actor.warehouseIds) ? actor.warehouseIds : [];
   return value;
 }
 
@@ -74,9 +77,6 @@ export function createSync(options: Options) {
     const actor = snapshot.actor;
     const commands = [...pending.map(p => p.command), command];
     for (const next of commands) {
-      if (actor.role === 'worker' && !['work.accept', 'work.start', 'work.submit', 'ticket.create', 'ticket.reply'].includes(next.type)) {
-        throw new Error('Faqat sizning ishlab chiqarish topshiriqlaringiz mavjud.');
-      }
       projected = applyCommand(projected, { requestId: crypto.randomUUID(), expectedRevision: projected.revision, command: next }, actor);
     }
   };

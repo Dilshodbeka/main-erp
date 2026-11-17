@@ -5,8 +5,13 @@ export type TaskStatus = 'assigned' | 'accepted' | 'in_progress' | 'submitted' |
 export type ExecutorKind = 'employee' | 'supplier';
 export type CashSource = 'manual' | 'sale' | 'supplier' | 'payroll' | 'expense' | 'transfer' | 'loan';
 export type CustomerKind = 'customer' | 'shop' | 'service';
-export interface Actor { id: string; name: string; role: Role; companyId: string }
-export interface Customer { id: string; name: string; phone: string; address: string; kind: CustomerKind; employeeId: string | null }
+export interface Actor {
+  id: string; name: string; role: Role; companyId: string;
+  permissions?: string[];      // пусто/undefined = права по роли (legacy worker)
+  workshopIds?: string[];      // пусто = все цеха
+  warehouseIds?: string[];     // пусто = все склады
+}
+export interface Customer { id: string; name: string; phone: string; address: string; kind: CustomerKind; employeeId: string | null; sellerId?: string | null }
 export interface Supplier { id: string; name: string; phone: string }
 export interface Employee { id: string; name: string; active: boolean; deactivatedAt?: string | null }
 export type OperationUnit = 'sheet' | 'meter' | 'squareMeter' | 'piece' | 'hole' | 'minute' | 'hour';
@@ -185,6 +190,8 @@ export interface OrderInput {
 }
 export type Command =
   | { type: 'customer.create'; name: string; phone: string; address: string; kind: CustomerKind; employeeId?: string | null }
+  | { type: 'customer.claim'; customerId: string }
+  | { type: 'customer.assign'; customerId: string; sellerId: string | null }
   | { type: 'supplier.create'; name: string; phone: string }
   | { type: 'employee.create'; name: string }
   | { type: 'employee.update'; employeeId: string; name: string; active: boolean; deactivatedAt?: string | null }

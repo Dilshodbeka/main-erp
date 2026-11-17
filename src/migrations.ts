@@ -38,6 +38,7 @@ export function migrateState(value: unknown): State {
     ...customer,
     kind: customer.kind === 'shop' ? 'shop' as const : customer.kind === 'service' ? 'service' as const : 'customer' as const,
     employeeId: customer.employeeId ?? null,
+    sellerId: customer.sellerId ?? null,
   }));
   const orders = (source.orders as Order[]).map(order => {
     const route = order.route.map(task => ({

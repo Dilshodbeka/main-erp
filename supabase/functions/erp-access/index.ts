@@ -31,7 +31,7 @@ class ApiError extends Error {
 
 interface Actor { id: string; company_id: string; name: string; role: string }
 interface Employee { id: string; name: string; active: boolean }
-interface Profile { id: string; name: string; role: string; employee_id: string | null }
+interface Profile { id: string; name: string; role: string; employee_id: string | null; permissions: string[]; scope_workshop_ids: string[]; scope_warehouse_ids: string[] }
 interface Body {
   action?: string;
   role?: string;
@@ -40,6 +40,37 @@ interface Body {
   email?: string;
   password?: string;
   userId?: string;
+  permissions?: unknown;
+  scopeWorkshopIds?: unknown;
+  scopeWarehouseIds?: unknown;
+}
+
+// Mirror of src/permissions.ts PERMISSION_KEYS — server-side whitelist for stored permissions.
+const PERMISSION_KEYS = [
+  'orders.view_all', 'orders.create', 'orders.edit_own', 'orders.edit_all', 'orders.launch',
+  'orders.issue_materials', 'orders.cancel', 'customers.claim', 'customers.assign',
+  'payments.customer', 'cash.view', 'cash.post', 'cash.reverse', 'purchases.view',
+  'purchases.create', 'purchases.receive', 'suppliers.pay', 'warehouse.view', 'warehouse.count',
+  'warehouse.transfer', 'cost.view', 'production.view_all', 'work.review', 'defects.view',
+  'salaries.view', 'salaries.pay', 'reports.view', 'shipments.view', 'shipments.create',
+  'shipments.deliver', 'settings.catalog', 'settings.access',
+];
+
+function stringArray(value: unknown, code: string): string[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new ApiError(code, 400);
+  return value.map(item => String(item));
+}
+
+function permissionsArray(value: unknown): string[] {
+  const list = stringArray(value, 'invalid_permissions');
+  const allowed = new Set(PERMISSION_KEYS);
+  const result: string[] = [];
+  for (const item of list) {
+    if (!allowed.has(item)) throw new ApiError('invalid_permissions', 400);
+    if (!result.includes(item)) result.push(item);
+  }
+  return result;
 }
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -128,7 +159,7 @@ async function handle(body: Body, actor: Actor, admin: SupabaseClient): Promise<
 
   if (action === 'list') {
     const profiles = await admin.from('erp_profiles')
-      .select('id, name, role, employee_id').eq('company_id', actor.company_id);
+      .select('id, name, role, employee_id, permissions, scope_workshop_ids, scope_warehouse_ids').eq('company_id', actor.company_id);
     if (profiles.error) throw databaseError(profiles.error.code);
     const employees = await admin.from('erp_employees')
       .select('id, name').eq('company_id', actor.company_id);
@@ -142,6 +173,7 @@ async function handle(body: Body, actor: Actor, admin: SupabaseClient): Promise<
       role: profile.role,
       employeeId: profile.employee_id,
       employeeName: profile.employee_id ? employeeNames.get(profile.employee_id) ?? null : null,
+      permissions: Array.isArray(profile.permissions) ? profile.permissions : [],
     }));
     return { ok: true, accounts };
   }
@@ -187,16 +219,20 @@ async function handle(body: Body, actor: Actor, admin: SupabaseClient): Promise<
     }
     const userId = created.data.user?.id;
     if (!userId) throw new ApiError('auth_error', 500);
+    const permissions = permissionsArray(body.permissions);
+    const scopeWorkshopIds = stringArray(body.scopeWorkshopIds, 'invalid_scope');
+    const scopeWarehouseIds = stringArray(body.scopeWarehouseIds, 'invalid_scope');
     const profile = await admin.from('erp_profiles').insert({
       id: userId, company_id: actor.company_id, name: profileName, role,
       employee_id: employee ? employee.id : null,
+      permissions, scope_workshop_ids: scopeWorkshopIds, scope_warehouse_ids: scopeWarehouseIds,
     });
     if (profile.error) {
       await admin.auth.admin.deleteUser(userId);
       throw databaseError(profile.error.code);
     }
     await audit(admin, actor, 'access.create', userId, {
-      type: 'access.create', role, employeeId: employee ? employee.id : null, email,
+      type: 'access.create', role, employeeId: employee ? employee.id : null, email, permissions,
     });
     return { ok: true, account: { id: userId, name: profileName, email, role, employeeId: employee ? employee.id : null } };
   }

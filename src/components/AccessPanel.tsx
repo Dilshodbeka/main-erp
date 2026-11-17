@@ -2,14 +2,24 @@ import { useEffect, useState } from 'react';
 import { KeyRound, Plus, RefreshCw, ShieldCheck, Trash2, Tv, UserRound } from 'lucide-react';
 import { accessErrorText as accessErrorLabel, resetPasswordError, validateAccessDraft, type AccessAccount, type AccessDraft } from '../access';
 import { AccessError, createAccount, deleteAccount, listAccounts, resetAccountPassword } from '../accessApi';
+import { PERMISSION_GROUPS, PERMISSION_LABEL, PRESETS, type Permission, type PresetKey } from '../permissions';
 import type { Employee, Role } from '../types';
 import { Empty, Field, Section } from '../ui';
 
 const emptyDraft: AccessDraft = {
   role: 'worker', employeeId: '', displayName: '', email: '', password: '', confirm: '',
+  preset: '', permissions: [], scopeWorkshopIds: [], scopeWarehouseIds: [],
 };
 
 const roleLabel: Record<Role, string> = { admin: 'Egasi', worker: 'Xodim', display: 'TV ekran' };
+
+function presetName(permissions: string[]): string {
+  const sorted = (list: string[]) => [...list].sort().join(',');
+  for (const key of Object.keys(PRESETS) as PresetKey[]) {
+    if (sorted(PRESETS[key]) === sorted(permissions)) return key;
+  }
+  return permissions.length ? 'Moslashtirilgan' : 'Huquqlarsiz';
+}
 
 function accessErrorText(error: unknown): string {
   const code = error instanceof AccessError ? error.code : '';
@@ -95,6 +105,17 @@ export function AccessPanel({ cloud, employees }: { cloud: boolean; employees: E
     }
   };
 
+  const applyPreset = (preset: PresetKey | '') => {
+    setDraft({ ...draft, preset, permissions: preset ? [...PRESETS[preset]] : draft.permissions });
+  };
+
+  const togglePermission = (key: Permission) => {
+    const permissions = draft.permissions.includes(key)
+      ? draft.permissions.filter(perm => perm !== key)
+      : [...draft.permissions, key];
+    setDraft({ ...draft, preset: '', permissions });
+  };
+
   return <Section title="Kirish huquqlari" hint="Xodim va TV hisobini yarating, parolni almashtiring yoki kirishni o‘chiring. Egasi hisobi o‘zgarmaydi."
     action={cloud ? <button type="button" className="secondary small" disabled={loading} onClick={() => void load()}><RefreshCw size={14} />Yangilash</button> : undefined}>
     {!cloud
@@ -107,7 +128,7 @@ export function AccessPanel({ cloud, employees }: { cloud: boolean; employees: E
           <thead><tr><th>Hisob</th><th>Rol</th><th>Xodim</th><th className="right">Amallar</th></tr></thead>
           <tbody>{accounts.map(account => <tr key={account.id}>
             <td data-label="Hisob"><b>{account.name}</b><small>{account.email || 'Email noma’lum'}</small></td>
-            <td data-label="Rol"><span className={`badge access-role ${account.role}`}>{account.role === 'admin' ? <ShieldCheck size={12} /> : account.role === 'display' ? <Tv size={12} /> : <UserRound size={12} />}{roleLabel[account.role]}</span></td>
+            <td data-label="Rol"><span className={`badge access-role ${account.role}`}>{account.role === 'admin' ? <ShieldCheck size={12} /> : account.role === 'display' ? <Tv size={12} /> : <UserRound size={12} />}{roleLabel[account.role]}</span>{account.role === 'worker' && <small className="muted">{presetName(account.permissions)}</small>}</td>
             <td data-label="Xodim">{account.employeeName || <span className="muted">—</span>}</td>
             <td data-label="Amallar" className="right">
               {account.role === 'admin'
@@ -149,6 +170,23 @@ export function AccessPanel({ cloud, employees }: { cloud: boolean; employees: E
             <Field label="Parol"><input type="password" autoComplete="new-password" value={draft.password} onChange={event => setDraft({ ...draft, password: event.target.value })} placeholder="Kamida 8 belgi" /></Field>
             <Field label="Parolni qaytaring"><input type="password" autoComplete="new-password" value={draft.confirm} onChange={event => setDraft({ ...draft, confirm: event.target.value })} placeholder="Parolni qayta kiriting" /></Field>
           </div>
+          {draft.role === 'worker' && <>
+            <Field label="Huquqlar to‘plami (preset)">
+              <select value={draft.preset} onChange={event => applyPreset(event.target.value as PresetKey | '')}>
+                <option value="">Moslashtirilgan</option>
+                {(Object.keys(PRESETS) as PresetKey[]).map(key => <option key={key} value={key}>{key}</option>)}
+              </select>
+            </Field>
+            <div className="perm-groups">
+              {PERMISSION_GROUPS.map(group => (
+                <fieldset key={group.title}><legend>{group.title}</legend>
+                  {group.keys.map(key => (
+                    <label key={key}><input type="checkbox" checked={draft.permissions.includes(key)} onChange={() => togglePermission(key)} />{PERMISSION_LABEL[key]}</label>
+                  ))}
+                </fieldset>
+              ))}
+            </div>
+          </>}
           {draft.role === 'worker' && !available.length && <p className="subtle-note">Barcha faol xodimlar allaqachon bog‘langan. Avval «Xodimlar» bo‘limida yangi xodim qo‘shing.</p>}
           {formError && <div className="warning">{formError}</div>}
           {notice && <div className="info-note"><ShieldCheck size={18} />{notice}</div>}

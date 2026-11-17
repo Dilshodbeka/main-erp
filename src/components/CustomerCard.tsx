@@ -10,8 +10,9 @@ import { SortSelect } from './SortSelect';
 
 type CustomerOrderSort = 'date' | 'number' | 'revenue' | 'paid' | 'debt' | 'profit';
 
-export function CustomerCard({ state, customerId, onOpenOrder }: {
+export function CustomerCard({ state, customerId, onOpenOrder, sellerName, onClaim }: {
   state: State; customerId: string; onOpenOrder: (orderId: string) => void;
+  sellerName?: string | null; onClaim?: () => void;
 }) {
   const detail = customerDetail(state, customerId);
   const [status, setStatus] = useState('all');
@@ -42,6 +43,10 @@ export function CustomerCard({ state, customerId, onOpenOrder }: {
       <span>Oxirgi buyurtma<b>{detail.stats.lastOrder ? dateTime(detail.stats.lastOrder) : '—'}</b></span>
     </div>
     <p className="subtle-note">{detail.customer.phone || 'Telefon ko‘rsatilmagan'}{detail.customer.address ? ` · ${detail.customer.address}` : ''} · {customerKindLabel(detail.customer.kind)}{detail.customer.employeeId ? ' · Xodim' : ''}</p>
+    <div className="section-tools">
+      <span className="subtle-note">Mas’ul sotuvchi: <b>{sellerName || 'biriktirilmagan'}</b></span>
+      {onClaim && <button className="secondary small" onClick={onClaim}>Mening mijozim</button>}
+    </div>
     <Section title="Mijozning barcha buyurtmalari" hint="Faol, yakunlangan va bekor qilingan buyurtmalar alohida ko‘rinadi" action={<div className="section-tools">
       <select aria-label="Mijoz buyurtmalari filtri" value={status} onChange={event => setStatus(event.target.value)}>
         <option value="all">Barcha holatlar</option><option value="draft">Hisob-kitob</option><option value="production">Ishlab chiqarishda</option>

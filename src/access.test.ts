@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { accessErrorText, resetPasswordError, validateAccessDraft, type AccessAccount, type AccessDraft } from './access';
+import { accessErrorText, resetPasswordError, resolvePermissions, validateAccessDraft, type AccessAccount, type AccessDraft } from './access';
+import { PRESETS } from './permissions';
 import type { Employee } from './types';
 
 const employees: Employee[] = [
@@ -7,12 +8,13 @@ const employees: Employee[] = [
   { id: 'e2', name: 'Olim', active: false },
 ];
 const accounts: AccessAccount[] = [
-  { id: 'u1', name: 'Sardor', email: 'sardor@example.com', role: 'worker', employeeId: 'e3', employeeName: 'Sardor' },
-  { id: 'u2', name: 'Egasi', email: 'owner@example.com', role: 'admin', employeeId: null, employeeName: null },
+  { id: 'u1', name: 'Sardor', email: 'sardor@example.com', role: 'worker', employeeId: 'e3', employeeName: 'Sardor', permissions: ['orders.view_all'] },
+  { id: 'u2', name: 'Egasi', email: 'owner@example.com', role: 'admin', employeeId: null, employeeName: null, permissions: [] },
 ];
 
 const draft: AccessDraft = {
   role: 'worker', employeeId: 'e1', displayName: '', email: 'new@example.com', password: 'secret123', confirm: 'secret123',
+  preset: '', permissions: [], scopeWorkshopIds: [], scopeWarehouseIds: [],
 };
 
 describe('validateAccessDraft', () => {
@@ -44,6 +46,22 @@ describe('validateAccessDraft', () => {
     expect(validateAccessDraft({ ...draft, password: 'short', confirm: 'short' }, employees, accounts)).toBe('Parol kamida 8 belgidan iborat bo‘lsin');
     expect(validateAccessDraft({ ...draft, password: 'x'.repeat(73), confirm: 'x'.repeat(73) }, employees, accounts)).toBe('Parol 72 belgidan oshmasin');
     expect(validateAccessDraft({ ...draft, confirm: 'other' }, employees, accounts)).toBe('Parollar mos kelmadi');
+  });
+});
+
+describe('resolvePermissions', () => {
+  it('returns preset keys when no overrides', () => {
+    expect(resolvePermissions('Sotuvchi', PRESETS['Sotuvchi'])).toEqual(PRESETS['Sotuvchi']);
+  });
+  it('empty preset keeps only valid overrides', () => {
+    expect(resolvePermissions('', ['orders.view_all', 'bogus' as never])).toEqual(['orders.view_all']);
+  });
+  it('adds checked keys and removes unchecked preset keys', () => {
+    const base = PRESETS['Sotuvchi'];
+    const added = resolvePermissions('Sotuvchi', [...base, 'cash.view']);
+    expect(added).toEqual([...base, 'cash.view']);
+    const removed = base.filter(key => key !== 'orders.edit_own');
+    expect(resolvePermissions('Sotuvchi', removed)).toEqual(removed);
   });
 });
 

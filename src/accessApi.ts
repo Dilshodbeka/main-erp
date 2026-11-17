@@ -53,6 +53,9 @@ export async function createAccount(draft: AccessDraft): Promise<void> {
     name: draft.role === 'display' ? draft.displayName.trim() : '',
     email: draft.email.trim(),
     password: draft.password,
+    permissions: draft.permissions,
+    scopeWorkshopIds: draft.scopeWorkshopIds,
+    scopeWarehouseIds: draft.scopeWarehouseIds,
   });
 }
 

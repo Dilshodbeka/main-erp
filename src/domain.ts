@@ -6,8 +6,9 @@ import { loanLedger } from './loans';
 import { salaryLedger } from './salary';
 import { shipmentQty } from './sales';
 import { normalizeTicketContext } from './support';
+import { canTouchOrder, requiredPermission, WORKER_BASE } from './permissions';
 import type {
-  Account, Actor, CashEntry, CashSource, Command, CustomerKind, DefectMaterial, DefectReason, Envelope, Item, ItemKind, MaterialLine, Operation,
+  Account, Actor, CashEntry, CashSource, Command, Customer, CustomerKind, DefectMaterial, DefectReason, Envelope, Item, ItemKind, MaterialLine, Operation,
   OperationNorm, OperationUnit, Order, OrderInput, OrderLine, OrderLineInput, OrderLineKind, OrderMaterialInput, OrderRouteInput,
   RecipeComponent, RecipeComponentInput, RouteLine, RouteTemplate, RouteTemplateStage, SeriesInput, Shipment,
   ShipmentLine, State, Status, StockMovement, SupportTicket, TaskStatus, WorkerDeduction, WorkReport,
@@ -892,9 +893,24 @@ function mutate(state: State, command: Command, actor: Actor): string {
     case 'customer.create': {
       const employeeId = command.employeeId ?? null;
       if (employeeId !== null) checkWorkerLink(state, employeeId);
-      const row = { id: uuid(), name: named(state.customers, command.name), phone: command.phone, address: command.address, kind: customerKind(command.kind), employeeId };
+      const row: Customer = { id: uuid(), name: named(state.customers, command.name), phone: command.phone, address: command.address, kind: customerKind(command.kind), employeeId, sellerId: null };
+      if (actor.role === 'worker' && (actor.permissions ?? []).includes('customers.claim')) row.sellerId = actor.id;
       state.customers.push(row);
       return row.id;
+    }
+    case 'customer.claim': {
+      const customer = state.customers.find(c => c.id === command.customerId);
+      check(customer, 'Mijoz topilmadi');
+      check(!customer.sellerId, 'Bu mijoz allaqachon biriktirilgan');
+      customer.sellerId = actor.id; // actor.id = employeeId для worker
+      return 'Mijoz sizga biriktirildi';
+    }
+    case 'customer.assign': {
+      const customer = state.customers.find(c => c.id === command.customerId);
+      check(customer, 'Mijoz topilmadi');
+      check(command.sellerId === null || state.employees.some(e => e.id === command.sellerId && e.active), 'Faol xodimni tanlang');
+      customer.sellerId = command.sellerId;
+      return command.sellerId ? 'Mas’ul sotuvchi tayinlandi' : 'Mas’ul sotuvchi olib tashlandi';
     }
     case 'customer.link': {
       const customer = find(state.customers, command.customerId, 'Customer');
@@ -1014,7 +1030,10 @@ function mutate(state: State, command: Command, actor: Actor): string {
     }
     case 'order.create': {
       const input = command.input;
-      find(state.customers, input.customerId, 'Customer');
+      const orderCustomer = find(state.customers, input.customerId, 'Customer');
+      if (actor.role === 'worker' && !orderCustomer.sellerId && (actor.permissions ?? []).includes('customers.claim')) {
+        orderCustomer.sellerId = actor.id;
+      }
       const overhead = money(input.overhead);
       const advance = money(input.advance);
       account(input.account);
@@ -1776,12 +1795,32 @@ function mutate(state: State, command: Command, actor: Actor): string {
   }
 }
 
+function authorize(state: State, actor: Actor, command: Command): void {
+  if (actor.role === 'admin') return;
+  if (actor.role === 'display') throw new Error('Ustaxona ekrani faqat kanbanni ko‘radi va amallarni bajara olmaydi.');
+  if (WORKER_BASE.has(command.type)) return; // проверка «своего» этапа — в обработчиках work.*
+  const perms = actor.permissions ?? [];
+  const orderScoped = command.type === 'order.update' || command.type === 'orderLine.cancel'
+    || command.type === 'order.cancel' || command.type === 'order.launch';
+  if (orderScoped) {
+    const orderId = (command as { orderId?: string }).orderId;
+    const order = state.orders.find(o => o.id === orderId);
+    const customer = order ? state.customers.find(c => c.id === order.customerId) : undefined;
+    if (!canTouchOrder(actor, customer)) throw new Error('Faqat o‘z mijozlaringiz buyurtmalarini boshqarishingiz mumkin.');
+    const extra = requiredPermission(command.type);
+    if (extra && !perms.includes(extra)) throw new Error('Administrator action required');
+    return;
+  }
+  const req = requiredPermission(command.type);
+  if (!req || !perms.includes(req)) throw new Error('Administrator action required');
+}
+
 export function applyCommand(state: State, envelope: Envelope, actor: Actor): State {
   text(envelope.requestId, 'Request ID');
   check(actor.role === 'admin' || actor.role === 'worker', 'Invalid actor role');
   check(actor.companyId === state.companyId, 'Actor belongs to another company');
   text(actor.id, 'Actor ID');
-  check(actor.role === 'admin' || ['work.accept', 'work.start', 'work.submit', 'ticket.create', 'ticket.reply'].includes(envelope.command.type), 'Administrator action required');
+  authorize(state, actor, envelope.command);
   // A retry keeps its original revision; acknowledge it before testing for a conflict.
   if (state.audit.some(row => row.id === envelope.requestId)) return state;
   check(Number.isSafeInteger(envelope.expectedRevision) && envelope.expectedRevision === state.revision, 'Revision conflict');

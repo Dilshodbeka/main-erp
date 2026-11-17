@@ -573,7 +573,12 @@
 .access-create-actions{display:flex;justify-content:flex-end}
 .access-role-switch{max-width:320px}
 .access-role-switch button{display:flex;align-items:center;justify-content:center;gap:6px}
-@media(max-width:700px){.access-note{margin-inline:16px}.access-create{padding:16px}.access-inline input{min-width:0;flex:1}.access-inline b{width:100%}.access-actions{justify-content:flex-start}.access-role-switch{max-width:none}}
+.perm-groups{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.perm-groups fieldset{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:0;min-width:0}
+.perm-groups legend{font-size:12px;font-weight:600;color:var(--accent,var(--text-secondary,#5d7a49));padding:0 4px}
+.perm-groups label{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:4px 0;cursor:pointer;color:var(--text)}
+.perm-groups label input{accent-color:var(--accent,#5d7a49);width:15px;height:15px;flex:none}
+@media(max-width:700px){.access-note{margin-inline:16px}.access-create{padding:16px}.access-inline input{min-width:0;flex:1}.access-inline b{width:100%}.access-actions{justify-content:flex-start}.access-role-switch{max-width:none}.perm-groups{grid-template-columns:1fr}}
 
 /* Two-level navigation: sections + panels */
 .nav-section{margin:0}

@@ -190,7 +190,7 @@ describe('durable offline synchronization', () => {
     const command: Command = { type: 'work.submit', orderId: 'order', taskId: 'task', qty: 6, note: 'Done' };
     await f.engine().submit(snapshot.state, command, snapshot.actor);
     await expect(f.engine().submit(snapshot.state, command, snapshot.actor)).rejects.toThrow('started');
-    await expect(f.engine().submit(snapshot.state, receipt, snapshot.actor)).rejects.toThrow('Faqat sizning');
+    await expect(f.engine().submit(snapshot.state, receipt, snapshot.actor)).rejects.toThrow('Administrator action required');
     expect(f.cache().pending).toHaveLength(1);
   });
   it('serializes concurrent tabs so a durable ID is never sent twice as different requests', async () => {
@@ -293,11 +293,18 @@ describe('tickets snapshot contract', () => {
 });
 
 describe('worker ticket permissions', () => {
+  it('normalizes missing actor scopes to empty arrays', async () => {
+    const f = setup(); f.worker(); f.online(false);
+    const snap = await f.engine().snapshot();
+    expect(snap.actor.permissions).toEqual([]);
+    expect(snap.actor.workshopIds).toEqual([]);
+    expect(snap.actor.warehouseIds).toEqual([]);
+  });
   it('allows a reply to the own ticket but rejects closing', async () => {
     const f = setup(); f.worker(); f.online(false);
     const snapshot = await f.engine().snapshot();
     await expect(f.engine().submit(snapshot.state, { type: 'ticket.close', ticketId: 'ticket' }, snapshot.actor))
-      .rejects.toThrow('Faqat sizning');
+      .rejects.toThrow('Administrator action required');
     const queued = await f.engine().submit(snapshot.state, { type: 'ticket.reply', ticketId: 'ticket', text: 'Qo‘shimcha' }, snapshot.actor);
     expect(queued.queued).toBe(true);
   });

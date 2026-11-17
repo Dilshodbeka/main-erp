@@ -27,14 +27,14 @@ describe('defect and review SQL contract', () => {
     expect(schema).toContain("'erp_work_reports', 'erp_payroll', 'erp_defects', 'erp_salary_plans'");
   });
 
-  it('snapshots defects for admins and the involved worker', () => {
+  it('snapshots defects for admins, defect reviewers and the involved worker', () => {
     expect(schema).toContain("'defects', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', d.id, 'reportId', d.report_id");
-    expect(schema).toContain('FROM public.erp_defects d WHERE d.company_id = v_company AND (v_admin OR d.employee_id = v_profile.employee_id)');
+    expect(schema).toContain('FROM public.erp_defects d WHERE d.company_id = v_company AND (v_admin OR v_has_defects_view OR d.employee_id = v_profile.employee_id)');
     expect(schema).toContain("'materials', d.materials");
   });
 
   it('submits a new report row every time', () => {
-    const submit = schema.slice(schema.indexOf("WHEN 'work.submit' THEN"), schema.indexOf("WHEN 'work.review' THEN"));
+    const submit = schema.slice(schema.indexOf("WHEN 'work.submit' THEN"), schema.indexOf("WHEN 'work.review' THEN\n"));
     expect(submit).toContain("RAISE EXCEPTION 'Report already submitted'");
     expect(submit).toContain('INSERT INTO public.erp_work_reports');
     expect(submit).not.toContain('SET qty = v_qty');
@@ -42,7 +42,7 @@ describe('defect and review SQL contract', () => {
   });
 
   it('reviews with a three-way split, defect journal and norm materials', () => {
-    const review = schema.slice(schema.indexOf("WHEN 'work.review' THEN"), schema.indexOf("WHEN 'purchase.create' THEN"));
+    const review = schema.slice(schema.indexOf("WHEN 'work.review' THEN\n"), schema.indexOf("WHEN 'purchase.create' THEN\n"));
     for (const message of [
       'Review must be plain', 'Defect reason is required', 'Defect note is required',
       'Defect note is too long', 'Nothing to reject', 'Defect quantity exceeds report',
