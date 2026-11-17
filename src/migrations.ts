@@ -90,6 +90,7 @@ export function migrateState(value: unknown): State {
   const purchases = (source.purchases as (Partial<Purchase> & { lines: Partial<Purchase['lines'][number]>[] })[]).map(purchase => ({
     ...purchase,
     warehouseId: purchase.warehouseId ?? MAIN_WAREHOUSE_ID,
+    orderId: purchase.orderId ?? null,
     lines: purchase.lines.map(line => ({
       ...line,
       previousPurchasePrice: line.previousPurchasePrice ?? 0,

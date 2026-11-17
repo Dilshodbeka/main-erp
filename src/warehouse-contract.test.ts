@@ -54,7 +54,7 @@ describe('warehouse SQL contract', () => {
     expect(create).toContain("RAISE EXCEPTION 'Ombor nofaol' USING ERRCODE = '23514';");
     expect(create).toContain('INSERT INTO public.erp_orders(company_id, number, kind, customer_id, warehouse_id, title, qty, price, overhead, markup, due_date)');
     const purchase = execute.slice(execute.indexOf("WHEN 'purchase.create' THEN"), execute.indexOf("WHEN 'purchase.receive' THEN"));
-    expect(purchase).toContain('INSERT INTO public.erp_purchases(company_id, number, supplier_id, warehouse_id)');
+    expect(purchase).toContain('INSERT INTO public.erp_purchases(company_id, number, supplier_id, warehouse_id, order_id)');
     const receive = execute.slice(execute.indexOf("WHEN 'purchase.receive' THEN"), execute.indexOf("WHEN 'supplier.pay' THEN"));
     expect(receive).toContain("'Purchase receipt', v_purchase.warehouse_id");
   });

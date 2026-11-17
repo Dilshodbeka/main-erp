@@ -238,11 +238,13 @@ CREATE TABLE public.erp_purchases (
   number text NOT NULL,
   supplier_id uuid NOT NULL,
   warehouse_id uuid NOT NULL DEFAULT '00000000-0000-4000-8000-00000000a001',
+  order_id uuid,
   created_at timestamptz NOT NULL DEFAULT transaction_timestamp(),
   UNIQUE (company_id, number),
   UNIQUE (company_id, id),
   FOREIGN KEY (company_id, supplier_id) REFERENCES public.erp_suppliers(company_id, id),
-  FOREIGN KEY (company_id, warehouse_id) REFERENCES public.erp_warehouses(company_id, id)
+  FOREIGN KEY (company_id, warehouse_id) REFERENCES public.erp_warehouses(company_id, id),
+  FOREIGN KEY (company_id, order_id) REFERENCES public.erp_orders(company_id, id)
 );
 CREATE TABLE public.erp_purchase_lines (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -537,6 +539,7 @@ CREATE INDEX erp_shipments_customer_idx ON public.erp_shipments(company_id, cust
 CREATE INDEX erp_shipment_lines_shipment_idx ON public.erp_shipment_lines(company_id, shipment_id);
 CREATE INDEX erp_shipment_lines_item_idx ON public.erp_shipment_lines(company_id, item_id);
 CREATE INDEX erp_purchases_supplier_idx ON public.erp_purchases(company_id, supplier_id);
+CREATE INDEX erp_purchases_order_idx ON public.erp_purchases(company_id, order_id);
 CREATE FUNCTION public.erp_num(p_value jsonb, p_label text, p_allow_zero boolean DEFAULT false)
 RETURNS numeric LANGUAGE plpgsql IMMUTABLE SET search_path = public, pg_temp AS $$
 DECLARE v numeric;
@@ -1823,7 +1826,7 @@ BEGIN
           OR EXISTS (SELECT 1 FROM public.erp_customers oc WHERE oc.company_id = o.company_id AND oc.id = o.customer_id AND oc.seller_id = v_profile.employee_id)
           OR EXISTS (SELECT 1 FROM public.erp_tasks t WHERE t.company_id = o.company_id AND t.order_id = o.id AND t.employee_id = v_profile.employee_id))),
       'purchases', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'number', p.number, 'supplierId', p.supplier_id, 'createdAt', p.created_at,
-        'warehouseId', p.warehouse_id,
+        'warehouseId', p.warehouse_id, 'orderId', p.order_id,
         'lines', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'itemId', l.item_id, 'qty', l.qty, 'price', l.price, 'received', l.received,
           'previousPurchasePrice', l.previous_purchase_price, 'newPurchasePrice', l.new_purchase_price,
           'previousAverageCost', l.previous_average_cost, 'newAverageCost', l.new_average_cost) ORDER BY l.position), '[]'::jsonb)
@@ -2004,6 +2007,7 @@ DECLARE
   v_cost numeric;
   v_stock numeric;
   v_warehouse uuid;
+  v_purchase_order uuid;
   v_free numeric;
   v_take numeric;
   v_cap numeric;
@@ -2912,8 +2916,15 @@ BEGIN
       IF NOT EXISTS (SELECT 1 FROM public.erp_warehouses WHERE company_id = v_company AND id = v_warehouse AND active) THEN
         RAISE EXCEPTION 'Ombor nofaol' USING ERRCODE = '23514';
       END IF;
-      INSERT INTO public.erp_purchases(company_id, number, supplier_id, warehouse_id)
-        VALUES (v_company, 'PUR-' || (SELECT lpad((count(*) + 1)::text, greatest(4, length((count(*) + 1)::text)), '0') FROM public.erp_purchases WHERE company_id = v_company), v_id, v_warehouse)
+      v_purchase_order := NULL;
+      IF p_command ? 'orderId' AND p_command -> 'orderId' <> 'null'::jsonb THEN
+        v_purchase_order := public.erp_uuid(p_command -> 'orderId', 'orderId');
+        IF NOT EXISTS (SELECT 1 FROM public.erp_orders WHERE company_id = v_company AND id = v_purchase_order) THEN
+          RAISE EXCEPTION 'Order not found' USING ERRCODE = '22023';
+        END IF;
+      END IF;
+      INSERT INTO public.erp_purchases(company_id, number, supplier_id, warehouse_id, order_id)
+        VALUES (v_company, 'PUR-' || (SELECT lpad((count(*) + 1)::text, greatest(4, length((count(*) + 1)::text)), '0') FROM public.erp_purchases WHERE company_id = v_company), v_id, v_warehouse, v_purchase_order)
         RETURNING id INTO v_entity;
       v_pos := 0;
       FOR v_line IN SELECT value FROM jsonb_array_elements(public.erp_array(p_command -> 'lines', 'lines', true)) LOOP

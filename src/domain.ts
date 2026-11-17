@@ -1454,6 +1454,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
         id: uuid(), number: `PUR-${String(state.purchases.length + 1).padStart(4, '0')}`,
         supplierId: command.supplierId, lines, createdAt: now(),
         warehouseId: warehouseFor(state, command.warehouseId),
+        orderId: command.orderId ? find(state.orders, command.orderId, 'Order').id : null,
       };
       state.purchases.push(row);
       return row.id;

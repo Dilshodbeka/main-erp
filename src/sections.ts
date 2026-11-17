@@ -13,7 +13,7 @@ const registry: SectionDef[] = [
   { id: 'history', title: 'Tarix va analitika', panels: [{ id: 'tarix', title: 'Buyurtmalar tarixi' }, { id: 'sotuv', title: 'Sotuv analitikasi' }] },
   { id: 'shops', title: 'Do‘konlar', panels: [{ id: 'hisob-kitob', title: 'Hisob-kitob' }, { id: 'yuborish', title: 'Yuborishga tayyor' }] },
   { id: 'production', title: 'Ishlab chiqarish', panels: productionPanels },
-  { id: 'warehouse', title: 'Ombor', panels: [{ id: 'tasniflagich', title: 'Tasniflagich' }, { id: 'qoldiqlar', title: 'Qoldiqlar tahlili' }] },
+  { id: 'warehouse', title: 'Ombor', panels: [{ id: 'tasniflagich', title: 'Tasniflagich' }, { id: 'qoldiqlar', title: 'Qoldiqlar tahlili' }, { id: 'taminot', title: 'Ta’minot ehtiyoji' }] },
   { id: 'series', title: 'Seriyalar va retseptlar', panels: [{ id: 'seriyalar', title: 'Seriyalar' }, { id: 'retseptlar', title: 'Retseptlar' }] },
   { id: 'purchases', title: 'Ta’minot', panels: [{ id: 'xaridlar', title: 'Xaridlar' }, { id: 'yetkazib-beruvchilar', title: 'Yetkazib beruvchilar' }, { id: 'narxlar', title: 'Narxlar tarixi' }] },
   { id: 'people', title: 'Xodimlar', panels: [{ id: 'xodimlar', title: 'Xodimlar' }, { id: 'stavkalar', title: 'Bosqich tannarxi' }, { id: 'oylik', title: 'Oylik va qarzlar' }] },

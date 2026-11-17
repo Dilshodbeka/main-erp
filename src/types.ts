@@ -57,7 +57,7 @@ export interface PurchaseLine {
   previousPurchasePrice: number; newPurchasePrice: number;
   previousAverageCost: number; newAverageCost: number;
 }
-export interface Purchase { id: string; number: string; supplierId: string; lines: PurchaseLine[]; createdAt: string; warehouseId?: string }
+export interface Purchase { id: string; number: string; supplierId: string; lines: PurchaseLine[]; createdAt: string; warehouseId?: string; orderId?: string | null }
 export interface StockMovement {
   id: string; itemId: string; direction: 'in' | 'out'; qty: number; unitCost: number;
   source: 'purchase' | 'order' | 'inventory' | 'customer' | 'production' | 'sale' | 'transfer'; sourceId: string; note: string; createdAt: string;
@@ -222,7 +222,7 @@ export type Command =
   | { type: 'work.submit'; orderId: string; taskId: string; qty: number; note: string }
   | { type: 'work.review'; reportId: string; accept: boolean; defectQty?: number; reason?: DefectReason; note?: string }
   | { type: 'outsource.accept'; taskId: string }
-  | { type: 'purchase.create'; supplierId: string; lines: { itemId: string; qty: number; price: number }[]; warehouseId?: string }
+  | { type: 'purchase.create'; supplierId: string; lines: { itemId: string; qty: number; price: number }[]; warehouseId?: string; orderId?: string | null }
   | { type: 'purchase.receive'; purchaseId: string; lines: { lineId: string; qty: number }[] }
   | {
       type: 'supplier.pay';

@@ -1114,7 +1114,7 @@ Run: `npx tsc -b`, `npx vitest run src/warehouse-contract.test.ts`
 - Consumes: `orderShortage`, `State`.
 - Produces: `SupplyNeed`, `supplyNeeds(state): SupplyNeed[]`.
 
-- [ ] **Step 1: RED**
+- [x] **Step 1: RED**
 
 ```ts
 it('supplyNeeds aggregates shortages by item+warehouse across production orders', () => {
@@ -1126,7 +1126,7 @@ it('supplyNeeds aggregates shortages by item+warehouse across production orders'
 });
 ```
 
-- [ ] **Step 2: Реализация `src/supply.ts`**
+- [x] **Step 2: Реализация `src/supply.ts`**
 
 ```ts
 export interface SupplyNeed {
@@ -1147,11 +1147,11 @@ export function supplyNeeds(state: State): SupplyNeed[] {
 }
 ```
 
-- [ ] **Step 3: `purchase.create` + `orderId?`**
+- [x] **Step 3: `purchase.create` + `orderId?`**
 
 Тип и обработчик принимают `orderId?`; проверка — заказ той же компании. `Purchase` получает `orderId: string | null` (только трассировка; на склад/резервы/деньги/себестоимость не влияет).
 
-- [ ] **Step 4: Run — GREEN**
+- [x] **Step 4: Run — GREEN**
 
 Run: `npx vitest run src/supply.test.ts`, `npx tsc -b`
 
@@ -1163,16 +1163,16 @@ Run: `npx vitest run src/supply.test.ts`, `npx tsc -b`
 - Modify: `supabase/schema.sql`, Create: `supabase/migrations/20261120_supply.sql`
 - Test: `src/supply-contract.test.ts`
 
-- [ ] **Step 1:** `erp_purchases.order_id uuid` nullable + FK на заказ компании; `erp_snapshot` отдаёт `orderId`; `erp_execute('purchase.create')` принимает `orderId?`.
-- [ ] **Step 2:** Миграция `20261120_supply.sql` (идемпотентно).
-- [ ] **Step 3:** Контрактный тест.
+- [x] **Step 1:** `erp_purchases.order_id uuid` nullable + FK на заказ компании; `erp_snapshot` отдаёт `orderId`; `erp_execute('purchase.create')` принимает `orderId?`.
+- [x] **Step 2:** Миграция `20261120_supply.sql` (идемпотентно).
+- [x] **Step 3:** Контрактный тест.
 
 ---
 
 ## Task C3: PGlite-зонд C
 
-- [ ] **Step 1:** `.validation-pglite-20261029/supply-probe.mjs` — `order_id` колонка; `purchase.create` с `orderId` пишет строку с FK; без `orderId` — NULL.
-- [ ] **Step 2:** Run → `OK supply-probe`.
+- [x] **Step 1:** `.validation-pglite-20261029/supply-probe.mjs` — `order_id` колонка; `purchase.create` с `orderId` пишет строку с FK; без `orderId` — NULL.
+- [x] **Step 2:** Run → `OK supply-probe`.
 
 ---
 
@@ -1186,17 +1186,17 @@ Run: `npx vitest run src/supply.test.ts`, `npx tsc -b`
 - Consumes: `supplyNeeds(state)`, существующая форма закупки.
 - Produces: панель «Ta’minot ehtiyoji»; кнопка «Xarid qilish» открывает закупку с предзаполненными строками.
 
-- [ ] **Step 1:** Разместить панель в разделе «Ombor» (решение: «Ombor», рядом с остатками; владелец указал «на этапе плана выбирается по месту»).
-- [ ] **Step 2:** Строка панели: материал, склад, «yetishmaydi N», заказы, кнопка «Xarid qilish». Кнопка открывает форму закупки: `qty = short`, `price = lastPurchasePrice`, поставщик — последний, если есть, иначе обязательный выбор. Передать `orderId` для трассировки.
-- [ ] **Step 3:** После приёма закупки строка дефицита уменьшается (естественно через `orderShortage`), выдача разблокируется.
+- [x] **Step 1:** Разместить панель в разделе «Ombor» (решение: «Ombor», рядом с остатками; владелец указал «на этапе плана выбирается по месту»).
+- [x] **Step 2:** Строка панели: материал, склад, «yetishmaydi N», заказы, кнопка «Xarid qilish». Кнопка открывает форму закупки: `qty = short`, `price = lastPurchasePrice`, поставщик — последний, если есть, иначе обязательный выбор. Передать `orderId` для трассировки.
+- [x] **Step 3:** После приёма закупки строка дефицита уменьшается (естественно через `orderShortage`), выдача разблокируется.
 
 ---
 
 ## Task C5: Проверка пакета C
 
-- [ ] **Step 1:** `npx tsc -b`, `npx vitest run`, `npm run build`.
-- [ ] **Step 2:** Демо-сценарий C: сводная потребность по всем активным заказам; закупка из строки с верным количеством/складом; приём уменьшает дефицит; закупка без `orderId` работает как раньше.
-- [ ] **Step 3:** Отчёт владельцу; SQL/deploy — по разрешению.
+- [x] **Step 1:** `npx tsc -b`, `npx vitest run`, `npm run build`.
+- [x] **Step 2:** Демо-сценарий C: сводная потребность по всем активным заказам; закупка из строки с верным количеством/складом; приём уменьшает дефицит; закупка без `orderId` работает как раньше.
+- [x] **Step 3:** Отчёт владельцу; SQL/deploy — по разрешению.
 
 ---
 
