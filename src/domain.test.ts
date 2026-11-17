@@ -701,24 +701,23 @@ describe('immutability, idempotency and conflicts', () => {
 });
 
 describe('stock reservations and atomic receipts', () => {
-  it('cannot partially reserve an order with one insufficient material', () => {
+  it('launches an order that needs more material than the shelf holds', () => {
     const f = fixture();
     let state = receive(f.state, f.supplierId, f.itemId, 10, 5);
     state = run(state, { type: 'order.create', input: { ...f.input, materials: [{ itemId: f.itemId, qty: 10 }, { itemId: f.otherItemId, qty: 1 }] } });
-    atomic(state, { type: 'order.launch', orderId: state.orders[0].id });
-    expect(state.orders[0].status).toBe('draft');
-    expect(reservedQty(state, f.itemId)).toBe(0);
+    state = run(state, { type: 'order.launch', orderId: state.orders[0].id });
+    expect(state.orders[0].status).toBe('production');
+    expect(reservedQty(state, f.itemId)).toBe(10);
+    expect(reservedQty(state, f.otherItemId)).toBe(1);
     expect(stockQty(state, f.itemId)).toBe(10);
   });
 
-  it('protects other reservations and counts cannot fall below reserved quantity', () => {
+  it('counts cannot fall below the reserved quantity', () => {
     const f = fixture();
     let state = receive(f.state, f.supplierId, f.itemId, 15, 5);
     state = run(state, { type: 'order.create', input: f.input });
     const orderId = state.orders[0].id;
     state = run(state, { type: 'order.launch', orderId });
-    state = run(state, { type: 'order.create', input: f.input });
-    atomic(state, { type: 'order.launch', orderId: state.orders[1].id });
     atomic(state, { type: 'inventory.count', itemId: f.itemId, qty: 9, note: '' });
     state = run(state, { type: 'inventory.count', itemId: f.itemId, qty: 10, note: 'Count' });
     expect(stockQty(state, f.itemId)).toBe(10);
@@ -826,13 +825,17 @@ describe('stock reservations and atomic receipts', () => {
     atomic(state, { type: 'purchase.create', supplierId: f.supplierId, lines: [{ itemId: customerItemId, qty: 1, price: 10 }] });
   });
 
-  it('blocks issuing more than a single owner actually holds', () => {
+  it('issues only what the customer actually supplied', () => {
     const f = fixture();
     let state = run(f.state, { type: 'item.create', name: 'Customer fabric', unit: 'm', minQty: 0, cost: 0, customerId: f.customerId });
     const itemId = state.items.at(-1)!.id;
     state = run(state, { type: 'customer.receive', itemId, qty: 5, note: '' });
     state = run(state, { type: 'order.create', input: { ...f.input, materials: [{ itemId, qty: 6 }], route: [{ ...f.input.route[0], rate: 0 }], overhead: 0 } });
-    atomic(state, { type: 'order.launch', orderId: state.orders[0].id });
+    const orderId = state.orders[0].id;
+    state = run(state, { type: 'order.launch', orderId });
+    state = run(state, { type: 'order.issue', orderId });
+    expect(state.orders[0].materials[0].issuedQty).toBe(5);
+    expect(stockQty(state, itemId)).toBe(0);
   });
 
   it('validates item kind and client price', () => {
@@ -885,15 +888,26 @@ describe('stock reservations and atomic receipts', () => {
 });
 
 describe('замок: доменные тексты нехватки', () => {
-  it('order.launch бросает ровно Insufficient available stock', () => {
+  it('order.launch пропускает заказ с нехваткой, а выдача отдаёт сколько есть', () => {
     const f = fixture();
     let state = receive(f.state, f.supplierId, f.itemId, 4, 5);
     state = run(state, { type: 'order.create', input: { ...f.input, materials: [{ itemId: f.itemId, qty: 10 }] } });
     const orderId = state.orders[0].id;
-    expect(() => run(state, { type: 'order.launch', orderId })).toThrow(/^Insufficient available stock$/);
+    state = run(state, { type: 'order.launch', orderId });
+    expect(state.orders[0].status).toBe('production');
+    state = run(state, { type: 'order.issue', orderId });
+    expect(state.orders[0].materials[0].issuedQty).toBe(4);
   });
 
-  it('order.issue бросает ровно Insufficient reserved stock, когда резерв превысил остаток', () => {
+  it('order.issue бросает ровно Omborda material yo‘q, когда на полке пусто', () => {
+    const f = fixture();
+    let state = run(f.state, { type: 'order.create', input: { ...f.input, materials: [{ itemId: f.itemId, qty: 10 }] } });
+    const orderId = state.orders[0].id;
+    state = run(state, { type: 'order.launch', orderId });
+    expect(() => run(state, { type: 'order.issue', orderId })).toThrow(/^Omborda material yo‘q\. Qoldiqni to‘ldiring$/);
+  });
+
+  it('order.issue по ревизии выдаёт остаток полки и оставляет долг', () => {
     const f = fixture();
     let state = receive(f.state, f.supplierId, f.itemId, 10, 5);
     state = run(state, { type: 'order.create', input: { ...f.input, materials: [{ itemId: f.itemId, qty: 4 }] } });
@@ -902,7 +916,9 @@ describe('замок: доменные тексты нехватки', () => {
     const order = state.orders[0];
     const route = order.route.map(task => ({ operationId: task.operationId, employeeId: task.employeeId, rate: task.rate, taskId: task.id }));
     state = run(state, { type: 'order.update', orderId, title: order.title, qty: order.qty, price: order.price, overhead: order.overhead, dueDate: order.dueDate, materials: [{ itemId: f.itemId, qty: 50 }], route });
-    expect(() => run(state, { type: 'order.issue', orderId })).toThrow(/^Insufficient reserved stock$/);
+    state = run(state, { type: 'order.issue', orderId });
+    expect(state.orders[0].materials[0].issuedQty).toBe(10);
+    expect(reservedQty(state, f.itemId)).toBe(40);
   });
 });
 
@@ -1781,7 +1797,6 @@ describe('series production and stock receipt', () => {
     };
     state = run(state, { type: 'order.create', input: productInput });
     const productOrder = state.orders.at(-1)!;
-    atomic(state, { type: 'order.launch', orderId: productOrder.id });
 
     state = completeLastTask(state, blankOrder);
     state = finishedSeriesReady(state, blank.id);

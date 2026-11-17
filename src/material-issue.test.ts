@@ -117,6 +117,6 @@ describe('partial material issue', () => {
     expect(rowFor(state, 0)).toMatchObject({ qty: 4, issuedQty: 2 });
     expect(reservedQty(state, state.items[0].id)).toBe(2);
     expect(orderShortage(state, state.orders[0])[0]).toMatchObject({ itemId: state.items[0].id, needed: 2, short: 2 });
-    expect(() => run(state, { type: 'order.issue', orderId })).toThrow('Insufficient reserved stock');
+    expect(() => run(state, { type: 'order.issue', orderId })).toThrow('Omborda material yo‘q. Qoldiqni to‘ldiring');
   });
 });

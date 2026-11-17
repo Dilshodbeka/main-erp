@@ -78,6 +78,32 @@ describe('itemTurnover', () => {
   });
 });
 
+describe('склад в аналитике', () => {
+  const second = '00000000-0000-4000-8000-00000000a002';
+
+  function split(): State {
+    const state = fixture();
+    state.warehouses = [...state.warehouses, { id: second, name: 'Sex ombori', active: true }];
+    state.movements = [
+      state.movements[0],
+      { ...state.movements[0], id: 'm4', warehouseId: second, qty: 5, createdAt: '2026-10-27T08:00:00.000Z' },
+      state.movements[1],
+    ];
+    return state;
+  }
+
+  it('journal сужается до одного склада, без аргумента — все склады', () => {
+    expect(movementJournal(split(), second).map(row => row.id)).toEqual(['m4']);
+    expect(movementJournal(split())).toHaveLength(3);
+  });
+
+  it('turnover считает движения и остаток выбранного склада', () => {
+    const rows = itemTurnover(split(), second);
+    expect(rows[0]).toMatchObject({ inQty: 5, outQty: 0, purchasedQty: 5, purchasedValue: 500, stock: 5 });
+    expect(itemTurnover(split())[0].stock).toBe(11);
+  });
+});
+
 describe('cashByPeriod', () => {
   it('groups income and expense by day and month, excluding transfers', () => {
     const days = cashByPeriod(fixture(), 'day');

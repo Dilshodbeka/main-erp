@@ -3,6 +3,7 @@ import { customerAnalytics, orderProfit, type CustomerAnalyticsRow, type OrderPr
 import { customerLedger, type CustomerLedger } from './receivables';
 import { shipmentTotals } from './sales';
 import type { CashEntry, Customer, Shipment, State, StockMovement, WorkerDeduction } from './types';
+import { MAIN_WAREHOUSE_ID } from './warehouse-default';
 
 const round = (value: number): number => Math.sign(value) * Math.round((Math.abs(value) + Number.EPSILON) * 100) / 100;
 export type PeriodKind = 'day' | 'week' | 'month';
@@ -44,7 +45,7 @@ export function periodEnd(key: string, kind: PeriodKind): string {
 
 const sourceLabels: Record<StockMovement['source'], string> = {
   purchase: 'Xarid', order: 'Buyurtma', inventory: 'Inventarizatsiya',
-  customer: 'Mijoz materiali', production: 'Ishlab chiqarish', sale: 'Sotuv',
+  customer: 'Mijoz materiali', production: 'Ishlab chiqarish', sale: 'Sotuv', transfer: 'Ko‘chirish',
 };
 
 export interface MovementRow {
@@ -53,8 +54,9 @@ export interface MovementRow {
   source: StockMovement['source']; sourceLabel: string; counterparty: string; note: string;
 }
 
-export function movementJournal(state: State): MovementRow[] {
-  return state.movements.map(movement => {
+export function movementJournal(state: State, warehouseId?: string): MovementRow[] {
+  return state.movements.filter(movement => warehouseId === undefined
+    || (movement.warehouseId ?? MAIN_WAREHOUSE_ID) === warehouseId).map(movement => {
     const item = state.items.find(row => row.id === movement.itemId);
     const purchase = movement.source === 'purchase' ? state.purchases.find(row => row.id === movement.sourceId) : undefined;
     const order = ['order', 'production'].includes(movement.source) ? state.orders.find(row => row.id === movement.sourceId) : undefined;
@@ -82,9 +84,10 @@ export interface ItemTurnoverRow {
   stock: number;
 }
 
-export function itemTurnover(state: State): ItemTurnoverRow[] {
+export function itemTurnover(state: State, warehouseId?: string): ItemTurnoverRow[] {
   return state.items.map(item => {
-    const rows = state.movements.filter(movement => movement.itemId === item.id);
+    const rows = state.movements.filter(movement => movement.itemId === item.id
+      && (warehouseId === undefined || (movement.warehouseId ?? MAIN_WAREHOUSE_ID) === warehouseId));
     const sum = (predicate: (movement: StockMovement) => boolean) => rows.filter(predicate)
       .reduce((total, movement) => total + movement.qty, 0);
     const value = (predicate: (movement: StockMovement) => boolean) => round(rows.filter(predicate)
@@ -96,7 +99,7 @@ export function itemTurnover(state: State): ItemTurnoverRow[] {
       purchasedQty: sum(row => row.source === 'purchase'), purchasedValue: value(row => row.source === 'purchase'),
       issuedQty: sum(row => row.direction === 'out' && ['order', 'production'].includes(row.source)),
       issuedValue: value(row => row.direction === 'out' && ['order', 'production'].includes(row.source)),
-      stock: stockQty(state, item.id),
+      stock: stockQty(state, item.id, warehouseId),
     };
   });
 }

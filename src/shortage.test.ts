@@ -5,6 +5,7 @@ import { DEMO_COMPANY_ID } from './migrations';
 import { draftShortage, orderShortage, reservedExcept } from './shortage';
 import { positionsFromOrder } from './order-editor';
 import type { PositionDraft } from './order-editor';
+import { MAIN_WAREHOUSE_ID } from './warehouse-default';
 import type { Actor, Command, Item, MaterialLine, Operation, Order, State, Status, StockMovement } from './types';
 
 function item(id: string, over: Partial<Item> = {}): Item {
@@ -97,7 +98,8 @@ describe('orderShortage', () => {
       orders: [order('A', 'production', [material('m1', 'paint', 8, 0, 'L1'), material('m2', 'paint', 5, 0, 'L2'), material('m3', 'paint', 9, 9, 'L3')])],
     });
     expect(orderShortage(deficit, deficit.orders[0])).toEqual([
-      { itemId: 'paint', name: 'Pozitsiya paint', unit: 'l', needed: 13, stock: 10, reserved: 0, available: 10, short: 3 },
+      { itemId: 'paint', name: 'Pozitsiya paint', unit: 'l', needed: 13, stock: 10, reserved: 0, available: 10, short: 3,
+        warehouseId: MAIN_WAREHOUSE_ID, suggestedFrom: [] },
     ]);
   });
 
@@ -270,13 +272,84 @@ describe('домен печёт нормы только в order.create — по
   });
 });
 
+describe('дефицит считается по складу заказа', () => {
+  const second = '00000000-0000-4000-8000-00000000a002';
+
+  function world2(over: Partial<State> = {}): State {
+    return world({
+      warehouses: [...emptyState().warehouses, { id: second, name: 'Sex ombori', active: true }],
+      ...over,
+    });
+  }
+
+  function atWarehouse(itemId: string, qty: number, warehouseId: string | undefined, id = `mv-${warehouseId ?? 'main'}`): StockMovement {
+    return { ...stock(itemId, qty), id, ...(warehouseId ? { warehouseId } : {}) };
+  }
+
+  it('берёт остаток и бронь только со склада заказа и подсказывает другие склады', () => {
+    const state = world2({
+      movements: [atWarehouse('paint', 10, undefined), atWarehouse('paint', 4, second)],
+      orders: [order('A', 'production', [material('m1', 'paint', 8)], { warehouseId: second })],
+    });
+    const rows = orderShortage(state, state.orders[0]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ stock: 4, reserved: 0, available: 4, short: 4, warehouseId: second });
+    expect(rows[0].suggestedFrom).toEqual([{ warehouseId: MAIN_WAREHOUSE_ID, name: 'Asosiy ombor', available: 10 }]);
+  });
+
+  it('вычитает чужую бронь на том же складе и не смешивает склады', () => {
+    const state = world2({
+      movements: [atWarehouse('paint', 10, undefined), atWarehouse('paint', 4, second)],
+      orders: [
+        order('A', 'production', [material('m1', 'paint', 8)], { warehouseId: second }),
+        order('B', 'production', [material('m2', 'paint', 3)], { warehouseId: second }),
+        order('C', 'production', [material('m3', 'paint', 9)]),
+      ],
+    });
+    const rows = orderShortage(state, state.orders[0]);
+    expect(rows[0]).toMatchObject({ stock: 4, reserved: 3, available: 1, short: 7 });
+    expect(rows[0].suggestedFrom).toEqual([{ warehouseId: MAIN_WAREHOUSE_ID, name: 'Asosiy ombor', available: 1 }]);
+  });
+
+  it('не подсказывает пустые и неактивные склады', () => {
+    const state = world2({
+      warehouses: [...emptyState().warehouses, { id: second, name: 'Sex ombori', active: true }, { id: 'third', name: 'Yopiq', active: false }],
+      movements: [atWarehouse('paint', 2, undefined), atWarehouse('paint', 1, second), atWarehouse('paint', 5, 'third')],
+      orders: [order('A', 'production', [material('m1', 'paint', 10)])],
+    });
+    const rows = orderShortage(state, state.orders[0]);
+    expect(rows[0].suggestedFrom).toEqual([{ warehouseId: second, name: 'Sex ombori', available: 1 }]);
+  });
+
+  it('draftShortage считает по переданному складу', () => {
+    const state = world2({ movements: [atWarehouse('paint', 10, undefined), atWarehouse('paint', 1, second)] });
+    const positions: PositionDraft[] = [{ kind: 'product', title: 'A', qty: 1, unitPrice: 0, floor: 0, materials: [{ itemId: 'paint', qty: 4, issuedQty: 0 }], route: [] }];
+    expect(draftShortage(state, positions).map(row => row.short)).toEqual([]);
+    const rows = draftShortage(state, positions, null, second);
+    expect(rows[0]).toMatchObject({ stock: 1, short: 3, warehouseId: second });
+    expect(rows[0].suggestedFrom).toEqual([{ warehouseId: MAIN_WAREHOUSE_ID, name: 'Asosiy ombor', available: 10 }]);
+  });
+
+  it('reservedExcept фильтрует по складу', () => {
+    const state = world2({
+      movements: [atWarehouse('paint', 10, undefined), atWarehouse('paint', 4, second)],
+      orders: [
+        order('A', 'production', [material('m1', 'paint', 2)], { warehouseId: second }),
+        order('B', 'production', [material('m2', 'paint', 3)], { warehouseId: second }),
+        order('C', 'production', [material('m3', 'paint', 9)]),
+      ],
+    });
+    expect(reservedExcept(state, 'paint', null, second)).toBe(5);
+    expect(reservedExcept(state, 'paint', null)).toBe(14);
+  });
+});
+
 describe('паритет с сервером', () => {
   const sql = readFileSync(new URL('../supabase/schema.sql', import.meta.url), 'utf8');
 
   it('доменные тексты нехватки по-прежнему зеркалятся в erp_execute', () => {
     expect(sql).toContain("RAISE EXCEPTION 'Insufficient stock' USING ERRCODE = '23514';");
-    expect(sql).toContain("RAISE EXCEPTION 'Insufficient stock for issue' USING ERRCODE = '23514';");
-    expect(sql).toContain("RAISE EXCEPTION 'Insufficient unreserved material stock' USING ERRCODE = '23514';");
+    expect(sql).toContain("RAISE EXCEPTION 'Omborda material yo‘q. Qoldiqni to‘ldiring' USING ERRCODE = '23514';");
     expect(sql).toContain("RAISE EXCEPTION 'Stock cannot be negative' USING ERRCODE = '23514';");
   });
 });

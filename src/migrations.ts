@@ -1,6 +1,7 @@
 import type {
-  CashEntry, Customer, DefectRow, Employee, Item, Machine, MaterialLine, Operation, Order, OrderLine, PayrollEntry, Purchase, RouteTemplate, Shipment, ShipmentLine, State, SupportTicket, WorkReport,
+  CashEntry, Customer, DefectRow, Employee, Item, Machine, MaterialLine, Operation, Order, OrderLine, PayrollEntry, Purchase, RouteTemplate, Shipment, ShipmentLine, State, StockMovement, SupportTicket, Warehouse, WorkReport,
 } from './types';
+import { MAIN_WAREHOUSE_ID, mainWarehouse } from './warehouse-default';
 
 export const DEMO_COMPANY_ID = '00000000-0000-4000-8000-0000000000c1';
 
@@ -61,6 +62,7 @@ export function migrateState(value: unknown): State {
     return {
       ...order,
       outputItemId: order.outputItemId ?? null,
+      warehouseId: order.warehouseId ?? MAIN_WAREHOUSE_ID,
       recipeVersionId: order.recipeVersionId ?? null,
       substitutions: order.substitutions ?? {},
       markup: order.markup ?? 0,
@@ -87,6 +89,7 @@ export function migrateState(value: unknown): State {
   for (const order of orders) if (order.lines.length === 1) order.lines[0].status = order.status;
   const purchases = (source.purchases as (Partial<Purchase> & { lines: Partial<Purchase['lines'][number]>[] })[]).map(purchase => ({
     ...purchase,
+    warehouseId: purchase.warehouseId ?? MAIN_WAREHOUSE_ID,
     lines: purchase.lines.map(line => ({
       ...line,
       previousPurchasePrice: line.previousPurchasePrice ?? 0,
@@ -129,6 +132,9 @@ export function migrateState(value: unknown): State {
     lastPurchasePrice: item.lastPurchasePrice ?? lastPurchasePrice(purchases, item.id ?? ''),
     photo: typeof item.photo === 'string' ? item.photo : '',
   }));
+  const warehouses = Array.isArray(source.warehouses) && source.warehouses.length > 0
+    ? source.warehouses as Warehouse[] : [mainWarehouse()];
+  const movements = (source.movements as StockMovement[]).map(row => ({ ...row, warehouseId: row.warehouseId ?? MAIN_WAREHOUSE_ID }));
   return {
     ...source,
     version: 4,
@@ -138,6 +144,8 @@ export function migrateState(value: unknown): State {
     machines,
     operations,
     items,
+    warehouses,
+    movements,
     recipes: Array.isArray(source.recipes) ? source.recipes : [],
     orders,
     purchases,

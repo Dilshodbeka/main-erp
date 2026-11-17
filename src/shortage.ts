@@ -1,29 +1,42 @@
-import { exceeds, mergeNormMaterials, normMaterialLines, stockQty } from './domain';
+import { exceeds, mergeNormMaterials, normMaterialLines, reservedQty, stockQty } from './domain';
 import type { MaterialLine, Order, RouteLine, State } from './types';
+import { MAIN_WAREHOUSE_ID } from './warehouse-default';
 
+export type SuggestedWarehouse = { warehouseId: string; name: string; available: number };
 export type ShortageRow = {
   itemId: string; name: string; unit: string;
   needed: number; stock: number; reserved: number; available: number; short: number;
+  warehouseId: string; suggestedFrom: SuggestedWarehouse[];
 };
 export type DraftMaterial = { itemId: string; qty: number; issuedQty: number };
 export type DraftStage = { operationId: string; qty: number };
 export type DraftPosition = { id?: string; materials: DraftMaterial[]; route: DraftStage[] };
 
-export function reservedExcept(state: State, itemId: string, excludeOrderId: string | null): number {
-  return state.orders.reduce((total, order) => order.id === excludeOrderId || order.status !== 'production' ? total
+export function reservedExcept(state: State, itemId: string, excludeOrderId: string | null, warehouseId?: string): number {
+  return state.orders.reduce((total, order) => order.id === excludeOrderId || order.status !== 'production'
+    || (warehouseId !== undefined && (order.warehouseId ?? MAIN_WAREHOUSE_ID) !== warehouseId) ? total
     : total + order.materials.reduce((qty, line) => line.itemId === itemId && line.issuedQty < line.qty ? qty + (line.qty - line.issuedQty) : qty, 0), 0);
 }
 
-function collect(state: State, needed: Map<string, number>, excludeOrderId: string | null): ShortageRow[] {
+function suggestedFrom(state: State, itemId: string, warehouseId: string): SuggestedWarehouse[] {
+  return state.warehouses
+    .filter(row => row.active && row.id !== warehouseId)
+    .map(row => ({ warehouseId: row.id, name: row.name, available: stockQty(state, itemId, row.id) - reservedQty(state, itemId, row.id) }))
+    .filter(row => exceeds(row.available, 0))
+    .sort((left, right) => right.available - left.available);
+}
+
+function collect(state: State, needed: Map<string, number>, excludeOrderId: string | null, warehouseId: string): ShortageRow[] {
   const rows: ShortageRow[] = [];
   for (const [itemId, qty] of needed) {
     const item = state.items.find(row => row.id === itemId);
     if (!item) continue;
-    const stock = stockQty(state, itemId);
-    const reserved = reservedExcept(state, itemId, excludeOrderId);
+    const stock = stockQty(state, itemId, warehouseId);
+    const reserved = reservedExcept(state, itemId, excludeOrderId, warehouseId);
     const available = stock - reserved;
     if (!exceeds(qty, available)) continue;
-    rows.push({ itemId, name: item.name, unit: item.unit, needed: qty, stock, reserved, available, short: qty - available });
+    rows.push({ itemId, name: item.name, unit: item.unit, needed: qty, stock, reserved, available, short: qty - available,
+      warehouseId, suggestedFrom: suggestedFrom(state, itemId, warehouseId) });
   }
   return rows.sort((left, right) => right.short - left.short || left.name.localeCompare(right.name, 'uz'));
 }
@@ -34,7 +47,7 @@ export function orderShortage(state: State, order: Order): ShortageRow[] {
     if (line.issuedQty >= line.qty || !line.itemId) continue;
     needed.set(line.itemId, (needed.get(line.itemId) ?? 0) + (line.qty - line.issuedQty));
   }
-  return collect(state, needed, order.id);
+  return collect(state, needed, order.id, order.warehouseId ?? MAIN_WAREHOUSE_ID);
 }
 
 function positionLines(state: State, position: DraftPosition, lineId: string, fromNorms: boolean): MaterialLine[] {
@@ -60,7 +73,7 @@ function positionLines(state: State, position: DraftPosition, lineId: string, fr
   return mergeNormMaterials(explicit, normLines);
 }
 
-export function draftShortage(state: State, positions: DraftPosition[], excludeOrderId: string | null = null): ShortageRow[] {
+export function draftShortage(state: State, positions: DraftPosition[], excludeOrderId: string | null = null, warehouseId?: string): ShortageRow[] {
   // order.create bakes m² norms into the stored materials; revisions store the submitted rows as they are,
   // so a saved order's draft must not add the norms a second time.
   const fromNorms = excludeOrderId === null;
@@ -71,5 +84,5 @@ export function draftShortage(state: State, positions: DraftPosition[], excludeO
       needed.set(line.itemId, (needed.get(line.itemId) ?? 0) + (line.qty - line.issuedQty));
     }
   });
-  return collect(state, needed, excludeOrderId);
+  return collect(state, needed, excludeOrderId, warehouseId ?? MAIN_WAREHOUSE_ID);
 }

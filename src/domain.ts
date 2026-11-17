@@ -7,11 +7,12 @@ import { salaryLedger } from './salary';
 import { shipmentQty } from './sales';
 import { normalizeTicketContext } from './support';
 import { canTouchOrder, requiredPermission, WORKER_BASE } from './permissions';
+import { MAIN_WAREHOUSE_ID, mainWarehouse } from './warehouse-default';
 import type {
   Account, Actor, CashEntry, CashSource, Command, Customer, CustomerKind, DefectMaterial, DefectReason, Envelope, Item, ItemKind, MaterialLine, Operation,
   OperationNorm, OperationUnit, Order, OrderInput, OrderLine, OrderLineInput, OrderLineKind, OrderMaterialInput, OrderRouteInput,
   RecipeComponent, RecipeComponentInput, RouteLine, RouteTemplate, RouteTemplateStage, SeriesInput, Shipment,
-  ShipmentLine, State, Status, StockMovement, SupportTicket, TaskStatus, WorkerDeduction, WorkReport,
+  ShipmentLine, State, Status, StockMovement, SupportTicket, TaskStatus, Warehouse, WorkerDeduction, WorkReport,
 } from './types';
 
 const uuid = (): string => crypto.randomUUID();
@@ -545,21 +546,37 @@ function revisionLines(state: State, order: Order, inputs: OrderLineInput[]): Or
 export function emptyState(): State {
   return {
     version: 4, revision: 0, companyId: DEMO_COMPANY_ID, customers: [], suppliers: [], employees: [], machines: [], operations: [],
-    items: [], recipes: [], orders: [], purchases: [], movements: [], cash: [], reports: [], defects: [], payroll: [],
+    items: [], recipes: [], orders: [], purchases: [], movements: [], warehouses: [mainWarehouse()], cash: [], reports: [], defects: [], payroll: [],
     shipments: [], audit: [], salaryPlans: [], expensePlans: [], loans: [], routeTemplates: [], workerDeductions: [], tickets: [],
   };
 }
 
-export function stockQty(state: State, itemId: string): number {
+export function stockQty(state: State, itemId: string, warehouseId?: string): number {
   return state.movements.reduce((total, row) => row.itemId === itemId
+    && (warehouseId === undefined || (row.warehouseId ?? MAIN_WAREHOUSE_ID) === warehouseId)
     ? total + (row.direction === 'in' ? row.qty : -row.qty) : total, 0);
 }
 
-export function reservedQty(state: State, itemId: string): number {
+export function reservedQty(state: State, itemId: string, warehouseId?: string): number {
   return state.orders.reduce((total, order) => order.status === 'production'
+    && (warehouseId === undefined || (order.warehouseId ?? MAIN_WAREHOUSE_ID) === warehouseId)
     ? total + order.materials.reduce((qty, line) => line.itemId === itemId && !isIssued(line)
       ? qty + (line.qty - line.issuedQty) : qty, 0)
     : total, 0);
+}
+
+function warehouseFor(state: State, warehouseId: string | undefined): string {
+  const id = warehouseId ?? MAIN_WAREHOUSE_ID;
+  const row = find(state.warehouses, id, 'Warehouse');
+  check(row.active, 'Ombor nofaol');
+  return id;
+}
+
+function reservedElsewhere(state: State, itemId: string, warehouseId: string, orderId: string): number {
+  return state.orders.reduce((total, order) => order.id === orderId || order.status !== 'production'
+    || (order.warehouseId ?? MAIN_WAREHOUSE_ID) !== warehouseId ? total
+    : total + order.materials.reduce((qty, line) => line.itemId === itemId && !isIssued(line)
+      ? qty + (line.qty - line.issuedQty) : qty, 0), 0);
 }
 
 export function cashBalance(state: State, selectedAccount: Account): number {
@@ -766,7 +783,7 @@ function totalPrice(order: Order): number {
   return round(order.price);
 }
 
-function movement(state: State, row: Omit<StockMovement, 'id' | 'createdAt'>): void {
+function movement(state: State, row: Omit<StockMovement, 'id' | 'createdAt' | 'warehouseId'> & { warehouseId: string }): void {
   quantity(row.qty);
   state.movements.push({ ...row, id: uuid(), createdAt: now() });
 }
@@ -876,7 +893,7 @@ function receiveSeriesOutput(state: State, order: Order): void {
   item.materialCost = round(cost - laborCost);
   movement(state, {
     itemId: item.id, direction: 'in', qty, unitCost: round(total / qty),
-    source: 'production', sourceId: order.id, note: '',
+    source: 'production', sourceId: order.id, note: '', warehouseId: order.warehouseId ?? MAIN_WAREHOUSE_ID,
   });
 }
 
@@ -984,7 +1001,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
       state.items.push(row);
       if (openQty > 0) movement(state, {
         itemId: row.id, direction: 'in', qty: openQty, unitCost: cost,
-        source: 'inventory', sourceId: uuid(), note: 'Boshlang‘ich qoldiq',
+        source: 'inventory', sourceId: uuid(), note: 'Boshlang‘ich qoldiq', warehouseId: MAIN_WAREHOUSE_ID,
       });
       return row.id;
     }
@@ -1024,7 +1041,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
       find(state.customers, item.customerId, 'Customer');
       movement(state, {
         itemId: item.id, direction: 'in', qty: quantity(command.qty), unitCost: 0,
-        source: 'customer', sourceId: item.customerId, note: command.note,
+        source: 'customer', sourceId: item.customerId, note: command.note, warehouseId: MAIN_WAREHOUSE_ID,
       });
       return item.id;
     }
@@ -1044,6 +1061,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
         qty: 0, price: 0, overhead, markup: input.markup === undefined ? 0 : signedMoney(input.markup),
         dueDate: input.dueDate, createdAt: now(),
         status: 'draft', lines: [], materials: [], route: [],
+        warehouseId: warehouseFor(state, input.warehouseId),
       };
       if (input.lines !== undefined) {
         const built = buildLines(state, input.customerId, input.lines);
@@ -1080,6 +1098,13 @@ function mutate(state: State, command: Command, actor: Actor): string {
       check(order.kind !== 'series', 'Series orders follow their recipe');
       check(order.status === 'draft' || order.status === 'production' || order.status === 'ready', 'Order cannot be edited');
       find(state.customers, order.customerId, 'Customer');
+      if (command.warehouseId !== undefined) {
+        const next = warehouseFor(state, command.warehouseId);
+        if (next !== (order.warehouseId ?? MAIN_WAREHOUSE_ID)) {
+          check(order.materials.every(row => row.issuedQty === 0), 'Materiallar berilgan — omborni o‘zgartirib bo‘lmaydi');
+          order.warehouseId = next;
+        }
+      }
       if (command.lines !== undefined) {
         revisionLines(state, order, command.lines);
         order.overhead = money(command.overhead);
@@ -1157,7 +1182,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
         kind: 'series', customerId: '', title: line.title,
         outputItemId: output.id, recipeVersionId: version.id, substitutions: { ...substitutions },
         qty: input.qty, price: 0, overhead: 0, dueDate: input.dueDate, createdAt: now(),
-        status: 'draft', lines: [line], materials, route,
+        status: 'draft', lines: [line], materials, route, warehouseId: MAIN_WAREHOUSE_ID,
       };
       estimatedCost(state, order);
       state.orders.push(order);
@@ -1175,7 +1200,6 @@ function mutate(state: State, command: Command, actor: Actor): string {
           quantity(row.qty);
           check(row.issuedQty === 0, 'Material already issued');
           check(item.customerId === null || item.customerId === order.customerId, 'Material belongs to another customer');
-          check(!exceeds(row.qty, stockQty(state, item.id) - reservedQty(state, item.id)), 'Insufficient available stock');
         }
       }
       for (const task of order.route) {
@@ -1191,25 +1215,23 @@ function mutate(state: State, command: Command, actor: Actor): string {
     case 'order.issue': {
       const order = find(state.orders, command.orderId, 'Order');
       check(order.status === 'production', 'Only production orders can issue materials');
+      const warehouseId = order.warehouseId ?? MAIN_WAREHOUSE_ID;
       const line = command.lineId === undefined ? undefined : orderLineOf(order, command.lineId);
       const pending = (line === undefined ? order.materials : lineMaterials(order, line.id)).filter(row => !isIssued(row));
       check(pending.length > 0, 'All materials already issued');
       for (const row of pending) {
         const item = find(state.items, row.itemId, 'Item');
-        const delta = quantity(row.qty - row.issuedQty);
         check(item.customerId === null || item.customerId === order.customerId, 'Material belongs to another customer');
-        check(!exceeds(reservedQty(state, item.id), stockQty(state, item.id)), 'Insufficient reserved stock');
-        check(!exceeds(delta, stockQty(state, item.id)), 'Insufficient stock');
-      }
-      for (const row of pending) {
-        const item = find(state.items, row.itemId, 'Item');
-        const delta = quantity(row.qty - row.issuedQty);
+        const need = quantity(row.qty - row.issuedQty);
+        const free = Math.max(0, stockQty(state, item.id, warehouseId) - reservedElsewhere(state, item.id, warehouseId, order.id));
+        check(free > 0, 'Omborda material yo‘q. Qoldiqni to‘ldiring');
+        const take = Math.min(need, free);
         row.actualCost = item.customerId === null ? item.cost : 0;
         movement(state, {
-          itemId: item.id, direction: 'out', qty: delta, unitCost: row.actualCost,
-          source: 'order', sourceId: order.id, note: '',
+          itemId: item.id, direction: 'out', qty: take, unitCost: row.actualCost,
+          source: 'order', sourceId: order.id, note: '', warehouseId,
         });
-        row.issuedQty = row.qty;
+        row.issuedQty = round(row.issuedQty + take);
       }
       ready(state, order);
       return order.id;
@@ -1224,6 +1246,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
         movement(state, {
           itemId: row.itemId, direction: 'in', qty: quantity(row.issuedQty), unitCost: row.actualCost,
           source: 'order', sourceId: order.id, note: 'Bekor qilingan buyurtma materiali qaytarildi',
+          warehouseId: order.warehouseId ?? MAIN_WAREHOUSE_ID,
         });
         row.issuedQty = 0;
         row.actualCost = 0;
@@ -1247,6 +1270,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
         movement(state, {
           itemId: row.itemId, direction: 'in', qty: quantity(row.issuedQty), unitCost: row.actualCost,
           source: 'order', sourceId: order.id, note: 'Bekor qilingan buyurtma materiali qaytarildi',
+          warehouseId: order.warehouseId ?? MAIN_WAREHOUSE_ID,
         });
       }
       const ids = new Set(lineMaterials(order, line.id).map(row => row.id));
@@ -1429,6 +1453,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
       const row = {
         id: uuid(), number: `PUR-${String(state.purchases.length + 1).padStart(4, '0')}`,
         supplierId: command.supplierId, lines, createdAt: now(),
+        warehouseId: warehouseFor(state, command.warehouseId),
       };
       state.purchases.push(row);
       return row.id;
@@ -1468,6 +1493,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
         movement(state, {
           itemId: receipt.item.id, direction: 'in', qty: receipt.qty, unitCost: receipt.line.price,
           source: 'purchase', sourceId: purchase.id, note: '',
+          warehouseId: purchase.warehouseId ?? MAIN_WAREHOUSE_ID,
         });
       }
       return purchase.id;
@@ -1623,14 +1649,49 @@ function mutate(state: State, command: Command, actor: Actor): string {
     case 'inventory.count': {
       const item = find(state.items, command.itemId, 'Item');
       if (item.customerId !== null) find(state.customers, item.customerId, 'Customer');
+      const warehouseId = warehouseFor(state, command.warehouseId);
       const qty = quantity(command.qty, true);
-      check(!exceeds(reservedQty(state, item.id), qty), 'Count cannot be below reserved stock');
-      const delta = qty - stockQty(state, item.id);
+      check(!exceeds(reservedQty(state, item.id, warehouseId), qty), 'Count cannot be below reserved stock');
+      const delta = qty - stockQty(state, item.id, warehouseId);
       if (delta !== 0) movement(state, {
         itemId: item.id, direction: delta > 0 ? 'in' : 'out', qty: Math.abs(delta),
         unitCost: item.customerId === null ? item.cost : 0, source: 'inventory', sourceId: uuid(), note: command.note,
+        warehouseId,
       });
       return item.id;
+    }
+    case 'warehouse.create': {
+      const name = named(state.warehouses, command.name);
+      const row: Warehouse = { id: uuid(), name, active: true };
+      state.warehouses.push(row);
+      return row.id;
+    }
+    case 'warehouse.update': {
+      const row = find(state.warehouses, command.warehouseId, 'Warehouse');
+      const name = named(state.warehouses.filter(entry => entry.id !== row.id), command.name);
+      if (!command.active) {
+        check(state.warehouses.some(entry => entry.id !== row.id && entry.active), 'Kamida bitta faol ombor qolishi kerak');
+      }
+      row.name = name;
+      row.active = command.active;
+      return row.id;
+    }
+    case 'warehouse.transfer': {
+      check(command.fromId !== command.toId, 'Omborlar bir xil bo‘lmasligi kerak');
+      const from = warehouseFor(state, command.fromId);
+      const to = warehouseFor(state, command.toId);
+      const item = find(state.items, command.itemId, 'Item');
+      const qty = quantity(command.qty);
+      check(!exceeds(qty, stockQty(state, item.id, from) - reservedQty(state, item.id, from)), 'Omborda yetarli qoldiq yo‘q');
+      const sourceId = uuid();
+      const unitCost = item.customerId === null ? item.cost : 0;
+      movement(state, {
+        itemId: item.id, direction: 'out', qty, unitCost, source: 'transfer', sourceId, note: command.note, warehouseId: from,
+      });
+      movement(state, {
+        itemId: item.id, direction: 'in', qty, unitCost, source: 'transfer', sourceId, note: command.note, warehouseId: to,
+      });
+      return sourceId;
     }
     case 'cash.post': {
       const row = postCash(state, {
@@ -1715,7 +1776,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
       };
       for (const line of lines) movement(state, {
         itemId: line.itemId!, direction: 'out', qty: line.qty, unitCost: line.unitCost,
-        source: 'sale', sourceId: row.id, note: '',
+        source: 'sale', sourceId: row.id, note: '', warehouseId: MAIN_WAREHOUSE_ID,
       });
       state.shipments.push(row);
       return row.id;
@@ -1727,6 +1788,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
       for (const line of shipment.lines) movement(state, {
         itemId: line.itemId!, direction: 'in', qty: line.qty, unitCost: line.unitCost,
         source: 'sale', sourceId: shipment.id, note: 'Yuborish stornosi bo‘yicha qaytarish',
+        warehouseId: MAIN_WAREHOUSE_ID,
       });
       shipment.status = 'cancelled';
       return shipment.id;

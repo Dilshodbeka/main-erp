@@ -25,6 +25,8 @@ import {
 import type { CustomerDraft } from '../customers';
 import { CustomerPicker } from './CustomerPicker';
 import { MaterialPicker } from './MaterialPicker';
+import { WarehouseSelect, WarehouseTransfer } from './WarehousePicker';
+import { MAIN_WAREHOUSE_ID } from '../warehouse-default';
 import { AccountField, Badge, Dialog, Empty, Field, money, num, statuses } from '../ui';
 import type { Command, Order, OrderLineKind, State } from '../types';
 
@@ -47,10 +49,13 @@ export function OrderEditor({ state, order, close, save, busy, createCustomer, o
   const [overhead, setOverhead] = useState(order?.overhead ?? 0);
   const [markup, setMarkup] = useState(order?.markup ?? 0);
   const [error, setError] = useState('');
+  const lockedWarehouse = !!order?.materials.some(line => line.issuedQty > 0);
+  const [warehouseId, setWarehouseId] = useState(order?.warehouseId ?? MAIN_WAREHOUSE_ID);
+  const [transfer, setTransfer] = useState<ShortageRow | null>(null);
   const active = Math.min(activeIndex, positions.length - 1);
   const current = positions[active];
   const totals = orderTotals(state, positions, overhead, markup);
-  const shortage = draftShortage(state, positions, order?.id ?? null);
+  const shortage = draftShortage(state, positions, order?.id ?? null, warehouseId);
   const kinds = new Set(positions.map(position => position.kind));
   const orderKind: Order['kind'] = kinds.size === 1 ? [...kinds][0]! : 'composite';
   const patch = (index: number, changes: Partial<PositionDraft>) => setPositions(list => list.map((position, i) => i === index ? { ...position, ...changes } : position));
@@ -58,7 +63,8 @@ export function OrderEditor({ state, order, close, save, busy, createCustomer, o
   const copyPosition = () => { if (!current) return; setPositions(list => [...list.slice(0, active + 1), duplicatePosition(current), ...list.slice(active + 1)]); setActiveIndex(active + 1); };
   const removePosition = () => { if (!current || current.id) return; setPositions(list => list.filter((_, i) => i !== active)); setActiveIndex(Math.max(0, active - 1)); };
 
-  return <Dialog wide className="dialog-positions"
+  return <>
+    <Dialog wide className="dialog-positions"
     title={editing ? `Buyurtmani tahrirlash · ${order.number}` : 'Yangi buyurtma'}
     subtitle={editing ? 'Har pozitsiya alohida hisoblanadi. Mijoz va umumiy muddat bitta buyurtmada qoladi; yuborilgan yoki boshlangan qatorlar qulflanadi.' : 'Bitta mijoz, bitta buyurtma — ichida har mahsulot va xizmat alohida pozitsiya.'}
     close={() => { if (!busy) close(); }}>
@@ -70,8 +76,8 @@ export function OrderEditor({ state, order, close, save, busy, createCustomer, o
       if (issue) { setError(issue); return; }
       const lines = positionLines(positions);
       const dueDate = text(form, 'dueDate');
-      if (order) { void save({ type: 'order.update', orderId: order.id, overhead, markup, dueDate, lines }); return; }
-      void save({ type: 'order.create', input: { kind: 'composite', customerId, overhead, markup, dueDate, advance: number(form, 'advance'), account: text(form, 'account') as 'cash' | 'bank', lines } });
+      if (order) { void save({ type: 'order.update', orderId: order.id, overhead, markup, dueDate, lines, warehouseId }); return; }
+      void save({ type: 'order.create', input: { kind: 'composite', customerId, overhead, markup, dueDate, advance: number(form, 'advance'), account: text(form, 'account') as 'cash' | 'bank', lines, warehouseId } });
     }}>
       <div className="form-body order-form">
         <div className="form-grid">
@@ -80,7 +86,9 @@ export function OrderEditor({ state, order, close, save, busy, createCustomer, o
             setPositions(list => list.map(position => ({ ...position, materials: position.materials.filter(row => !state.items.find(item => item.id === row.itemId)?.customerId) })));
           }} onCreate={createCustomer} /></Field>
           <Field label="Umumiy tayyorlash muddati"><input name="dueDate" type="date" defaultValue={order?.dueDate ?? dateOffset(7)} required /></Field>
+          <WarehouseSelect warehouses={state.warehouses} value={warehouseId} onChange={setWarehouseId} disabled={lockedWarehouse} label="Qaysi ombordan" />
         </div>
+        {lockedWarehouse && <p className="subtle-note">Materiallar berilgan — omborni o‘zgartirib bo‘lmaydi.</p>}
         <div className="order-positions">
           <div className="position-list">
             {positions.map((position, index) => <button type="button" key={position.id ?? `new-${index}`}
@@ -97,7 +105,7 @@ export function OrderEditor({ state, order, close, save, busy, createCustomer, o
             <p className="subtle-note">Saqilingan pozitsiyani bu yerdan o‘chirib bo‘lmaydi — uni buyurtma kartasida bekor qiling.</p>
           </div>
           <div className="position-detail">{current
-            ? <PositionForm state={state} position={current} customerId={customerId} orderId={order?.id ?? null} onChange={changes => patch(active, changes)} shortage={shortage} onGo={onGo} />
+            ? <PositionForm state={state} position={current} customerId={customerId} orderId={order?.id ?? null} warehouseId={warehouseId} onTransfer={setTransfer} onChange={changes => patch(active, changes)} shortage={shortage} onGo={onGo} />
             : <Empty text="Chapdan pozitsiya tanlang yoki yangisini qo‘shing" />}</div>
         </div>
         <div className="form-grid">
@@ -122,17 +130,21 @@ export function OrderEditor({ state, order, close, save, busy, createCustomer, o
         <button className="primary" disabled={busy}>{busy ? 'Saqlanmoqda…' : editing ? 'O‘zgarishlarni saqlash' : 'Buyurtma yaratish'}</button>
       </footer>
     </form>
-  </Dialog>;
+  </Dialog>
+  {transfer && <WarehouseTransfer state={state} itemId={transfer.itemId} fromId={transfer.warehouseId} toId={transfer.suggestedFrom[0]?.warehouseId} qty={transfer.short} close={() => setTransfer(null)} save={async command => { await save(command); setTransfer(null); }} busy={busy} />}
+  </>;
 }
 
-function PositionForm({ state, position, customerId, orderId, onChange, shortage, onGo }: {
+function PositionForm({ state, position, customerId, orderId, warehouseId, onChange, shortage, onGo, onTransfer }: {
   state: State;
   position: PositionDraft;
   customerId: string;
   orderId: string | null;
+  warehouseId: string;
   onChange: (changes: Partial<PositionDraft>) => void;
   shortage: ShortageRow[];
   onGo?: (section: string, panel?: string) => void;
+  onTransfer?: (row: ShortageRow) => void;
 }) {
   const floor = position.floor;
   const shortByItem = new Map(shortage.map(row => [row.itemId, row]));
@@ -142,7 +154,7 @@ function PositionForm({ state, position, customerId, orderId, onChange, shortage
   };
   const setMaterial = (index: number, changes: Partial<PositionMaterial>) => onChange({ materials: position.materials.map((row, i) => i === index ? { ...row, ...changes } : row) });
   const describeMaterial = (item: { id: string; unit: string; kind: string; customerId: string | null }) =>
-    `erkin ${num(stockQty(state, item.id) - reservedExcept(state, item.id, orderId))} ${item.unit}${item.kind === 'blank' ? ' · zagotovka' : ''}${item.customerId ? ' · mijozniki' : ''}`;
+    `erkin ${num(stockQty(state, item.id, warehouseId) - reservedExcept(state, item.id, orderId, warehouseId))} ${item.unit}${item.kind === 'blank' ? ' · zagotovka' : ''}${item.customerId ? ' · mijozniki' : ''}`;
   const setStage = (index: number, changes: Partial<PositionStage>) => onChange({ route: position.route.map((task, i) => i === index ? { ...task, ...changes } : task) });
   const moveStage = (index: number, offset: number) => {
     const next = [...position.route];
@@ -172,7 +184,7 @@ function PositionForm({ state, position, customerId, orderId, onChange, shortage
       <div><h3>Materiallar</h3><small>Shu pozitsiyaning umumiy miqdori, bitta birlikka emas</small></div>
       <button type="button" className="secondary small" onClick={() => onChange({ materials: [...position.materials, { itemId: '', qty: 1, issuedQty: 0 }] })}><Plus size={14} />Qator</button>
     </div>
-    <ShortageNotice rows={shortage} onGo={onGo} />
+    <ShortageNotice rows={shortage} onGo={onGo} onTransfer={onTransfer} />
     {position.materials.map((row, index) => <div className="editor-line material-editor" key={index}>
       <MaterialPicker label={`Material ${index + 1}`} value={row.itemId} disabled={row.issuedQty > 0}
         groups={materialGroups(state, customerId, row.itemId, position.materials.map(material => material.itemId))}

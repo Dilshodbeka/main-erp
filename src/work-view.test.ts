@@ -123,7 +123,7 @@ describe('worker terminal view model', () => {
     const employeeId = 'emp-kamol';
     const state: State = {
       version: 4, revision: 1, companyId: 'co-1', customers: [], suppliers: [], machines: [],
-      items: [], recipes: [], purchases: [], movements: [], cash: [], reports: [], defects: [], payroll: [],
+      items: [], recipes: [], purchases: [], movements: [], cash: [], reports: [], defects: [], payroll: [], warehouses: [],
       salaryPlans: [], expensePlans: [], loans: [], routeTemplates: [], workerDeductions: [], shipments: [], tickets: [], audit: [],
       employees: [{ id: employeeId, name: 'Kamol', active: true }],
       operations: [{

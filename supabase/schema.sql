@@ -36,6 +36,15 @@ CREATE TABLE public.erp_employees (
   deactivated_at date,
   UNIQUE (company_id, id)
 );
+CREATE TABLE public.erp_warehouses (
+  company_id uuid NOT NULL REFERENCES public.erp_companies(id),
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL CHECK (btrim(name) <> ''),
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT transaction_timestamp(),
+  PRIMARY KEY (company_id, id),
+  UNIQUE (company_id, name)
+);
 CREATE TABLE public.erp_profiles (
   id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   company_id uuid NOT NULL REFERENCES public.erp_companies(id),
@@ -135,6 +144,7 @@ CREATE TABLE public.erp_orders (
   number text NOT NULL,
   kind text NOT NULL CHECK (kind IN ('product', 'service', 'series', 'composite')),
   customer_id uuid,
+  warehouse_id uuid NOT NULL DEFAULT '00000000-0000-4000-8000-00000000a001',
   title text NOT NULL CHECK (btrim(title) <> ''),
   qty numeric NOT NULL CHECK (qty > 0 AND qty <= 1000000000),
   price numeric NOT NULL CHECK (price BETWEEN 0 AND 1000000000000 AND price = round(price, 2)),
@@ -149,6 +159,7 @@ CREATE TABLE public.erp_orders (
   UNIQUE (company_id, number),
   UNIQUE (company_id, id),
   FOREIGN KEY (company_id, customer_id) REFERENCES public.erp_customers(company_id, id),
+  FOREIGN KEY (company_id, warehouse_id) REFERENCES public.erp_warehouses(company_id, id),
   FOREIGN KEY (company_id, output_item_id) REFERENCES public.erp_items(company_id, id),
   FOREIGN KEY (company_id, recipe_version_id) REFERENCES public.erp_recipe_versions(company_id, id),
   CHECK ((kind = 'series' AND customer_id IS NULL AND output_item_id IS NOT NULL AND recipe_version_id IS NOT NULL AND price = 0 AND overhead = 0 AND markup = 0)
@@ -226,10 +237,12 @@ CREATE TABLE public.erp_purchases (
   company_id uuid NOT NULL REFERENCES public.erp_companies(id),
   number text NOT NULL,
   supplier_id uuid NOT NULL,
+  warehouse_id uuid NOT NULL DEFAULT '00000000-0000-4000-8000-00000000a001',
   created_at timestamptz NOT NULL DEFAULT transaction_timestamp(),
   UNIQUE (company_id, number),
   UNIQUE (company_id, id),
-  FOREIGN KEY (company_id, supplier_id) REFERENCES public.erp_suppliers(company_id, id)
+  FOREIGN KEY (company_id, supplier_id) REFERENCES public.erp_suppliers(company_id, id),
+  FOREIGN KEY (company_id, warehouse_id) REFERENCES public.erp_warehouses(company_id, id)
 );
 CREATE TABLE public.erp_purchase_lines (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -257,11 +270,13 @@ CREATE TABLE public.erp_stock_movements (
   direction text NOT NULL CHECK (direction IN ('in', 'out')),
   qty numeric NOT NULL CHECK (qty > 0 AND qty <= 1000000000),
   unit_cost numeric NOT NULL CHECK (unit_cost BETWEEN 0 AND 1000000000000 AND unit_cost = round(unit_cost, 2)),
-  source text NOT NULL CHECK (source IN ('purchase', 'order', 'inventory', 'customer', 'production', 'sale')),
+  source text NOT NULL CHECK (source IN ('purchase', 'order', 'inventory', 'customer', 'production', 'sale', 'transfer')),
   source_id uuid NOT NULL,
+  warehouse_id uuid NOT NULL DEFAULT '00000000-0000-4000-8000-00000000a001',
   note text NOT NULL DEFAULT '',
   created_at timestamptz NOT NULL DEFAULT transaction_timestamp(),
   FOREIGN KEY (company_id, item_id) REFERENCES public.erp_items(company_id, id),
+  FOREIGN KEY (company_id, warehouse_id) REFERENCES public.erp_warehouses(company_id, id),
   CHECK (round(qty * unit_cost, 2) <= 1000000000000)
 );
 CREATE TABLE public.erp_cash (
@@ -505,6 +520,9 @@ CREATE INDEX erp_tasks_employee_idx ON public.erp_tasks(company_id, employee_id,
 CREATE INDEX erp_orders_customer_idx ON public.erp_orders(company_id, customer_id);
 CREATE INDEX erp_items_customer_idx ON public.erp_items(company_id, customer_id);
 CREATE INDEX erp_stock_item_idx ON public.erp_stock_movements(company_id, item_id);
+CREATE INDEX erp_stock_warehouse_idx ON public.erp_stock_movements(company_id, warehouse_id);
+CREATE INDEX erp_orders_warehouse_idx ON public.erp_orders(company_id, warehouse_id);
+CREATE INDEX erp_purchases_warehouse_idx ON public.erp_purchases(company_id, warehouse_id);
 CREATE INDEX erp_cash_source_idx ON public.erp_cash(company_id, source, source_id);
 CREATE INDEX erp_cash_customer_date_idx ON public.erp_cash(company_id, customer_id, created_at, id);
 CREATE INDEX erp_reports_employee_idx ON public.erp_work_reports(company_id, employee_id, created_at);
@@ -726,7 +744,7 @@ DO $$
 DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
-    'erp_metadata', 'erp_customers', 'erp_suppliers', 'erp_employees', 'erp_profiles', 'erp_machines',
+    'erp_metadata', 'erp_customers', 'erp_suppliers', 'erp_employees', 'erp_warehouses', 'erp_profiles', 'erp_machines',
     'erp_operations', 'erp_items', 'erp_recipes', 'erp_recipe_versions', 'erp_recipe_components',
     'erp_orders', 'erp_order_items', 'erp_order_materials', 'erp_tasks',
     'erp_purchases', 'erp_purchase_lines', 'erp_stock_movements', 'erp_cash',
@@ -745,17 +763,19 @@ GRANT SELECT ON TABLE public.erp_companies TO authenticated;
 CREATE POLICY erp_company_read ON public.erp_companies FOR SELECT TO authenticated USING (id = public.erp_current_company_id());
 CREATE POLICY erp_profile_self_read ON public.erp_profiles FOR SELECT TO authenticated USING (id = auth.uid());
 
-CREATE FUNCTION public.erp_stock_qty(p_company_id uuid, p_item_id uuid)
+CREATE FUNCTION public.erp_stock_qty(p_company_id uuid, p_item_id uuid, p_warehouse_id uuid DEFAULT NULL)
 RETURNS numeric LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
   SELECT coalesce(sum(CASE direction WHEN 'in' THEN qty ELSE -qty END), 0)
-  FROM public.erp_stock_movements WHERE company_id = p_company_id AND item_id = p_item_id;
+  FROM public.erp_stock_movements WHERE company_id = p_company_id AND item_id = p_item_id
+    AND (p_warehouse_id IS NULL OR warehouse_id = p_warehouse_id);
 $$;
-CREATE FUNCTION public.erp_reserved_qty(p_company_id uuid, p_item_id uuid, p_exclude_order uuid DEFAULT NULL)
+CREATE FUNCTION public.erp_reserved_qty(p_company_id uuid, p_item_id uuid, p_exclude_order uuid DEFAULT NULL, p_warehouse_id uuid DEFAULT NULL)
 RETURNS numeric LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
   SELECT coalesce(sum(m.qty - m.issued_qty), 0) FROM public.erp_order_materials m
   JOIN public.erp_orders o ON o.company_id = m.company_id AND o.id = m.order_id
   WHERE m.company_id = p_company_id AND m.item_id = p_item_id AND o.status = 'production'
-    AND (p_exclude_order IS NULL OR o.id <> p_exclude_order);
+    AND (p_exclude_order IS NULL OR o.id <> p_exclude_order)
+    AND (p_warehouse_id IS NULL OR o.warehouse_id = p_warehouse_id);
 $$;
 CREATE FUNCTION public.erp_balance(p_company_id uuid, p_account text)
 RETURNS numeric LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
@@ -1733,6 +1753,8 @@ BEGIN
         FROM public.erp_suppliers s WHERE s.company_id = v_company AND (v_admin OR v_has_purchases_view)),
       'employees', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', e.id, 'name', e.name, 'active', e.active, 'deactivatedAt', e.deactivated_at) ORDER BY e.id), '[]'::jsonb)
         FROM public.erp_employees e WHERE e.company_id = v_company AND (v_admin OR v_board OR e.id = v_profile.employee_id)),
+      'warehouses', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', w.id, 'name', w.name, 'active', w.active) ORDER BY w.created_at, w.id), '[]'::jsonb)
+        FROM public.erp_warehouses w WHERE w.company_id = v_company),
       'machines', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', m.id, 'name', m.name,
         'hourlyRevenueTarget', m.hourly_revenue_target, 'active', m.active) ORDER BY m.id), '[]'::jsonb)
         FROM public.erp_machines m WHERE m.company_id = v_company AND v_admin),
@@ -1776,7 +1798,7 @@ BEGIN
         'substitutions', CASE WHEN v_admin THEN o.substitutions ELSE '{}'::jsonb END,
         'qty', o.qty, 'price', CASE WHEN v_admin OR v_has_cost_view THEN o.price ELSE 0 END, 'overhead', CASE WHEN v_admin OR v_has_cost_view THEN o.overhead ELSE 0 END,
         'markup', CASE WHEN v_admin OR v_has_cost_view THEN o.markup ELSE 0 END,
-        'dueDate', o.due_date, 'createdAt', o.created_at, 'status', o.status,
+        'dueDate', o.due_date, 'createdAt', o.created_at, 'status', o.status, 'warehouseId', o.warehouse_id,
         'lines', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'kind', i.kind, 'title', i.title,
           'qty', i.qty, 'total', CASE WHEN v_admin THEN i.total ELSE 0 END, 'status', i.status) ORDER BY i.position), '[]'::jsonb)
           FROM public.erp_order_items i WHERE i.company_id = o.company_id AND i.order_id = o.id),
@@ -1801,6 +1823,7 @@ BEGIN
           OR EXISTS (SELECT 1 FROM public.erp_customers oc WHERE oc.company_id = o.company_id AND oc.id = o.customer_id AND oc.seller_id = v_profile.employee_id)
           OR EXISTS (SELECT 1 FROM public.erp_tasks t WHERE t.company_id = o.company_id AND t.order_id = o.id AND t.employee_id = v_profile.employee_id))),
       'purchases', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'number', p.number, 'supplierId', p.supplier_id, 'createdAt', p.created_at,
+        'warehouseId', p.warehouse_id,
         'lines', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'itemId', l.item_id, 'qty', l.qty, 'price', l.price, 'received', l.received,
           'previousPurchasePrice', l.previous_purchase_price, 'newPurchasePrice', l.new_purchase_price,
           'previousAverageCost', l.previous_average_cost, 'newAverageCost', l.new_average_cost) ORDER BY l.position), '[]'::jsonb)
@@ -1808,7 +1831,7 @@ BEGIN
         ) ORDER BY p.created_at, p.id), '[]'::jsonb) FROM public.erp_purchases p WHERE p.company_id = v_company AND (v_admin OR v_has_purchases_view)),
       'movements', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', m.id, 'itemId', m.item_id, 'direction', m.direction, 'qty', m.qty,
         'unitCost', CASE WHEN v_admin OR v_has_cost_view THEN m.unit_cost ELSE 0 END,
-        'source', m.source, 'sourceId', m.source_id,
+        'source', m.source, 'sourceId', m.source_id, 'warehouseId', m.warehouse_id,
         'note', CASE WHEN v_admin THEN m.note ELSE '' END, 'createdAt', m.created_at) ORDER BY m.created_at, m.id), '[]'::jsonb)
         FROM public.erp_stock_movements m WHERE m.company_id = v_company AND NOT v_board),
       'cash', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'direction', c.direction, 'amount', c.amount, 'account', c.account,
@@ -1893,6 +1916,7 @@ BEGIN
   IF NOT FOUND THEN RAISE EXCEPTION 'Authentication user not found' USING ERRCODE = '22023'; END IF;
   INSERT INTO public.erp_companies(name) VALUES (v_name) RETURNING id INTO v_company;
   INSERT INTO public.erp_metadata(company_id, revision) VALUES (v_company, 1);
+  INSERT INTO public.erp_warehouses(company_id, id, name) VALUES (v_company, '00000000-0000-4000-8000-00000000a001', 'Asosiy ombor');
   INSERT INTO public.erp_profiles(id, company_id, name, role, employee_id) VALUES (v_uid, v_company, v_actor_name, 'admin', NULL);
   INSERT INTO public.erp_audit(company_id, request_id, actor_user_id, actor_id, actor_name, action, entity_id, command, revision)
     VALUES (v_company, gen_random_uuid(), v_uid, v_uid, v_actor_name, 'company.bootstrap', v_company::text,
@@ -1979,6 +2003,9 @@ DECLARE
   v_markup numeric;
   v_cost numeric;
   v_stock numeric;
+  v_warehouse uuid;
+  v_free numeric;
+  v_take numeric;
   v_cap numeric;
   v_advance numeric;
   v_account text;
@@ -2326,6 +2353,15 @@ BEGIN
       v_advance := public.erp_money(v_input -> 'advance', 'advance', true);
       v_account := public.erp_account(v_input -> 'account');
       v_markup := CASE WHEN v_input ? 'markup' THEN public.erp_signed_money(v_input -> 'markup', 'markup') ELSE 0 END;
+      v_warehouse := CASE WHEN v_input ? 'warehouseId' AND v_input -> 'warehouseId' <> 'null'::jsonb
+        THEN public.erp_uuid(v_input -> 'warehouseId', 'warehouseId')
+        ELSE '00000000-0000-4000-8000-00000000a001'::uuid END;
+      IF NOT EXISTS (SELECT 1 FROM public.erp_warehouses WHERE company_id = v_company AND id = v_warehouse) THEN
+        RAISE EXCEPTION 'Warehouse not found' USING ERRCODE = '22023';
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM public.erp_warehouses WHERE company_id = v_company AND id = v_warehouse AND active) THEN
+        RAISE EXCEPTION 'Ombor nofaol' USING ERRCODE = '23514';
+      END IF;
       v_lines := v_input -> 'lines';
       IF v_lines IS NOT NULL THEN
         IF jsonb_typeof(v_lines) <> 'array' OR jsonb_array_length(v_lines) = 0 THEN
@@ -2342,9 +2378,9 @@ BEGIN
           FROM jsonb_array_elements(v_lines) WITH ORDINALITY AS l(value, ordinality);
         IF v_line_kind NOT IN ('product', 'service', 'composite') THEN RAISE EXCEPTION 'Invalid position kind' USING ERRCODE = '22023'; END IF;
         IF v_amount + v_markup < 0 THEN RAISE EXCEPTION 'Markup exceeds order total' USING ERRCODE = '23514'; END IF;
-        INSERT INTO public.erp_orders(company_id, number, kind, customer_id, title, qty, price, overhead, markup, due_date)
+        INSERT INTO public.erp_orders(company_id, number, kind, customer_id, warehouse_id, title, qty, price, overhead, markup, due_date)
           VALUES (v_company, 'ORD-' || (SELECT lpad((count(*) + 1)::text, greatest(4, length((count(*) + 1)::text)), '0') FROM public.erp_orders WHERE company_id = v_company),
-            v_line_kind, v_customer, v_title, v_qty, round(v_amount + v_markup, 2),
+            v_line_kind, v_customer, v_warehouse, v_title, v_qty, round(v_amount + v_markup, 2),
             public.erp_money(v_input -> 'overhead', 'overhead', true), v_markup, public.erp_date(v_input -> 'dueDate')) RETURNING * INTO v_order;
         v_entity := v_order.id;
         INSERT INTO public.erp_order_items(company_id, order_id, position, kind, title, qty, total)
@@ -2366,9 +2402,9 @@ BEGIN
         v_amount := public.erp_money(v_input -> 'price', 'price', true);
         v_title := public.erp_text(v_input -> 'title', 'title');
         IF v_amount + v_markup < 0 THEN RAISE EXCEPTION 'Markup exceeds order total' USING ERRCODE = '23514'; END IF;
-        INSERT INTO public.erp_orders(company_id, number, kind, customer_id, title, qty, price, overhead, markup, due_date)
+        INSERT INTO public.erp_orders(company_id, number, kind, customer_id, warehouse_id, title, qty, price, overhead, markup, due_date)
           VALUES (v_company, 'ORD-' || (SELECT lpad((count(*) + 1)::text, greatest(4, length((count(*) + 1)::text)), '0') FROM public.erp_orders WHERE company_id = v_company),
-            v_kind, v_customer, v_title, v_qty, round(v_amount + v_markup, 2),
+            v_kind, v_customer, v_warehouse, v_title, v_qty, round(v_amount + v_markup, 2),
             public.erp_money(v_input -> 'overhead', 'overhead', true), v_markup, public.erp_date(v_input -> 'dueDate')) RETURNING * INTO v_order;
         v_entity := v_order.id;
         INSERT INTO public.erp_order_items(company_id, order_id, position, kind, title, qty, total)
@@ -2392,6 +2428,23 @@ BEGIN
       END IF;
       IF NOT EXISTS (SELECT 1 FROM public.erp_customers WHERE company_id = v_company AND id = v_order.customer_id) THEN
         RAISE EXCEPTION 'Customer not found' USING ERRCODE = '22023';
+      END IF;
+      IF p_command ? 'warehouseId' AND p_command -> 'warehouseId' <> 'null'::jsonb THEN
+        v_warehouse := public.erp_uuid(p_command -> 'warehouseId', 'warehouseId');
+        IF NOT EXISTS (SELECT 1 FROM public.erp_warehouses WHERE company_id = v_company AND id = v_warehouse) THEN
+          RAISE EXCEPTION 'Warehouse not found' USING ERRCODE = '22023';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM public.erp_warehouses WHERE company_id = v_company AND id = v_warehouse AND active) THEN
+          RAISE EXCEPTION 'Ombor nofaol' USING ERRCODE = '23514';
+        END IF;
+        IF v_warehouse <> v_order.warehouse_id THEN
+          IF EXISTS (SELECT 1 FROM public.erp_order_materials
+            WHERE company_id = v_company AND order_id = v_entity AND issued_qty > 0) THEN
+            RAISE EXCEPTION 'Materiallar berilgan — omborni o‘zgartirib bo‘lmaydi' USING ERRCODE = '23514';
+          END IF;
+          UPDATE public.erp_orders SET warehouse_id = v_warehouse WHERE company_id = v_company AND id = v_entity;
+          v_order.warehouse_id := v_warehouse;
+        END IF;
       END IF;
       v_lines := p_command -> 'lines';
       UPDATE public.erp_orders SET overhead = public.erp_money(p_command -> 'overhead', 'overhead', true),
@@ -2579,11 +2632,6 @@ BEGIN
         SELECT 1 FROM public.erp_tasks t JOIN public.erp_employees e ON e.company_id = t.company_id AND e.id = t.employee_id
         WHERE t.company_id = v_company AND t.order_id = v_entity AND NOT e.active
       ) THEN RAISE EXCEPTION 'An active production route is required' USING ERRCODE = '23514'; END IF;
-      FOR v_material IN SELECT * FROM public.erp_order_materials WHERE company_id = v_company AND order_id = v_entity LOOP
-        IF v_material.qty > public.erp_stock_qty(v_company, v_material.item_id) - public.erp_reserved_qty(v_company, v_material.item_id) THEN
-          RAISE EXCEPTION 'Insufficient unreserved material stock' USING ERRCODE = '23514';
-        END IF;
-      END LOOP;
       UPDATE public.erp_orders SET status = 'production' WHERE company_id = v_company AND id = v_entity;
       UPDATE public.erp_order_items SET status = 'production'
         WHERE company_id = v_company AND order_id = v_entity AND status <> 'cancelled';
@@ -2608,13 +2656,14 @@ BEGIN
           RAISE EXCEPTION 'Material belongs to another customer' USING ERRCODE = '23514';
         END IF;
         v_qty := v_material.qty - v_material.issued_qty;
-        IF v_qty > public.erp_stock_qty(v_company, v_item.id) - public.erp_reserved_qty(v_company, v_item.id, v_entity) THEN
-          RAISE EXCEPTION 'Insufficient stock for issue' USING ERRCODE = '23514';
-        END IF;
-        INSERT INTO public.erp_stock_movements(company_id, item_id, direction, qty, unit_cost, source, source_id, note)
-          VALUES (v_company, v_item.id, 'out', v_qty,
-            CASE WHEN v_item.customer_id IS NULL THEN v_item.cost ELSE 0 END, 'order', v_entity, 'Production issue');
-        UPDATE public.erp_order_materials SET issued_qty = qty,
+        v_free := greatest(public.erp_stock_qty(v_company, v_item.id, v_order.warehouse_id)
+          - public.erp_reserved_qty(v_company, v_item.id, v_entity, v_order.warehouse_id), 0);
+        IF v_free <= 0 THEN RAISE EXCEPTION 'Omborda material yo‘q. Qoldiqni to‘ldiring' USING ERRCODE = '23514'; END IF;
+        v_take := least(v_qty, v_free);
+        INSERT INTO public.erp_stock_movements(company_id, item_id, direction, qty, unit_cost, source, source_id, note, warehouse_id)
+          VALUES (v_company, v_item.id, 'out', v_take,
+            CASE WHEN v_item.customer_id IS NULL THEN v_item.cost ELSE 0 END, 'order', v_entity, 'Production issue', v_order.warehouse_id);
+        UPDATE public.erp_order_materials SET issued_qty = round(issued_qty + v_take, 3),
           actual_cost = CASE WHEN v_item.customer_id IS NULL THEN v_item.cost ELSE 0 END WHERE id = v_material.id;
       END LOOP;
       PERFORM public.erp_ready(v_company, v_entity);
@@ -2637,9 +2686,9 @@ BEGIN
         IF NOT EXISTS (SELECT 1 FROM public.erp_items WHERE company_id = v_company AND id = v_material.item_id) THEN
           RAISE EXCEPTION 'Material item not found' USING ERRCODE = '22023';
         END IF;
-        INSERT INTO public.erp_stock_movements(company_id, item_id, direction, qty, unit_cost, source, source_id, note)
+        INSERT INTO public.erp_stock_movements(company_id, item_id, direction, qty, unit_cost, source, source_id, note, warehouse_id)
           VALUES (v_company, v_material.item_id, 'in', v_material.issued_qty, v_material.actual_cost, 'order', v_entity,
-            'Bekor qilingan buyurtma materiali qaytarildi');
+            'Bekor qilingan buyurtma materiali qaytarildi', v_order.warehouse_id);
         UPDATE public.erp_order_materials SET issued_qty = 0, actual_cost = 0 WHERE id = v_material.id;
       END LOOP;
       UPDATE public.erp_order_items SET status = 'cancelled' WHERE company_id = v_company AND order_id = v_entity;
@@ -2671,9 +2720,9 @@ BEGIN
         IF NOT EXISTS (SELECT 1 FROM public.erp_items WHERE company_id = v_company AND id = v_material.item_id) THEN
           RAISE EXCEPTION 'Material item not found' USING ERRCODE = '22023';
         END IF;
-        INSERT INTO public.erp_stock_movements(company_id, item_id, direction, qty, unit_cost, source, source_id, note)
+        INSERT INTO public.erp_stock_movements(company_id, item_id, direction, qty, unit_cost, source, source_id, note, warehouse_id)
           VALUES (v_company, v_material.item_id, 'in', v_material.issued_qty, v_material.actual_cost, 'order', v_entity,
-            'Bekor qilingan buyurtma materiali qaytarildi');
+            'Bekor qilingan buyurtma materiali qaytarildi', v_order.warehouse_id);
       END LOOP;
       DELETE FROM public.erp_order_materials WHERE company_id = v_company AND line_id = v_line_id;
       DELETE FROM public.erp_tasks WHERE company_id = v_company AND line_id = v_line_id
@@ -2854,8 +2903,17 @@ BEGIN
       IF NOT EXISTS (SELECT 1 FROM public.erp_suppliers WHERE company_id = v_company AND id = v_id) THEN
         RAISE EXCEPTION 'Supplier not found' USING ERRCODE = '22023';
       END IF;
-      INSERT INTO public.erp_purchases(company_id, number, supplier_id)
-        VALUES (v_company, 'PUR-' || (SELECT lpad((count(*) + 1)::text, greatest(4, length((count(*) + 1)::text)), '0') FROM public.erp_purchases WHERE company_id = v_company), v_id)
+      v_warehouse := CASE WHEN p_command ? 'warehouseId' AND p_command -> 'warehouseId' <> 'null'::jsonb
+        THEN public.erp_uuid(p_command -> 'warehouseId', 'warehouseId')
+        ELSE '00000000-0000-4000-8000-00000000a001'::uuid END;
+      IF NOT EXISTS (SELECT 1 FROM public.erp_warehouses WHERE company_id = v_company AND id = v_warehouse) THEN
+        RAISE EXCEPTION 'Warehouse not found' USING ERRCODE = '22023';
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM public.erp_warehouses WHERE company_id = v_company AND id = v_warehouse AND active) THEN
+        RAISE EXCEPTION 'Ombor nofaol' USING ERRCODE = '23514';
+      END IF;
+      INSERT INTO public.erp_purchases(company_id, number, supplier_id, warehouse_id)
+        VALUES (v_company, 'PUR-' || (SELECT lpad((count(*) + 1)::text, greatest(4, length((count(*) + 1)::text)), '0') FROM public.erp_purchases WHERE company_id = v_company), v_id, v_warehouse)
         RETURNING id INTO v_entity;
       v_pos := 0;
       FOR v_line IN SELECT value FROM jsonb_array_elements(public.erp_array(p_command -> 'lines', 'lines', true)) LOOP
@@ -2890,8 +2948,8 @@ BEGIN
         UPDATE public.erp_purchase_lines SET received = received + v_qty,
           previous_purchase_price = v_item.last_purchase_price, new_purchase_price = v_purchase_line.price,
           previous_average_cost = v_item.cost, new_average_cost = v_cost WHERE id = v_id;
-        INSERT INTO public.erp_stock_movements(company_id, item_id, direction, qty, unit_cost, source, source_id, note)
-          VALUES (v_company, v_item.id, 'in', v_qty, v_purchase_line.price, 'purchase', v_entity, 'Purchase receipt');
+        INSERT INTO public.erp_stock_movements(company_id, item_id, direction, qty, unit_cost, source, source_id, note, warehouse_id)
+          VALUES (v_company, v_item.id, 'in', v_qty, v_purchase_line.price, 'purchase', v_entity, 'Purchase receipt', v_purchase.warehouse_id);
       END LOOP;
     WHEN 'supplier.pay' THEN
       v_entity := public.erp_uuid(p_command -> 'supplierId', 'supplierId');
@@ -3192,12 +3250,73 @@ BEGIN
       SELECT * INTO v_item FROM public.erp_items WHERE company_id = v_company AND id = v_entity;
       IF NOT FOUND THEN RAISE EXCEPTION 'Item not found' USING ERRCODE = '22023'; END IF;
       PERFORM public.erp_text(p_command -> 'note', 'note', true);
-      IF v_qty < public.erp_reserved_qty(v_company, v_entity) THEN RAISE EXCEPTION 'Count is below reserved quantity' USING ERRCODE = '23514'; END IF;
-      v_stock := public.erp_stock_qty(v_company, v_entity);
-      IF v_qty <> v_stock THEN
-        INSERT INTO public.erp_stock_movements(company_id, item_id, direction, qty, unit_cost, source, source_id, note)
-          VALUES (v_company, v_entity, CASE WHEN v_qty > v_stock THEN 'in' ELSE 'out' END, abs(v_qty - v_stock), v_item.cost, 'inventory', v_entity, p_command ->> 'note');
+      v_warehouse := CASE WHEN p_command ? 'warehouseId' AND p_command -> 'warehouseId' <> 'null'::jsonb
+        THEN public.erp_uuid(p_command -> 'warehouseId', 'warehouseId')
+        ELSE '00000000-0000-4000-8000-00000000a001'::uuid END;
+      IF NOT EXISTS (SELECT 1 FROM public.erp_warehouses WHERE company_id = v_company AND id = v_warehouse) THEN
+        RAISE EXCEPTION 'Warehouse not found' USING ERRCODE = '22023';
       END IF;
+      IF NOT EXISTS (SELECT 1 FROM public.erp_warehouses WHERE company_id = v_company AND id = v_warehouse AND active) THEN
+        RAISE EXCEPTION 'Ombor nofaol' USING ERRCODE = '23514';
+      END IF;
+      IF v_qty < public.erp_reserved_qty(v_company, v_entity, NULL, v_warehouse) THEN RAISE EXCEPTION 'Count is below reserved quantity' USING ERRCODE = '23514'; END IF;
+      v_stock := public.erp_stock_qty(v_company, v_entity, v_warehouse);
+      IF v_qty <> v_stock THEN
+        INSERT INTO public.erp_stock_movements(company_id, item_id, direction, qty, unit_cost, source, source_id, note, warehouse_id)
+          VALUES (v_company, v_entity, CASE WHEN v_qty > v_stock THEN 'in' ELSE 'out' END, abs(v_qty - v_stock),
+            CASE WHEN v_item.customer_id IS NULL THEN v_item.cost ELSE 0 END, 'inventory', v_entity, p_command ->> 'note', v_warehouse);
+      END IF;
+    WHEN 'warehouse.create' THEN
+      v_text := btrim(public.erp_text(p_command -> 'name', 'name'));
+      IF EXISTS (SELECT 1 FROM public.erp_warehouses WHERE company_id = v_company AND lower(name) = lower(v_text)) THEN
+        RAISE EXCEPTION 'Name already exists' USING ERRCODE = '22023';
+      END IF;
+      INSERT INTO public.erp_warehouses(company_id, name) VALUES (v_company, v_text) RETURNING id INTO v_entity;
+    WHEN 'warehouse.update' THEN
+      v_entity := public.erp_uuid(p_command -> 'warehouseId', 'warehouseId');
+      IF NOT EXISTS (SELECT 1 FROM public.erp_warehouses WHERE company_id = v_company AND id = v_entity) THEN
+        RAISE EXCEPTION 'Warehouse not found' USING ERRCODE = '22023';
+      END IF;
+      v_text := btrim(public.erp_text(p_command -> 'name', 'name'));
+      IF EXISTS (SELECT 1 FROM public.erp_warehouses
+        WHERE company_id = v_company AND id <> v_entity AND lower(name) = lower(v_text)) THEN
+        RAISE EXCEPTION 'Name already exists' USING ERRCODE = '22023';
+      END IF;
+      v_active := public.erp_bool(p_command -> 'active', 'active');
+      IF NOT v_active AND NOT EXISTS (SELECT 1 FROM public.erp_warehouses
+        WHERE company_id = v_company AND id <> v_entity AND active) THEN
+        RAISE EXCEPTION 'Kamida bitta faol ombor qolishi kerak' USING ERRCODE = '23514';
+      END IF;
+      UPDATE public.erp_warehouses SET name = v_text, active = v_active WHERE company_id = v_company AND id = v_entity;
+    WHEN 'warehouse.transfer' THEN
+      v_id := public.erp_uuid(p_command -> 'fromId', 'fromId');
+      v_warehouse := public.erp_uuid(p_command -> 'toId', 'toId');
+      IF v_id = v_warehouse THEN RAISE EXCEPTION 'Omborlar bir xil bo‘lmasligi kerak' USING ERRCODE = '23514'; END IF;
+      IF NOT EXISTS (SELECT 1 FROM public.erp_warehouses WHERE company_id = v_company AND id = v_id) THEN
+        RAISE EXCEPTION 'Warehouse not found' USING ERRCODE = '22023';
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM public.erp_warehouses WHERE company_id = v_company AND id = v_id AND active) THEN
+        RAISE EXCEPTION 'Ombor nofaol' USING ERRCODE = '23514';
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM public.erp_warehouses WHERE company_id = v_company AND id = v_warehouse) THEN
+        RAISE EXCEPTION 'Warehouse not found' USING ERRCODE = '22023';
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM public.erp_warehouses WHERE company_id = v_company AND id = v_warehouse AND active) THEN
+        RAISE EXCEPTION 'Ombor nofaol' USING ERRCODE = '23514';
+      END IF;
+      v_entity := public.erp_uuid(p_command -> 'itemId', 'itemId');
+      SELECT * INTO v_item FROM public.erp_items WHERE company_id = v_company AND id = v_entity;
+      IF NOT FOUND THEN RAISE EXCEPTION 'Item not found' USING ERRCODE = '22023'; END IF;
+      v_qty := public.erp_num(p_command -> 'qty', 'qty');
+      v_free := public.erp_stock_qty(v_company, v_entity, v_id) - public.erp_reserved_qty(v_company, v_entity, NULL, v_id);
+      IF v_qty > v_free THEN RAISE EXCEPTION 'Omborda yetarli qoldiq yo‘q' USING ERRCODE = '23514'; END IF;
+      v_ref := gen_random_uuid();
+      v_note := public.erp_text(p_command -> 'note', 'note', true);
+      v_cost := CASE WHEN v_item.customer_id IS NULL THEN v_item.cost ELSE 0 END;
+      INSERT INTO public.erp_stock_movements(company_id, item_id, direction, qty, unit_cost, source, source_id, note, warehouse_id)
+        VALUES (v_company, v_entity, 'out', v_qty, v_cost, 'transfer', v_ref, v_note, v_id),
+               (v_company, v_entity, 'in', v_qty, v_cost, 'transfer', v_ref, v_note, v_warehouse);
+      v_entity := v_ref;
     WHEN 'cash.post' THEN
       v_direction := public.erp_text(p_command -> 'direction', 'direction');
       IF v_direction NOT IN ('in', 'out', 'transfer') THEN RAISE EXCEPTION 'Invalid cash direction' USING ERRCODE = '22023'; END IF;
@@ -3389,7 +3508,7 @@ REVOKE ALL ON FUNCTION
   public.erp_num(jsonb, text, boolean), public.erp_money(jsonb, text, boolean), public.erp_signed_money(jsonb, text), public.erp_uuid(jsonb, text), public.erp_text(jsonb, text, boolean),
   public.erp_bool(jsonb, text), public.erp_account(jsonb), public.erp_date(jsonb), public.erp_array(jsonb, text, boolean), public.erp_unit(jsonb), public.erp_ticket_context(jsonb),
   public.erp_current_profile(), public.erp_current_company_id(), public.erp_is_admin(),
-  public.erp_stock_qty(uuid, uuid), public.erp_reserved_qty(uuid, uuid, uuid), public.erp_balance(uuid, text), public.erp_paid(uuid, text, uuid),
+  public.erp_stock_qty(uuid, uuid, uuid), public.erp_reserved_qty(uuid, uuid, uuid, uuid), public.erp_balance(uuid, text), public.erp_paid(uuid, text, uuid),
   public.erp_salary_ledger(uuid, uuid, date), public.erp_expense_ledger(uuid, uuid, date), public.erp_loan_ledger(uuid, uuid), public.erp_customer_advance(uuid, uuid), public.erp_order_paid(uuid, uuid),
   public.erp_supplier_cost(uuid, uuid), public.erp_ready(uuid, uuid), public.erp_work_task(uuid, public.erp_profiles, uuid, uuid),
   public.erp_insert_components(uuid, uuid, jsonb), public.erp_assert_recipes(uuid), public.erp_insert_route(uuid, uuid, uuid, numeric, jsonb),

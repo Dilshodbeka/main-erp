@@ -16,8 +16,8 @@ const tabs: [WarehouseTab, string][] = [
   ['finished', 'Tayyor mahsulot'],
 ];
 
-export function WarehouseCatalog({ state, search, onEdit, onCount }: {
-  state: State; search: string; onEdit: (itemId: string) => void; onCount: (itemId: string) => void;
+export function WarehouseCatalog({ state, warehouseId, search, onEdit, onCount }: {
+  state: State; warehouseId: string; search: string; onEdit: (itemId: string) => void; onCount: (itemId: string) => void;
 }) {
   const [tab, setTab] = useState<WarehouseTab>('materials');
   const [group, setGroup] = useState<string | null>(null);
@@ -33,14 +33,14 @@ export function WarehouseCatalog({ state, search, onEdit, onCount }: {
   const searched = scoped.filter(item => matchesQuery([item.name, categoryLabel(item.category), item.customerId ? customerName(item.customerId) : null], search));
   const sortOptions: SortOption<State['items'][number], StockSortKey>[] = [
     { value: 'name', label: 'Nomi', get: item => item.name },
-    { value: 'stock', label: 'Omborda', get: item => stockQty(state, item.id) },
-    { value: 'available', label: 'Bo‘sh miqdor', get: item => stockQty(state, item.id) - reservedQty(state, item.id) },
-    { value: 'value', label: 'Qiymat', get: item => item.customerId ? null : stockQty(state, item.id) * (tab === 'finished' ? item.salePrice : item.cost) },
+    { value: 'stock', label: 'Omborda', get: item => stockQty(state, item.id, warehouseId) },
+    { value: 'available', label: 'Bo‘sh miqdor', get: item => stockQty(state, item.id, warehouseId) - reservedQty(state, item.id, warehouseId) },
+    { value: 'value', label: 'Qiymat', get: item => item.customerId ? null : stockQty(state, item.id, warehouseId) * (tab === 'finished' ? item.salePrice : item.cost) },
   ];
   const visible = sortRows(searched.filter(item => {
     if (uncategorized) return item.category === null;
     if (!inWarehouseGroup(item.category, group) || !inWarehouseLeaf(item.category, leaf)) return false;
-    const free = stockQty(state, item.id) - reservedQty(state, item.id);
+    const free = stockQty(state, item.id, warehouseId) - reservedQty(state, item.id, warehouseId);
     return stockFilter === 'all' || (stockFilter === 'out' ? free <= 0 : stockFilter === 'low' ? free > 0 && free < item.minQty : free >= item.minQty);
   }), sortOptions, stockSort);
   const count = (groupCode: string | null, leafCode: string | null = null) =>
@@ -76,8 +76,8 @@ export function WarehouseCatalog({ state, search, onEdit, onCount }: {
         </aside>}
         <div className="warehouse-panel">
           <div className="table-scroll cardable"><table><thead><tr><th>Pozitsiya</th><th className="right">Omborda</th><th className="right">Band</th><th className="right">Bo‘sh</th><th className="right">{valueHead}</th><th /></tr></thead><tbody>{visible.map(item => {
-            const qty = stockQty(state, item.id);
-            const reserved = reservedQty(state, item.id);
+            const qty = stockQty(state, item.id, warehouseId);
+            const reserved = reservedQty(state, item.id, warehouseId);
             return <tr key={item.id}>
               <td data-label="Pozitsiya"><div className="item-cell">{item.photo
                 ? <img className="item-thumb" src={item.photo} alt="" loading="lazy" />

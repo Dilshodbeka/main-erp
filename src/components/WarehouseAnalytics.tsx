@@ -10,7 +10,7 @@ import { SortSelect } from './SortSelect';
 type JournalSort = 'date' | 'item' | 'qty' | 'value';
 type TurnoverSort = 'item' | 'purchased' | 'issued' | 'stock';
 
-export function WarehouseAnalytics({ state, search }: { state: State; search: string }) {
+export function WarehouseAnalytics({ state, warehouseId, search }: { state: State; warehouseId: string; search: string }) {
   const [direction, setDirection] = useState('all');
   const [source, setSource] = useState('all');
   const [kind, setKind] = useState<PeriodKind>('month');
@@ -18,7 +18,7 @@ export function WarehouseAnalytics({ state, search }: { state: State; search: st
   const [journalSort, setJournalSort] = useState<SortState<JournalSort> | null>({ field: 'date', direction: 'desc' });
   const [turnoverSort, setTurnoverSort] = useState<SortState<TurnoverSort> | null>({ field: 'purchased', direction: 'desc' });
 
-  const journal = movementJournal(state);
+  const journal = movementJournal(state, warehouseId);
   const sources = [...new Map(journal.map(row => [row.source, row.sourceLabel])).entries()];
   const periods = [...new Set(journal.map(row => periodKey(row.date, kind)))].sort().reverse();
   const journalOptions: SortOption<MovementRow, JournalSort>[] = [
@@ -41,7 +41,7 @@ export function WarehouseAnalytics({ state, search }: { state: State; search: st
     { value: 'issued', label: 'Ishlab chiqarishga', get: row => row.issuedValue },
     { value: 'stock', label: 'Qoldiq', get: row => row.stock },
   ];
-  const turnover = sortRows(itemTurnover(state).filter(row => matchesQuery([row.item], search)), turnoverOptions, turnoverSort);
+  const turnover = sortRows(itemTurnover(state, warehouseId).filter(row => matchesQuery([row.item], search)), turnoverOptions, turnoverSort);
 
   return <>
     <Section title="Material oboroti" hint="Har bir pozitsiya bo‘yicha xarid, ishlab chiqarishga berilgan miqdor va joriy qoldiq" action={<SortSelect value={turnoverSort} onChange={setTurnoverSort} options={turnoverOptions} />}>

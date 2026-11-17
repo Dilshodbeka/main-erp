@@ -1,4 +1,5 @@
 import { applyCommand } from './domain';
+import { mainWarehouse } from './warehouse-default';
 import type { Actor, Command, Envelope, State } from './types';
 
 export interface Snapshot { state: State; actor: Actor }
@@ -22,7 +23,9 @@ export function emptyCache(): SyncCache { return { snapshot: null, savedAt: 0, p
 function verifiedSnapshot(value: Snapshot): Snapshot {
   const state = value?.state;
   const actor = value?.actor;
-  const arrays: (keyof State)[] = ['customers', 'suppliers', 'employees', 'machines', 'operations', 'items', 'recipes', 'orders', 'purchases', 'movements', 'cash', 'reports', 'defects', 'payroll', 'salaryPlans', 'expensePlans', 'loans', 'workerDeductions', 'shipments', 'tickets', 'audit'];
+  // A frontend can arrive before the warehouse migration is applied; treat that as one main warehouse.
+  if (state && (!Array.isArray(state.warehouses) || state.warehouses.length === 0)) state.warehouses = [mainWarehouse()];
+  const arrays: (keyof State)[] = ['customers', 'suppliers', 'employees', 'machines', 'operations', 'items', 'recipes', 'orders', 'purchases', 'movements', 'warehouses', 'cash', 'reports', 'defects', 'payroll', 'salaryPlans', 'expensePlans', 'loans', 'workerDeductions', 'shipments', 'tickets', 'audit'];
   if (!state || state.version !== 4 || typeof state.companyId !== 'string' || !state.companyId
     || !Number.isSafeInteger(state.revision) || state.revision < 0
     || arrays.some(key => !Array.isArray(state[key])) || !actor || typeof actor.id !== 'string'

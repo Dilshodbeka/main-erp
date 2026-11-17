@@ -5,9 +5,11 @@ import { emptyState } from './domain';
 import { ShortageNotice } from './components/ShortageNotice';
 import { OrderEditor } from './components/OrderEditor';
 import { SeriesList } from './components/SeriesList';
+import { MAIN_WAREHOUSE_ID } from './warehouse-default';
 import type { Item, MaterialLine, Order, OrderLine, State, StockMovement } from './types';
 
-const row = { itemId: 'paint', name: 'Poliuretan bo‘yoq', unit: 'l', needed: 13, stock: 10, reserved: 0, available: 10, short: 3 };
+const row = { itemId: 'paint', name: 'Poliuretan bo‘yoq', unit: 'l', needed: 13, stock: 10, reserved: 0, available: 10, short: 3,
+  warehouseId: MAIN_WAREHOUSE_ID, suggestedFrom: [] };
 
 function baseState(): State {
   const item: Item = { id: 'paint', name: 'Poliuretan bo‘yoq', unit: 'l', minQty: 0, cost: 10, customerId: null, kind: 'material',

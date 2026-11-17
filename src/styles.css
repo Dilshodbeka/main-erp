@@ -766,3 +766,13 @@ button.primary:active,button.secondary:active{transform:translateY(1px)}
 .material-warning>.shortage{flex-basis:100%}
 .material-warning .shortage-links button{margin-left:0}
 @media(max-width:700px){.shortage-links .text-button{min-height:44px;display:inline-flex;align-items:center}}
+.shortage-elsewhere{display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;color:#6b6a3f}
+.shortage-elsewhere .text-button{padding:0}
+.warehouse-select{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--muted)}
+.warehouse-select select{min-height:38px}
+.warehouse-settings{display:grid;gap:8px}
+.warehouse-settings form{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.warehouse-settings input[type=text],.warehouse-settings input:not([type]){flex:1 1 200px;min-width:0}
+.warehouse-active{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700}
+.warehouse-create{margin-top:4px;padding-top:10px;border-top:1px dashed var(--border)}
+@media(max-width:700px){.warehouse-select{width:100%}.warehouse-select select{flex:1}}

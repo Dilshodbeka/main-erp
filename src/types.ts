@@ -13,6 +13,7 @@ export interface Actor {
 }
 export interface Customer { id: string; name: string; phone: string; address: string; kind: CustomerKind; employeeId: string | null; sellerId?: string | null }
 export interface Supplier { id: string; name: string; phone: string }
+export interface Warehouse { id: string; name: string; active: boolean }
 export interface Employee { id: string; name: string; active: boolean; deactivatedAt?: string | null }
 export type OperationUnit = 'sheet' | 'meter' | 'squareMeter' | 'piece' | 'hole' | 'minute' | 'hour';
 export interface Machine { id: string; name: string; hourlyRevenueTarget: number; active: boolean }
@@ -44,6 +45,7 @@ export interface Order {
   outputItemId: string | null; recipeVersionId: string | null; substitutions: Record<string, string>;
   qty: number; price: number; overhead: number; markup?: number; dueDate: string; createdAt: string;
   status: Status; lines: OrderLine[]; materials: MaterialLine[]; route: RouteLine[]; drawingUrl?: string | null;
+  warehouseId?: string;
 }
 export interface SeriesInput {
   outputItemId: string; recipeVersionId: string; qty: number; dueDate: string;
@@ -55,10 +57,11 @@ export interface PurchaseLine {
   previousPurchasePrice: number; newPurchasePrice: number;
   previousAverageCost: number; newAverageCost: number;
 }
-export interface Purchase { id: string; number: string; supplierId: string; lines: PurchaseLine[]; createdAt: string }
+export interface Purchase { id: string; number: string; supplierId: string; lines: PurchaseLine[]; createdAt: string; warehouseId?: string }
 export interface StockMovement {
   id: string; itemId: string; direction: 'in' | 'out'; qty: number; unitCost: number;
-  source: 'purchase' | 'order' | 'inventory' | 'customer' | 'production' | 'sale'; sourceId: string; note: string; createdAt: string;
+  source: 'purchase' | 'order' | 'inventory' | 'customer' | 'production' | 'sale' | 'transfer'; sourceId: string; note: string; createdAt: string;
+  warehouseId?: string;
 }
 export interface CashEntry {
   id: string; direction: 'in' | 'out' | 'transfer'; amount: number; account: Account;
@@ -164,6 +167,7 @@ export interface SupportTicket {
 export interface State {
   version: 4; revision: number; companyId: string; customers: Customer[]; suppliers: Supplier[]; employees: Employee[];
   machines: Machine[]; operations: Operation[]; items: Item[]; recipes: Recipe[]; orders: Order[]; purchases: Purchase[]; movements: StockMovement[];
+  warehouses: Warehouse[];
   cash: CashEntry[]; reports: WorkReport[]; defects: DefectRow[]; payroll: PayrollEntry[]; salaryPlans: SalaryPlan[]; expensePlans: ExpensePlan[]; loans: LoanRow[]; routeTemplates: RouteTemplate[]; workerDeductions: WorkerDeduction[]; shipments: Shipment[]; tickets: SupportTicket[]; audit: AuditEntry[];
 }
 export type OrderMaterialInput = { itemId: string; qty: number };
@@ -187,6 +191,7 @@ export interface OrderInput {
   title?: string; qty?: number; price?: number;
   materials?: OrderMaterialInput[]; route?: OrderRouteInput[];
   lines?: OrderLineInput[];
+  warehouseId?: string;
 }
 export type Command =
   | { type: 'customer.create'; name: string; phone: string; address: string; kind: CustomerKind; employeeId?: string | null }
@@ -205,7 +210,7 @@ export type Command =
   | { type: 'recipe.version.create'; recipeId: string; components: RecipeComponentInput[] }
   | { type: 'customer.receive'; itemId: string; qty: number; note: string }
   | { type: 'order.create'; input: OrderInput }
-  | { type: 'order.update'; orderId: string; title?: string; qty?: number; price?: number; overhead: number; markup?: number; dueDate: string; materials?: OrderMaterialInput[]; route?: OrderRouteInput[]; lines?: OrderLineInput[] }
+  | { type: 'order.update'; orderId: string; title?: string; qty?: number; price?: number; overhead: number; markup?: number; dueDate: string; materials?: OrderMaterialInput[]; route?: OrderRouteInput[]; lines?: OrderLineInput[]; warehouseId?: string }
   | { type: 'series.create'; input: SeriesInput }
   | { type: 'order.launch'; orderId: string }
   | { type: 'order.issue'; orderId: string; lineId?: string }
@@ -217,7 +222,7 @@ export type Command =
   | { type: 'work.submit'; orderId: string; taskId: string; qty: number; note: string }
   | { type: 'work.review'; reportId: string; accept: boolean; defectQty?: number; reason?: DefectReason; note?: string }
   | { type: 'outsource.accept'; taskId: string }
-  | { type: 'purchase.create'; supplierId: string; lines: { itemId: string; qty: number; price: number }[] }
+  | { type: 'purchase.create'; supplierId: string; lines: { itemId: string; qty: number; price: number }[]; warehouseId?: string }
   | { type: 'purchase.receive'; purchaseId: string; lines: { lineId: string; qty: number }[] }
   | {
       type: 'supplier.pay';
@@ -242,7 +247,10 @@ export type Command =
   | { type: 'customer.link'; customerId: string; employeeId: string | null }
   | { type: 'salary.deduct'; employeeId: string; amount: number; note: string }
   | { type: 'salary.deduct.reverse'; deductionId: string }
-  | { type: 'inventory.count'; itemId: string; qty: number; note: string }
+  | { type: 'inventory.count'; itemId: string; qty: number; note: string; warehouseId?: string }
+  | { type: 'warehouse.create'; name: string }
+  | { type: 'warehouse.update'; warehouseId: string; name: string; active: boolean }
+  | { type: 'warehouse.transfer'; itemId: string; fromId: string; toId: string; qty: number; note: string }
   | { type: 'cash.post'; direction: 'in' | 'out' | 'transfer'; amount: number; account: Account; toAccount: Account | null; category: string; note: string }
   | { type: 'cash.reverse'; entryId: string; note: string }
   | { type: 'shipment.create'; orderId: string; qty?: number; address: string; dueDate: string; allowDebt: boolean; lines?: { lineId: string; qty: number }[] }

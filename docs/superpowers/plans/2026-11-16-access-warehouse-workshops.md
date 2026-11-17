@@ -770,7 +770,7 @@ Run: `npx tsc -b`, `npm run build`; в демо-режиме проверить,
 - Consumes: `State`, `StockMovement`, `Purchase`, `Order`, `Command`.
 - Produces: `Warehouse`, `MAIN_WAREHOUSE_ID`, `mainWarehouse()`, `warehouses` в `State`, `warehouse.transfer`.
 
-- [ ] **Step 1: Типы**
+- [x] **Step 1: Типы**
 
 ```ts
 // src/warehouse-default.ts
@@ -789,13 +789,13 @@ export interface Warehouse { id: string; name: string; active: boolean }
 // Command: + | { type: 'warehouse.transfer'; itemId: string; fromId: string; toId: string; qty: number; note: string }
 ```
 
-- [ ] **Step 2: Нормализация**
+- [x] **Step 2: Нормализация**
 
 `migrateState`: `state.warehouses ??= []`; если пусто — `state.warehouses = [mainWarehouse()]`; для каждого `movement/purchase/order` без `warehouseId` — `warehouseId = MAIN_WAREHOUSE_ID`.
 
 `verifiedSnapshot` (sync.ts): добавить `'warehouses'` в список обязательных массивов (строка 25); если сервер вернул пустой — заполнить дефолтной записью (как в `migrateState`).
 
-- [ ] **Step 3: RED — тест нормализации**
+- [x] **Step 3: RED — тест нормализации**
 
 ```ts
 it('normalizes missing warehouses to main', () => {
@@ -804,7 +804,7 @@ it('normalizes missing warehouses to main', () => {
 });
 ```
 
-- [ ] **Step 4: Run — RED → GREEN, затем проверка**
+- [x] **Step 4: Run — RED → GREEN, затем проверка**
 
 Run: `npx vitest run src/warehouse.test.ts`, `npx tsc -b`
 Expected: компиляция падает на всех местах использования `StockMovement` без `warehouseId` — это ожидаемо, чинится в B2.
@@ -821,7 +821,7 @@ Expected: компиляция падает на всех местах испо�
 - Consumes: `MAIN_WAREHOUSE_ID`, `mainWarehouse()`.
 - Produces: `stockQty(state, itemId, warehouseId?)`, `reservedQty(state, itemId, warehouseId?)`; все движения несут `warehouseId`.
 
-- [ ] **Step 1: Сигнатуры**
+- [x] **Step 1: Сигнатуры**
 
 ```ts
 function stockQty(state: State, itemId: string, warehouseId?: string): number {
@@ -834,7 +834,7 @@ function reservedQty(state: State, itemId: string, warehouseId?: string): number
 }
 ```
 
-- [ ] **Step 2: Проставить `warehouseId` во всех call-сайтах `movement()`**
+- [x] **Step 2: Проставить `warehouseId` во всех call-сайтах `movement()`**
 
 Каждый вызов `movement(state, {...})` получает `warehouseId`:
 - `item.create` (~969) — основной (открывающий остаток).
@@ -846,11 +846,11 @@ function reservedQty(state: State, itemId: string, warehouseId?: string): number
 - `receiveSeriesOutput` (~876) — `order.warehouseId`.
 - `shipment.createStock` (~1697), `shipment.reverse` (~1708) — основной.
 
-- [ ] **Step 3: `inventory.count` со складом**
+- [x] **Step 3: `inventory.count` со складом**
 
 Добавить `warehouseId?` в команду `inventory.count` (тип). Сверка/корректировка — по выбранному складу; нижняя граница — резерв этого склада (`reservedQty(state, itemId, warehouseId)`).
 
-- [ ] **Step 4: RED/GREEN тесты**
+- [x] **Step 4: RED/GREEN тесты**
 
 ```ts
 it('stockQty per warehouse', () => {
@@ -864,7 +864,7 @@ it('stockQty per warehouse', () => {
 });
 ```
 
-- [ ] **Step 5: Run — GREEN, регрессии**
+- [x] **Step 5: Run — GREEN, регрессии**
 
 Run: `npx vitest run src/warehouse.test.ts src/material-issue.test.ts src/domain.test.ts`
 Expected: зелёные; `material-issue.test.ts` пока без изменений (частичная выдача — B3).
@@ -882,7 +882,7 @@ Expected: зелёные; `material-issue.test.ts` пока без измене�
 - Consumes: `stockQty`/`reservedQty` с warehouseId; `reservedExcept`/`orderShortage`.
 - Produces: `order.launch` без проверки остатка; `order.issue` частичная (`take = min(qty-issuedQty, max(0, stock − резервы других заказов))`); `order.update` запрещает менять склад после первой выдачи.
 
-- [ ] **Step 1: RED — частичная выдача**
+- [x] **Step 1: RED — частичная выдача**
 
 В `src/warehouse.test.ts` (или `material-issue.test.ts`) — заказ с двумя материалами, в наличии только первый:
 
@@ -899,16 +899,16 @@ it('issue takes what is available, leaves the rest in deficit', () => {
 });
 ```
 
-- [ ] **Step 2: Run — RED**
+- [x] **Step 2: Run — RED**
 
 Run: `npx vitest run src/warehouse.test.ts`
 Expected: FAIL (сейчас `order.launch` бросает `Insufficient available stock`, `order.issue` — `Insufficient reserved stock`).
 
-- [ ] **Step 3: Убрать блокировку в `order.launch`**
+- [x] **Step 3: Убрать блокировку в `order.launch`**
 
 Удалить строку ~1159 (`check(!exceeds(row.qty, stockQty(...) - reservedQty(...)), 'Insufficient available stock')`). Оставить остальные проверки (черновик, уникальность материалов, не выдано, принадлежность материала, активность операции/исполнителя).
 
-- [ ] **Step 4: Частичная выдача в `order.issue`**
+- [x] **Step 4: Частичная выдача в `order.issue`**
 
 Заменить all-or-nothing тело:
 
@@ -935,7 +935,7 @@ case 'order.issue': {
 
 (Удалить проверку `Insufficient reserved stock`; `reservedExcept` получает параметр `warehouseId`.) Резерв «своего» заказа не мешает: `free = stock − резервы других заказов` (для этого `reservedExcept` уже исключает свой заказ — расширить его складом).
 
-- [ ] **Step 5: Блокировка смены склада в `order.update`**
+- [x] **Step 5: Блокировка смены склада в `order.update`**
 
 ```ts
 if (command.warehouseId && command.warehouseId !== order.warehouseId) {
@@ -946,11 +946,11 @@ if (command.warehouseId && command.warehouseId !== order.warehouseId) {
 
 (Добавить `warehouseId?` в `order.update` и `OrderInput`.)
 
-- [ ] **Step 6: `src/shortage.ts` — склад и `suggestedFrom`**
+- [x] **Step 6: `src/shortage.ts` — склад и `suggestedFrom`**
 
 `orderShortage(state, order)` считает по `order.warehouseId`; каждая строка `ShortageRow` получает `suggestedFrom: { warehouseId: string; available: number }[]` — по всем активным складам, где свободно (`stock − резервы`) > 0. `draftShortage` — без изменений (склад ещё не выбран — считает по основному).
 
-- [ ] **Step 7: Run — GREEN + регрессии**
+- [x] **Step 7: Run — GREEN + регрессии**
 
 Run: `npx vitest run src/material-issue.test.ts src/warehouse.test.ts src/shortage.test.ts src/domain.test.ts`
 Expected: зелёные. Обновить ожидания `material-issue.test.ts` под частичную выдачу, **не меняя** доменные инварианты (резерв, себестоимость, возврат при отмене).
@@ -967,7 +967,7 @@ Expected: зелёные. Обновить ожидания `material-issue.test
 - Consumes: `stockQty`/`reservedQty` по складу; средняя себестоимость `item.cost`.
 - Produces: `warehouse.transfer` — два движения `source:'transfer'`; `purchase.create.warehouseId?`.
 
-- [ ] **Step 1: RED**
+- [x] **Step 1: RED**
 
 ```ts
 it('transfer moves free stock between warehouses', () => {
@@ -983,7 +983,7 @@ it('transfer moves free stock between warehouses', () => {
 it('transfer cannot eat another order reserve', () => { /* free stock insufficient -> throw */ });
 ```
 
-- [ ] **Step 2: Run — RED**, затем реализация:
+- [x] **Step 2: Run — RED**, затем реализация:
 
 ```ts
 case 'warehouse.transfer': {
@@ -1004,11 +1004,11 @@ case 'warehouse.transfer': {
 
 (Себестоимость позиции не меняется — она общая по компании.)
 
-- [ ] **Step 3: `purchase.create`/`purchase.receive` со складом**
+- [x] **Step 3: `purchase.create`/`purchase.receive` со складом**
 
 `purchase.create` принимает `warehouseId?` (по умолчанию основной); `purchase.receive` приходует в `purchase.warehouseId`.
 
-- [ ] **Step 4: Run — GREEN**
+- [x] **Step 4: Run — GREEN**
 
 Run: `npx vitest run src/warehouse.test.ts`
 Expected: зелёные.
@@ -1026,7 +1026,7 @@ Expected: зелёные.
 - Consumes: `MAIN_WAREHOUSE_ID`; существующие процедуры `erp_snapshot`/`erp_execute`.
 - Produces: таблица и колонки складов, частичная выдача и `warehouse.transfer` на сервере.
 
-- [ ] **Step 1: Схема**
+- [x] **Step 1: Схема**
 
 ```sql
 CREATE TABLE IF NOT EXISTS public.erp_warehouses (
@@ -1043,7 +1043,7 @@ ALTER TABLE public.erp_orders ADD COLUMN IF NOT EXISTS warehouse_id uuid;
 -- FK к erp_warehouses, backfill основным складом компании, SET NOT NULL — в миграции
 ```
 
-- [ ] **Step 2: Миграция `20261119_warehouses.sql`**
+- [x] **Step 2: Миграция `20261119_warehouses.sql`**
 
 1. `CREATE TABLE IF NOT EXISTS erp_warehouses`.
 2. Для каждой компании вставить `'00000000-0000-4000-8000-00000000a001'`/«Asosiy ombor», если нет ни одной.
@@ -1051,9 +1051,9 @@ ALTER TABLE public.erp_orders ADD COLUMN IF NOT EXISTS warehouse_id uuid;
 4. Индексы `(company_id, warehouse_id)`.
 5. `CREATE OR REPLACE erp_snapshot` (массив `warehouses`, поле `warehouseId` в movements/purchases/orders) и `erp_execute` (частичная выдача, `warehouse.transfer`, `warehouseId` в purchase/inventory).
 
-- [ ] **Step 3: Контрактный тест** — как A4 Step 6, проверка подстрок `erp_warehouses`, `warehouse_id`, `'transfer'`.
+- [x] **Step 3: Контрактный тест** — как A4 Step 6, проверка подстрок `erp_warehouses`, `warehouse_id`, `'transfer'`.
 
-- [ ] **Step 4: Проверка**
+- [x] **Step 4: Проверка**
 
 Run: `npx tsc -b`, `npx vitest run src/warehouse-contract.test.ts`
 
@@ -1064,8 +1064,8 @@ Run: `npx tsc -b`, `npx vitest run src/warehouse-contract.test.ts`
 **Files:**
 - Create: `.validation-pglite-20261029/warehouses-probe.mjs`
 
-- [ ] **Step 1:** По образцу A5: применить `schema.sql` + `20261119_warehouses.sql`; assert: (1) `erp_warehouses` содержит «Asosiy ombor» с детерминированным id; (2) старые `erp_stock_movements` получили `warehouse_id` основного склада; (3) `erp_execute('warehouse.transfer')` пишет две строки `source='transfer'`; (4) `erp_execute('order.issue')` при частичном наличии пишет движение только на выданное.
-- [ ] **Step 2:** Run — `node .validation-pglite-20261029/warehouses-probe.mjs` → `OK warehouses-probe`.
+- [x] **Step 1:** По образцу A5: применить `schema.sql` + `20261119_warehouses.sql`; assert: (1) `erp_warehouses` содержит «Asosiy ombor» с детерминированным id; (2) старые `erp_stock_movements` получили `warehouse_id` основного склада; (3) `erp_execute('warehouse.transfer')` пишет две строки `source='transfer'`; (4) `erp_execute('order.issue')` при частичном наличии пишет движение только на выданное.
+- [x] **Step 2:** Run — `node .validation-pglite-20261029/warehouses-probe.mjs` → `OK warehouses-probe`.
 
 ---
 
@@ -1079,25 +1079,25 @@ Run: `npx tsc -b`, `npx vitest run src/warehouse-contract.test.ts`
 - Consumes: `state.warehouses`, `warehouse.transfer`, `orderShortage().suggestedFrom`.
 - Produces: селектор склада (показывается только при 2+ складах), панель «Omborlar», кнопка «Ko‘chirish» в дефиците, «Qaysi ombordan/omborga».
 
-- [ ] **Step 1:** В «Ombor» — селектор склада (по умолчанию «Asosiy ombor»); остатки и анализ по выбранному складу. Пока склад один — селектор скрыт.
-- [ ] **Step 2:** В `OrderEditor` — «Qaysi ombordan» (только для черновика; после первой выдачи поле заблокировано с подсказкой «Materiallar berilgan — omborni o‘zgartirib bo‘lmaydi»).
-- [ ] **Step 3:** В закупке — «Qaysi omborga».
-- [ ] **Step 4:** В дефиците — строки `suggestedFrom` («Bor: Asosiy ombor — 2 litr») + кнопка «Ko‘chirish», открывающая форму перемещения с предзаполненным `fromId`.
-- [ ] **Step 5:** В настройках — панель «Omborlar»: добавить/переименовать/отключить (нельзя удалить склад с движениями, нельзя отключить последний активный). Команды — через `warehouse.transfer`-стиль или новые `warehouse.*` CRUD-команды (решение: минимальный набор `warehouse.create/update`, admin-only, `settings.catalog`).
+- [x] **Step 1:** В «Ombor» — селектор склада (по умолчанию «Asosiy ombor»); остатки и анализ по выбранному складу. Пока склад один — селектор скрыт.
+- [x] **Step 2:** В `OrderEditor` — «Qaysi ombordan» (только для черновика; после первой выдачи поле заблокировано с подсказкой «Materiallar berilgan — omborni o‘zgartirib bo‘lmaydi»).
+- [x] **Step 3:** В закупке — «Qaysi omborga».
+- [x] **Step 4:** В дефиците — строки `suggestedFrom` («Bor: Asosiy ombor — 2 litr») + кнопка «Ko‘chirish», открывающая форму перемещения с предзаполненным `fromId`.
+- [x] **Step 5:** В настройках — панель «Omborlar»: добавить/переименовать/отключить (нельзя удалить склад с движениями, нельзя отключить последний активный). Команды — через `warehouse.transfer`-стиль или новые `warehouse.*` CRUD-команды (решение: минимальный набор `warehouse.create/update`, admin-only, `settings.catalog`).
 
 > Ruling: CRUD складов добавляется как admin-only команды `warehouse.create`/`warehouse.update` (вне спецификации 4.6, но необходим для панели «Omborlar»; интерфейс при одном складе их не показывает). Если владелец захочет — выносится отдельно.
 
-- [ ] **Step 6:** Проверка в демо: с одним складом — ноль новых элементов; вручную добавить второй склад (через временную команду/локальное состояние) — появляются селекторы.
+- [x] **Step 6:** Проверка в демо: с одним складом — ноль новых элементов; вручную добавить второй склад (через временную команду/локальное состояние) — появляются селекторы.
 
 ---
 
 ## Task B8: Проверка пакета B
 
-- [ ] **Step 1:** `npx tsc -b`.
-- [ ] **Step 2:** `npx vitest run` — зелёные (в т. ч. обновлённый `material-issue.test.ts`).
-- [ ] **Step 3:** `npm run build`.
-- [ ] **Step 4:** Демо-сценарий B (заказ с 3 материалами, 2 есть; запуск; частичная выдача; повторная выдача после прихода; перемещение; инвентаризация одного склада).
-- [ ] **Step 5:** Отчёт владельцу; SQL и deploy — по отдельному разрешению.
+- [x] **Step 1:** `npx tsc -b`.
+- [x] **Step 2:** `npx vitest run` — зелёные (в т. ч. обновлённый `material-issue.test.ts`).
+- [x] **Step 3:** `npm run build`.
+- [x] **Step 4:** Демо-сценарий B (заказ с 3 материалами, 2 есть; запуск; частичная выдача; повторная выдача после прихода; перемещение; инвентаризация одного склада).
+- [x] **Step 5:** Отчёт владельцу; SQL и deploy — по отдельному разрешению.
 
 ---
 
