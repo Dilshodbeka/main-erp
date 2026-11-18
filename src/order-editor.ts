@@ -173,7 +173,7 @@ export function positionIssue(positions: PositionDraft[]): string {
     if (!position.title.trim()) return `${label}: nomini kiriting.`;
     if (position.qty <= 0) return `${label}: miqdorini kiriting.`;
     if (position.qty < position.floor) return `${label}: miqdor yuborilgan miqdordan (${formatQty(position.floor)}) past bo‘lishi mumkin emas.`;
-    if (!position.route.length || position.route.some(task => !task.operationId
+    if (position.route.some(task => !task.operationId
       || (task.executorKind === 'employee' ? !task.employeeId || task.supplierId !== null
         : !task.supplierId || task.employeeId !== null))) {
       return `${label}: ijrochi bilan kamida bitta bosqich qo‘shing.`;
@@ -181,7 +181,7 @@ export function positionIssue(positions: PositionDraft[]): string {
     if (position.route.some(task => task.qty <= 0)) return `${label}: bosqich miqdorini kiriting.`;
     const overWork = position.route.find(task => exceedsWork(task.completed, task.qty));
     if (overWork) return `${label}: bosqich miqdori qabul qilingan ishdan (${formatQty(overWork.completed)}) past bo‘lishi mumkin emas.`;
-    if (position.unitPrice <= 0) return `${label}: narxini kiriting.`;
+    if (position.unitPrice < 0) return `${label}: narxini kiriting.`;
     if (position.materials.some(row => !row.itemId || row.qty <= 0)) return `${label}: material qatorlarini to‘ldiring.`;
   }
   return '';

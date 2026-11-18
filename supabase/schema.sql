@@ -971,7 +971,7 @@ DECLARE v_line jsonb; v_pos integer; v_stage numeric; v_operation public.erp_ope
 BEGIN
   SELECT coalesce(max(position), -1) + 1 INTO v_pos FROM public.erp_tasks
     WHERE company_id = p_company_id AND order_id = p_order_id;
-  FOR v_line IN SELECT value FROM jsonb_array_elements(public.erp_array(coalesce(p_lines, '[]'::jsonb), 'route', true)) LOOP
+  FOR v_line IN SELECT value FROM jsonb_array_elements(public.erp_array(coalesce(p_lines, '[]'::jsonb), 'route')) LOOP
     SELECT * INTO v_operation FROM public.erp_operations WHERE company_id = p_company_id
       AND id = public.erp_uuid(v_line -> 'operationId', 'operationId');
     IF NOT FOUND THEN RAISE EXCEPTION 'Operation not found' USING ERRCODE = '22023'; END IF;
@@ -1253,7 +1253,12 @@ DECLARE v_line jsonb; v_pos integer := p_pos; v_id uuid; v_started boolean; v_st
   v_kind text; v_employee uuid; v_supplier uuid;
   v_operation public.erp_operations%ROWTYPE; v_task public.erp_tasks%ROWTYPE;
 BEGIN
-  v_line := public.erp_array(coalesce(p_lines, '[]'::jsonb), 'route', true);
+  v_line := public.erp_array(coalesce(p_lines, '[]'::jsonb), 'route');
+  -- Draft positions may sit without stages; a live position must keep its route.
+  IF jsonb_array_length(v_line) = 0 AND EXISTS (SELECT 1 FROM public.erp_order_items
+    WHERE company_id = p_company_id AND id = p_line_id AND status <> 'draft') THEN
+    RAISE EXCEPTION 'Order requires a production route' USING ERRCODE = '23514';
+  END IF;
   IF (SELECT count(*) FROM jsonb_array_elements(v_line) l WHERE l.value ? 'taskId')
     <> (SELECT count(DISTINCT public.erp_uuid(l.value -> 'taskId', 'taskId')) FROM jsonb_array_elements(v_line) l WHERE l.value ? 'taskId') THEN
     RAISE EXCEPTION 'Duplicate task' USING ERRCODE = '22023';

@@ -266,6 +266,6 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
       </div>
     </div>;
     })}
-    {!position.route.length && <p className="subtle-note">Har pozitsiyaning kamida bitta bosqichi bo‘lishi shart — ish sexga shu marshrut orqali tushadi.</p>}
+    {!position.route.length && <p className="subtle-note">Bosqich qo‘shmasa ham saqlash mumkin — buyurtma chernovik bo‘lib qoladi. Ishga tushirishdan oldin har pozitsiyaga kamida bitta bosqich kerak.</p>}
   </>;
 }

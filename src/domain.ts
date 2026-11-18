@@ -248,7 +248,6 @@ function routeExecutor(state: State, operation: Operation, line: OrderRouteInput
 }
 
 function routeValues(state: State, lines: OrderRouteInput[], qty: number, lineId: string): RouteLine[] {
-  check(lines.length > 0, 'Order requires a production route');
   return lines.map(line => {
     const operation = find(state.operations, line.operationId, 'Operation');
     check(operation.active, 'Operation is inactive');
@@ -1218,6 +1217,10 @@ function mutate(state: State, command: Command, actor: Actor): string {
       const order = find(state.orders, command.orderId, 'Order');
       check(order.status === 'draft', 'Only draft orders can launch');
       if (order.kind !== 'series') find(state.customers, order.customerId, 'Customer');
+      for (const line of order.lines) {
+        if (line.status === 'cancelled') continue;
+        check(lineRoute(order, line.id).length > 0, 'Pozitsiyalarning har birida ishga tushirishdan oldin kamida bitta bosqich bo‘lishi shart.');
+      }
       for (const line of order.lines) {
         const materials = lineMaterials(order, line.id);
         unique(materials.map(row => row.itemId), 'material');

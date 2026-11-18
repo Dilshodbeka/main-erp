@@ -190,18 +190,20 @@ describe('order position drafts', () => {
     expect(positionIssue(positions)).toBe(`Pozitsiya 2: miqdor yuborilgan miqdordan (${formatQty(3)}) past bo‘lishi mumkin emas.`);
   });
 
-  it('refuses a position without a name, price or staffed stage', () => {
+  it('accepts a draft position but refuses half-filled stages and negative prices', () => {
     const f = base();
     const [kitchen] = positionsFromOrder(f.state, f.state.orders[0]);
     kitchen.title = '';
     expect(positionIssue([kitchen])).toBe('Pozitsiya 1: nomini kiriting.');
     kitchen.title = 'Oshxona';
     kitchen.route = [];
-    expect(positionIssue([kitchen])).toBe('Pozitsiya 1: ijrochi bilan kamida bitta bosqich qo‘shing.');
+    expect(positionIssue([kitchen])).toBe('');
     kitchen.route = [{ operationId: f.operationId, executorKind: 'employee', employeeId: '', supplierId: null, rate: 2, qty: 2, locked: false, completed: 0 }];
     expect(positionIssue([kitchen])).toBe('Pozitsiya 1: ijrochi bilan kamida bitta bosqich qo‘shing.');
     kitchen.route = [{ operationId: f.operationId, executorKind: 'employee', employeeId: f.employeeId, supplierId: null, rate: 2, qty: 2, locked: false, completed: 0 }];
     kitchen.unitPrice = 0;
+    expect(positionIssue([kitchen])).toBe('');
+    kitchen.unitPrice = -1;
     expect(positionIssue([kitchen])).toBe('Pozitsiya 1: narxini kiriting.');
     kitchen.unitPrice = 1000;
     kitchen.materials = [{ itemId: '', qty: 2, issuedQty: 0 }];
@@ -209,6 +211,13 @@ describe('order position drafts', () => {
     kitchen.materials = [];
     expect(positionIssue([kitchen])).toBe('');
     expect(positionIssue([])).toBe('Kamida bitta pozitsiya kerak.');
+  });
+
+  it('saves a blank draft position with only a name and quantity', () => {
+    const draft: PositionDraft = { ...blankPosition(), title: 'Shkaf', qty: 1 };
+    expect(positionIssue([draft])).toBe('');
+    expect(positionIssue([{ ...blankPosition(), qty: 1 }])).toBe('Pozitsiya 1: nomini kiriting.');
+    expect(positionIssue([{ ...blankPosition(), title: 'Shkaf', qty: 0 }])).toBe('Pozitsiya 1: miqdorini kiriting.');
   });
 
   it('holds the draft shape an order revision command needs', () => {

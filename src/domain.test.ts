@@ -1432,7 +1432,8 @@ describe('salary plan and payment commands', () => {
 describe('validation', () => {
   it('requires a route and caps finite values and aggregate balances safely', () => {
     const f = fixture();
-    atomic(f.state, { type: 'order.create', input: { ...f.input, route: [] } });
+    const blank = run(f.state, { type: 'order.create', input: { ...f.input, route: [] } });
+    atomic(blank, { type: 'order.launch', orderId: blank.orders.at(-1)!.id });
     atomic(f.state, { type: 'order.create', input: { ...f.input, price: 1e12 + 1 } });
     atomic(f.state, { type: 'order.create', input: { ...f.input, qty: 1e9 + 1 } });
     const full = funds(emptyState(), 1e12);
@@ -2236,6 +2237,58 @@ describe('composite customer orders', () => {
     expect(order.lines.map(line => line.status)).toEqual(['production', 'cancelled']);
     expect(order.price).toBe(3000);
     expect(order.qty).toBe(3);
+  });
+});
+
+describe('draft orders without materials or stages', () => {
+  function draft(f: ReturnType<typeof fixture>) {
+    return run(f.state, { type: 'order.create', input: {
+      kind: 'composite', customerId: f.customerId, dueDate: '', overhead: 0, advance: 0, account: 'cash',
+      lines: [
+        { kind: 'product', title: 'Shkaf', qty: 1, unitPrice: 0, materials: [], route: [] },
+        { kind: 'service', title: 'Raskroy', qty: 1, unitPrice: 0, materials: [], route: [] },
+      ],
+    } });
+  }
+
+  it('accepts a composite draft whose positions have no materials or stages', () => {
+    const f = fixture();
+    const state = draft(f);
+    const order = state.orders.at(-1)!;
+    expect(order.status).toBe('draft');
+    expect(order.price).toBe(0);
+    expect(order.materials).toEqual([]);
+    expect(order.route).toEqual([]);
+    expect(order.lines.map(line => line.status)).toEqual(['draft', 'draft']);
+  });
+
+  it('keeps a stageless draft out of production', () => {
+    const f = fixture();
+    const state = draft(f);
+    const order = state.orders.at(-1)!;
+    expect(() => run(state, { type: 'order.launch', orderId: order.id })).toThrow(/bosqich/);
+  });
+
+  it('launches the draft once every position gets materials and a stage', () => {
+    const f = fixture();
+    let state = receive(f.state, f.supplierId, f.itemId, 20, 5);
+    state = run(state, { type: 'order.create', input: {
+      kind: 'composite', customerId: f.customerId, dueDate: '', overhead: 0, advance: 0, account: 'cash',
+      lines: [
+        { kind: 'product', title: 'Shkaf', qty: 1, unitPrice: 0, materials: [], route: [] },
+        { kind: 'service', title: 'Raskroy', qty: 1, unitPrice: 0, materials: [], route: [] },
+      ],
+    } });
+    const order = state.orders.at(-1)!;
+    state = run(state, { type: 'order.update', orderId: order.id, overhead: 0, dueDate: '', lines: [
+      { id: order.lines[0].id, kind: 'product', title: 'Shkaf', qty: 1, unitPrice: 800, materials: [{ itemId: f.itemId, qty: 2 }], route: [{ operationId: f.operationId, employeeId: f.employeeId, rate: 2 }] },
+      { id: order.lines[1].id, kind: 'service', title: 'Raskroy', qty: 1, unitPrice: 200, materials: [], route: [{ operationId: f.otherOperationId, employeeId: f.otherEmployeeId, rate: 3 }] },
+    ] });
+    state = run(state, { type: 'order.launch', orderId: order.id });
+    const launched = state.orders.at(-1)!;
+    expect(launched.status).toBe('production');
+    expect(launched.price).toBe(1000);
+    expect(launched.route).toHaveLength(2);
   });
 });
 
