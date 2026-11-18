@@ -8,6 +8,7 @@ import { shipmentQty } from './sales';
 import { normalizeTicketContext } from './support';
 import { canTouchOrder, requiredPermission, WORKER_BASE } from './permissions';
 import { MAIN_WAREHOUSE_ID, mainWarehouse } from './warehouse-default';
+import { mainWorkshop, MAIN_WORKSHOP_ID } from './workshop-default';
 import type {
   Account, Actor, CashEntry, CashSource, Command, Customer, CustomerKind, DefectMaterial, DefectReason, Envelope, Item, ItemKind, MaterialLine, Operation,
   OperationNorm, OperationUnit, Order, OrderInput, OrderLine, OrderLineInput, OrderLineKind, OrderMaterialInput, OrderRouteInput,
@@ -154,9 +155,12 @@ function operationValues(state: State, input: OperationValuesInput, exclude = ''
     return { itemId: item.id, qtyPerM2: quantity(norm.qtyPerM2) };
   });
   unique(norms.map(norm => norm.itemId), 'norm item');
+  const workshopId = input.workshopId ?? MAIN_WORKSHOP_ID;
+  const workshop = find(state.workshops, workshopId, 'Workshop');
+  check(workshop.active, 'Sex nofaol');
   return {
     name, unit, salePrice, workerRate, standardMinutes, machineId,
-    employeeIds: [...input.employeeIds], active: input.active, autoAccept: input.autoAccept, norms,
+    employeeIds: [...input.employeeIds], active: input.active, autoAccept: input.autoAccept, norms, workshopId,
   };
 }
 
@@ -258,6 +262,7 @@ function routeValues(state: State, lines: OrderRouteInput[], qty: number, lineId
       rate, supplierCost: executor.executorKind === 'supplier' ? money(line.supplierCost ?? 0) : 0,
       salePrice: operation.salePrice, standardMinutes: operation.standardMinutes,
       planned: stageQty, completed: 0, status: 'assigned' as const,
+      workshopId: operation.workshopId,
     };
   });
 }
@@ -472,6 +477,7 @@ function routeRevision(state: State, order: Order, lines: OrderRouteInput[], qty
       task.completed = existing.completed;
       task.status = existing.status;
       task.supplierCost = existing.supplierCost ?? 0;
+      task.workshopId = existing.workshopId;
     }
     return task;
   });
@@ -546,7 +552,8 @@ function revisionLines(state: State, order: Order, inputs: OrderLineInput[]): Or
 export function emptyState(): State {
   return {
     version: 4, revision: 0, companyId: DEMO_COMPANY_ID, customers: [], suppliers: [], employees: [], machines: [], operations: [],
-    items: [], recipes: [], orders: [], purchases: [], movements: [], warehouses: [mainWarehouse()], cash: [], reports: [], defects: [], payroll: [],
+    items: [], recipes: [], orders: [], purchases: [], movements: [], warehouses: [mainWarehouse()], workshops: [mainWorkshop()],
+    cash: [], reports: [], defects: [], payroll: [],
     shipments: [], audit: [], salaryPlans: [], expensePlans: [], loans: [], routeTemplates: [], workerDeductions: [], tickets: [],
   };
 }
@@ -957,10 +964,26 @@ function mutate(state: State, command: Command, actor: Actor): string {
       row.active = command.active;
       return row.id;
     }
+    case 'workshop.create': {
+      const row = { id: uuid(), name: named(state.workshops, command.name), active: true };
+      state.workshops.push(row);
+      return row.id;
+    }
+    case 'workshop.update': {
+      const row = find(state.workshops, command.workshopId, 'Workshop');
+      check(typeof command.active === 'boolean', 'Invalid active flag');
+      check(command.active || state.workshops.some(workshop => workshop.id !== row.id && workshop.active),
+        'Kamida bitta faol sex qolishi kerak');
+      row.name = named(state.workshops.filter(workshop => workshop.id !== row.id), command.name);
+      row.active = command.active;
+      return row.id;
+    }
     case 'machine.create': {
+      const workshopId = command.workshopId ?? MAIN_WORKSHOP_ID;
+      check(find(state.workshops, workshopId, 'Workshop').active, 'Sex nofaol');
       const row = {
         id: uuid(), name: named(state.machines, command.name),
-        hourlyRevenueTarget: money(command.hourlyRevenueTarget), active: true,
+        hourlyRevenueTarget: money(command.hourlyRevenueTarget), active: true, workshopId,
       };
       state.machines.push(row);
       return row.id;
@@ -968,9 +991,12 @@ function mutate(state: State, command: Command, actor: Actor): string {
     case 'machine.update': {
       const row = find(state.machines, command.machineId, 'Machine');
       check(typeof command.active === 'boolean', 'Invalid active flag');
+      const workshopId = command.workshopId ?? row.workshopId ?? MAIN_WORKSHOP_ID;
+      check(find(state.workshops, workshopId, 'Workshop').active, 'Sex nofaol');
       row.name = named(state.machines.filter(machine => machine.id !== row.id), command.name);
       row.hourlyRevenueTarget = money(command.hourlyRevenueTarget);
       row.active = command.active;
+      row.workshopId = workshopId;
       return row.id;
     }
     case 'operation.create': {
@@ -980,7 +1006,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
     }
     case 'operation.update': {
       const row = find(state.operations, command.operationId, 'Operation');
-      Object.assign(row, operationValues(state, command, row.id));
+      Object.assign(row, operationValues(state, { ...command, workshopId: command.workshopId ?? row.workshopId }, row.id));
       return row.id;
     }
     case 'item.create': {
@@ -1214,6 +1240,11 @@ function mutate(state: State, command: Command, actor: Actor): string {
     }
     case 'order.issue': {
       const order = find(state.orders, command.orderId, 'Order');
+      const issueScope = actor.workshopIds ?? [];
+      if (actor.role === 'worker' && issueScope.length > 0) {
+        check(order.route.some(task => issueScope.includes(task.workshopId ?? MAIN_WORKSHOP_ID)),
+          'Bu buyurtma boshqa sexga tegishli');
+      }
       check(order.status === 'production', 'Only production orders can issue materials');
       const warehouseId = order.warehouseId ?? MAIN_WAREHOUSE_ID;
       const line = command.lineId === undefined ? undefined : orderLineOf(order, command.lineId);
@@ -1351,6 +1382,11 @@ function mutate(state: State, command: Command, actor: Actor): string {
       const operation = find(state.operations, task.operationId, 'Operation');
       const employee = find(state.employees, report.employeeId, 'Employee');
       check(report.employeeId === task.employeeId, 'Report employee is not assigned');
+      const workshopScope = actor.workshopIds ?? [];
+      if (actor.role === 'worker' && workshopScope.length > 0) {
+        check(workshopScope.includes(task.workshopId ?? operation.workshopId ?? MAIN_WORKSHOP_ID),
+          'Bu bosqich boshqa sexga tegishli');
+      }
       check(order.status === 'production' && order.materials.every(row => isIssued(row)), 'Materials must be issued before review');
       check(task.status === 'submitted', 'Task is not awaiting review');
       const payroll = state.payroll.find(row => row.orderId === order.id && row.taskId === task.id && row.employeeId === task.employeeId);

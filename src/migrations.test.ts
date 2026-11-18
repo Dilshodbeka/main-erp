@@ -32,6 +32,7 @@ describe('tenant state', () => {
     expect(migrated.operations[0]).toEqual({
       id: 'operation', name: 'Cut', unit: 'piece', salePrice: 7, workerRate: 7,
       standardMinutes: 0, machineId: null, employeeIds: ['employee'], active: true, autoAccept: true, norms: [],
+      workshopId: '00000000-0000-4000-8000-00000000b001',
     });
   });
 

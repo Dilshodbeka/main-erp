@@ -776,3 +776,9 @@ button.primary:active,button.secondary:active{transform:translateY(1px)}
 .warehouse-active{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700}
 .warehouse-create{margin-top:4px;padding-top:10px;border-top:1px dashed var(--border)}
 @media(max-width:700px){.warehouse-select{width:100%}.warehouse-select select{flex:1}}
+.sex-tabs{margin-bottom:12px;flex-wrap:wrap}
+.sex-tabs>button{flex:0 1 auto}
+.sex-tab-count{margin-left:6px;padding:1px 7px;border-radius:99px;background:var(--border);font-size:11px}
+.sex-tabs>button.selected .sex-tab-count{background:#e3efe0;color:var(--green)}
+.stage-workshop{margin-left:8px;padding:1px 8px;border-radius:99px;background:#eef3e6;color:var(--muted);font-size:11px;font-weight:700;vertical-align:middle}
+.scope-picker{display:grid;gap:8px;margin-top:4px}

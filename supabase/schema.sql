@@ -45,6 +45,15 @@ CREATE TABLE public.erp_warehouses (
   PRIMARY KEY (company_id, id),
   UNIQUE (company_id, name)
 );
+CREATE TABLE public.erp_workshops (
+  company_id uuid NOT NULL REFERENCES public.erp_companies(id),
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL CHECK (btrim(name) <> ''),
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT transaction_timestamp(),
+  PRIMARY KEY (company_id, id),
+  UNIQUE (company_id, name)
+);
 CREATE TABLE public.erp_profiles (
   id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   company_id uuid NOT NULL REFERENCES public.erp_companies(id),
@@ -67,7 +76,9 @@ CREATE TABLE public.erp_machines (
   name text NOT NULL CHECK (btrim(name) <> ''),
   hourly_revenue_target numeric NOT NULL CHECK (hourly_revenue_target BETWEEN 0 AND 1000000000000 AND hourly_revenue_target = round(hourly_revenue_target, 2)),
   active boolean NOT NULL DEFAULT true,
-  UNIQUE (company_id, id)
+  workshop_id uuid NOT NULL DEFAULT '00000000-0000-4000-8000-00000000b001',
+  UNIQUE (company_id, id),
+  FOREIGN KEY (company_id, workshop_id) REFERENCES public.erp_workshops(company_id, id)
 );
 CREATE TABLE public.erp_operations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -82,8 +93,10 @@ CREATE TABLE public.erp_operations (
   active boolean NOT NULL DEFAULT true,
   auto_accept boolean NOT NULL DEFAULT true,
   norms jsonb NOT NULL DEFAULT '[]'::jsonb,
+  workshop_id uuid NOT NULL DEFAULT '00000000-0000-4000-8000-00000000b001',
   UNIQUE (company_id, id),
-  FOREIGN KEY (company_id, machine_id) REFERENCES public.erp_machines(company_id, id)
+  FOREIGN KEY (company_id, machine_id) REFERENCES public.erp_machines(company_id, id),
+  FOREIGN KEY (company_id, workshop_id) REFERENCES public.erp_workshops(company_id, id)
 );
 CREATE TABLE public.erp_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -218,6 +231,7 @@ CREATE TABLE public.erp_tasks (
   planned numeric NOT NULL CHECK (planned > 0 AND planned <= 1000000000),
   completed numeric NOT NULL DEFAULT 0 CHECK (completed >= 0 AND completed <= planned),
   status text NOT NULL DEFAULT 'assigned' CHECK (status IN ('assigned', 'accepted', 'in_progress', 'submitted', 'completed')),
+  workshop_id uuid NOT NULL DEFAULT '00000000-0000-4000-8000-00000000b001',
   UNIQUE (company_id, id),
   UNIQUE (company_id, id, order_id),
   UNIQUE (company_id, id, order_id, employee_id),
@@ -227,6 +241,7 @@ CREATE TABLE public.erp_tasks (
   FOREIGN KEY (company_id, operation_id) REFERENCES public.erp_operations(company_id, id),
   FOREIGN KEY (company_id, employee_id) REFERENCES public.erp_employees(company_id, id),
   FOREIGN KEY (company_id, supplier_id) REFERENCES public.erp_suppliers(company_id, id),
+  FOREIGN KEY (company_id, workshop_id) REFERENCES public.erp_workshops(company_id, id),
   CHECK (executor_kind IN ('employee', 'supplier')),
   CHECK ((executor_kind = 'employee' AND employee_id IS NOT NULL AND supplier_id IS NULL)
     OR (executor_kind = 'supplier' AND employee_id IS NULL AND supplier_id IS NOT NULL)),
@@ -519,6 +534,9 @@ CREATE INDEX erp_orders_output_idx ON public.erp_orders(company_id, output_item_
 CREATE INDEX erp_recipe_versions_recipe_idx ON public.erp_recipe_versions(company_id, recipe_id);
 CREATE INDEX erp_recipe_components_version_idx ON public.erp_recipe_components(company_id, version_id);
 CREATE INDEX erp_tasks_employee_idx ON public.erp_tasks(company_id, employee_id, order_id);
+CREATE INDEX erp_tasks_workshop_idx ON public.erp_tasks(company_id, workshop_id);
+CREATE INDEX erp_operations_workshop_idx ON public.erp_operations(company_id, workshop_id);
+CREATE INDEX erp_machines_workshop_idx ON public.erp_machines(company_id, workshop_id);
 CREATE INDEX erp_orders_customer_idx ON public.erp_orders(company_id, customer_id);
 CREATE INDEX erp_items_customer_idx ON public.erp_items(company_id, customer_id);
 CREATE INDEX erp_stock_item_idx ON public.erp_stock_movements(company_id, item_id);
@@ -747,7 +765,7 @@ DO $$
 DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
-    'erp_metadata', 'erp_customers', 'erp_suppliers', 'erp_employees', 'erp_warehouses', 'erp_profiles', 'erp_machines',
+    'erp_metadata', 'erp_customers', 'erp_suppliers', 'erp_employees', 'erp_warehouses', 'erp_workshops', 'erp_profiles', 'erp_machines',
     'erp_operations', 'erp_items', 'erp_recipes', 'erp_recipe_versions', 'erp_recipe_components',
     'erp_orders', 'erp_order_items', 'erp_order_materials', 'erp_tasks',
     'erp_purchases', 'erp_purchase_lines', 'erp_stock_movements', 'erp_cash',
@@ -990,12 +1008,12 @@ BEGIN
     -- A stage plans its own volume (sheets, metres, holes); older payloads fall back to the position quantity.
     v_stage := CASE WHEN v_line -> 'qty' IS NOT NULL THEN public.erp_num(v_line -> 'qty', 'stage qty') ELSE p_qty END;
     INSERT INTO public.erp_tasks(company_id, order_id, line_id, position, operation_id, name, executor_kind,
-      employee_id, supplier_id, rate, supplier_cost, sale_price, standard_minutes, planned)
+      employee_id, supplier_id, rate, supplier_cost, sale_price, standard_minutes, planned, workshop_id)
       VALUES (p_company_id, p_order_id, p_line_id, v_pos, v_operation.id, v_operation.name, v_kind, v_employee,
         v_supplier, public.erp_money(v_line -> 'rate', 'route rate', true),
         CASE WHEN v_kind = 'supplier' AND v_line ? 'supplierCost'
           THEN public.erp_money(v_line -> 'supplierCost', 'supplier cost', true) ELSE 0 END,
-        v_operation.sale_price, v_operation.standard_minutes, v_stage);
+        v_operation.sale_price, v_operation.standard_minutes, v_stage, v_operation.workshop_id);
     v_pos := v_pos + 1;
   END LOOP;
 END;
@@ -1315,16 +1333,17 @@ BEGIN
           supplier_cost = CASE WHEN v_kind = 'supplier' AND v_line ? 'supplierCost'
             THEN public.erp_money(v_line -> 'supplierCost', 'supplier cost', true) ELSE 0 END,
           sale_price = v_operation.sale_price, standard_minutes = v_operation.standard_minutes,
-          planned = v_stage, completed = 0, status = 'assigned' WHERE company_id = p_company_id AND id = v_task.id;
+          planned = v_stage, completed = 0, status = 'assigned', workshop_id = v_operation.workshop_id
+          WHERE company_id = p_company_id AND id = v_task.id;
       END IF;
     ELSE
       INSERT INTO public.erp_tasks(company_id, order_id, line_id, position, operation_id, name, executor_kind,
-        employee_id, supplier_id, rate, supplier_cost, sale_price, standard_minutes, planned)
+        employee_id, supplier_id, rate, supplier_cost, sale_price, standard_minutes, planned, workshop_id)
         VALUES (p_company_id, p_order_id, p_line_id, v_pos, v_operation.id, v_operation.name, v_kind, v_employee,
           v_supplier, public.erp_money(v_line -> 'rate', 'route rate', true),
           CASE WHEN v_kind = 'supplier' AND v_line ? 'supplierCost'
             THEN public.erp_money(v_line -> 'supplierCost', 'supplier cost', true) ELSE 0 END,
-          v_operation.sale_price, v_operation.standard_minutes, v_stage);
+          v_operation.sale_price, v_operation.standard_minutes, v_stage, v_operation.workshop_id);
     END IF;
     v_pos := v_pos + 1;
   END LOOP;
@@ -1716,6 +1735,7 @@ $$;
 CREATE FUNCTION public.erp_snapshot()
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE v_revision bigint; v_profile public.erp_profiles%ROWTYPE; v_company uuid; v_admin boolean; v_board boolean;
+  v_workshop_scope uuid[]; v_tv_scope boolean; v_chief_scope boolean;
   v_has_purchases_view boolean; v_has_cost_view boolean; v_has_cash_view boolean; v_has_salaries_view boolean;
   v_has_orders_view_all boolean; v_has_shipments_view boolean; v_has_payments_customer boolean;
   v_has_work_review boolean; v_has_production_view_all boolean; v_has_defects_view boolean; v_has_reports_view boolean;
@@ -1726,6 +1746,9 @@ BEGIN
   SELECT revision INTO STRICT v_revision FROM public.erp_metadata WHERE company_id = v_company FOR SHARE;
   v_admin := v_profile.role = 'admin';
   v_board := v_profile.role = 'display';
+  v_workshop_scope := ARRAY(SELECT jsonb_array_elements_text(v_profile.scope_workshop_ids))::uuid[];
+  v_tv_scope := v_board AND cardinality(v_workshop_scope) > 0;
+  v_chief_scope := v_profile.role = 'worker' AND cardinality(v_workshop_scope) > 0;
   v_has_purchases_view := public.erp_has_permission(v_profile, 'purchases.view');
   v_has_cost_view := public.erp_has_permission(v_profile, 'cost.view');
   v_has_cash_view := public.erp_has_permission(v_profile, 'cash.view');
@@ -1750,6 +1773,9 @@ BEGIN
         'kind', c.kind, 'employeeId', c.employee_id, 'sellerId', c.seller_id) ORDER BY c.id), '[]'::jsonb)
         FROM public.erp_customers c WHERE c.company_id = v_company AND (v_admin OR v_board OR v_has_orders_view_all
           OR c.seller_id = v_profile.employee_id
+          OR ((v_tv_scope OR v_chief_scope) AND EXISTS (
+            SELECT 1 FROM public.erp_orders o JOIN public.erp_tasks t ON t.company_id = o.company_id AND t.order_id = o.id
+            WHERE o.company_id = v_company AND o.customer_id = c.id AND t.workshop_id = ANY(v_workshop_scope)))
           OR EXISTS (SELECT 1 FROM public.erp_orders o JOIN public.erp_tasks t ON t.company_id = o.company_id AND t.order_id = o.id
             WHERE o.company_id = v_company AND o.customer_id = c.id AND t.employee_id = v_profile.employee_id))),
       'suppliers', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', s.id, 'name', s.name, 'phone', s.phone) ORDER BY s.id), '[]'::jsonb)
@@ -1758,22 +1784,25 @@ BEGIN
         FROM public.erp_employees e WHERE e.company_id = v_company AND (v_admin OR v_board OR e.id = v_profile.employee_id)),
       'warehouses', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', w.id, 'name', w.name, 'active', w.active) ORDER BY w.created_at, w.id), '[]'::jsonb)
         FROM public.erp_warehouses w WHERE w.company_id = v_company),
+      'workshops', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', w.id, 'name', w.name, 'active', w.active) ORDER BY w.created_at, w.id), '[]'::jsonb)
+        FROM public.erp_workshops w WHERE w.company_id = v_company),
       'machines', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', m.id, 'name', m.name,
-        'hourlyRevenueTarget', m.hourly_revenue_target, 'active', m.active) ORDER BY m.id), '[]'::jsonb)
+        'hourlyRevenueTarget', m.hourly_revenue_target, 'active', m.active, 'workshopId', m.workshop_id) ORDER BY m.id), '[]'::jsonb)
         FROM public.erp_machines m WHERE m.company_id = v_company AND v_admin),
       'operations', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', op.id, 'name', op.name, 'unit', op.unit,
         'salePrice', CASE WHEN v_admin THEN op.sale_price ELSE 0 END,
         'workerRate', CASE WHEN v_admin THEN op.worker_rate ELSE 0 END,
-        'standardMinutes', op.standard_minutes, 'machineId', op.machine_id,
+        'standardMinutes', op.standard_minutes, 'machineId', op.machine_id, 'workshopId', op.workshop_id,
         'employeeIds', CASE WHEN v_admin THEN to_jsonb(op.employee_ids)
           WHEN v_profile.role = 'worker' AND v_profile.employee_id = ANY(op.employee_ids) THEN to_jsonb(ARRAY[v_profile.employee_id])
           ELSE '[]'::jsonb END,
         'active', op.active, 'autoAccept', op.auto_accept,
         'norms', CASE WHEN v_admin THEN op.norms ELSE '[]'::jsonb END) ORDER BY op.id), '[]'::jsonb)
         FROM public.erp_operations op WHERE op.company_id = v_company AND (v_admin OR v_board
-          OR EXISTS (SELECT 1 FROM public.erp_tasks t WHERE t.company_id = op.company_id AND t.operation_id = op.id
+          OR (v_chief_scope AND op.workshop_id = ANY(v_workshop_scope))
+          OR (NOT v_chief_scope AND EXISTS (SELECT 1 FROM public.erp_tasks t WHERE t.company_id = op.company_id AND t.operation_id = op.id
             AND EXISTS (SELECT 1 FROM public.erp_tasks own WHERE own.company_id = t.company_id AND own.order_id = t.order_id
-              AND own.employee_id = v_profile.employee_id)))),
+              AND own.employee_id = v_profile.employee_id))))),
       'items', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'name', i.name, 'unit', i.unit,
         'minQty', CASE WHEN v_admin THEN i.min_qty ELSE 0 END, 'cost', CASE WHEN v_admin OR v_has_cost_view THEN i.cost ELSE 0 END,
         'customerId', i.customer_id, 'kind', i.kind,
@@ -1783,6 +1812,8 @@ BEGIN
         'laborCost', CASE WHEN v_admin OR v_has_cost_view THEN i.labor_cost ELSE 0 END,
         'category', i.category, 'photo', i.photo) ORDER BY i.id), '[]'::jsonb)
         FROM public.erp_items i WHERE i.company_id = v_company AND (v_admin
+          OR (v_chief_scope AND EXISTS (SELECT 1 FROM public.erp_order_materials m JOIN public.erp_tasks t ON t.company_id = m.company_id AND t.order_id = m.order_id
+            WHERE m.company_id = v_company AND m.item_id = i.id AND t.workshop_id = ANY(v_workshop_scope)))
           OR EXISTS (SELECT 1 FROM public.erp_order_materials m JOIN public.erp_tasks t ON t.company_id = m.company_id AND t.order_id = m.order_id
             WHERE m.company_id = v_company AND m.item_id = i.id AND t.employee_id = v_profile.employee_id))),
       'recipes', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', r.id, 'name', r.name, 'outputItemId', r.output_item_id,
@@ -1818,11 +1849,16 @@ BEGIN
           'supplierCost', CASE WHEN v_admin OR v_has_cost_view THEN t.supplier_cost ELSE 0 END,
           'salePrice', CASE WHEN v_admin OR v_has_cost_view THEN t.sale_price ELSE 0 END,
           'standardMinutes', t.standard_minutes,
-          'planned', t.planned, 'completed', t.completed, 'status', t.status) ORDER BY t.position, t.id), '[]'::jsonb)
+          'planned', t.planned, 'completed', t.completed, 'status', t.status, 'workshopId', t.workshop_id) ORDER BY t.position, t.id), '[]'::jsonb)
           FROM public.erp_tasks t WHERE t.company_id = o.company_id AND t.order_id = o.id
-            AND (v_admin OR v_board OR t.executor_kind = 'employee'))
-        ) ORDER BY o.created_at, o.id), '[]'::jsonb) FROM public.erp_orders o
-        WHERE o.company_id = v_company AND (v_admin OR v_board OR v_has_orders_view_all
+            AND (v_admin
+              OR (v_board AND (NOT v_tv_scope OR t.workshop_id = ANY(v_workshop_scope)))
+              OR (v_chief_scope AND (t.workshop_id = ANY(v_workshop_scope) OR t.employee_id = v_profile.employee_id))
+              OR (NOT v_board AND NOT v_chief_scope AND t.executor_kind = 'employee'))
+        )) ORDER BY o.created_at, o.id), '[]'::jsonb) FROM public.erp_orders o
+        WHERE o.company_id = v_company AND (v_admin OR (v_board AND NOT v_tv_scope) OR v_has_orders_view_all
+          OR ((v_tv_scope OR v_chief_scope) AND EXISTS (SELECT 1 FROM public.erp_tasks t WHERE t.company_id = o.company_id
+            AND t.order_id = o.id AND t.workshop_id = ANY(v_workshop_scope)))
           OR EXISTS (SELECT 1 FROM public.erp_customers oc WHERE oc.company_id = o.company_id AND oc.id = o.customer_id AND oc.seller_id = v_profile.employee_id)
           OR EXISTS (SELECT 1 FROM public.erp_tasks t WHERE t.company_id = o.company_id AND t.order_id = o.id AND t.employee_id = v_profile.employee_id))),
       'purchases', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'number', p.number, 'supplierId', p.supplier_id, 'createdAt', p.created_at,
@@ -1849,7 +1885,9 @@ BEGIN
       'reports', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', r.id, 'orderId', r.order_id, 'taskId', r.task_id, 'employeeId', r.employee_id,
         'qty', r.qty, 'status', r.status, 'note', r.note, 'createdAt', r.created_at) ORDER BY r.created_at, r.id), '[]'::jsonb)
         FROM public.erp_work_reports r WHERE r.company_id = v_company AND (v_admin OR v_board OR r.employee_id = v_profile.employee_id
-          OR v_has_work_review OR v_has_production_view_all)),
+          OR (v_has_work_review AND NOT v_chief_scope) OR (v_has_production_view_all AND NOT v_chief_scope)
+          OR (v_chief_scope AND EXISTS (SELECT 1 FROM public.erp_tasks t WHERE t.company_id = r.company_id AND t.id = r.task_id
+            AND (t.workshop_id = ANY(v_workshop_scope) OR t.employee_id = v_profile.employee_id))))),
       'payroll', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'employeeId', p.employee_id, 'reportId', p.report_id, 'orderId', p.order_id,
         'taskId', p.task_id, 'amount', p.amount, 'status', p.status, 'createdAt', p.created_at) ORDER BY p.created_at, p.id), '[]'::jsonb)
         FROM public.erp_payroll p WHERE p.company_id = v_company AND (v_admin OR v_has_salaries_view OR p.employee_id = v_profile.employee_id)),
@@ -1857,7 +1895,10 @@ BEGIN
         'lineId', d.line_id, 'taskId', d.task_id, 'employeeId', d.employee_id, 'operationId', d.operation_id,
         'qty', d.qty, 'reason', d.reason, 'note', d.note, 'materials', d.materials, 'createdAt', d.created_at)
         ORDER BY d.created_at, d.id), '[]'::jsonb)
-        FROM public.erp_defects d WHERE d.company_id = v_company AND (v_admin OR v_has_defects_view OR d.employee_id = v_profile.employee_id)),
+        FROM public.erp_defects d WHERE d.company_id = v_company AND (v_admin OR (v_has_defects_view AND NOT v_chief_scope)
+          OR d.employee_id = v_profile.employee_id
+          OR (v_chief_scope AND EXISTS (SELECT 1 FROM public.erp_tasks t WHERE t.company_id = d.company_id AND t.id = d.task_id
+            AND t.workshop_id = ANY(v_workshop_scope))))),
       'salaryPlans', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'employeeId', p.employee_id, 'amount', p.amount,
         'mode', p.mode, 'fromMonth', p.from_month, 'createdAt', p.created_at) ORDER BY p.from_month, p.created_at, p.id), '[]'::jsonb)
         FROM public.erp_salary_plans p WHERE p.company_id = v_company AND (v_admin OR v_has_salaries_view)),
@@ -1920,6 +1961,7 @@ BEGIN
   INSERT INTO public.erp_companies(name) VALUES (v_name) RETURNING id INTO v_company;
   INSERT INTO public.erp_metadata(company_id, revision) VALUES (v_company, 1);
   INSERT INTO public.erp_warehouses(company_id, id, name) VALUES (v_company, '00000000-0000-4000-8000-00000000a001', 'Asosiy ombor');
+  INSERT INTO public.erp_workshops(company_id, id, name) VALUES (v_company, '00000000-0000-4000-8000-00000000b001', 'Asosiy ishlab chiqarish');
   INSERT INTO public.erp_profiles(id, company_id, name, role, employee_id) VALUES (v_uid, v_company, v_actor_name, 'admin', NULL);
   INSERT INTO public.erp_audit(company_id, request_id, actor_user_id, actor_id, actor_name, action, entity_id, command, revision)
     VALUES (v_company, gen_random_uuid(), v_uid, v_uid, v_actor_name, 'company.bootstrap', v_company::text,
@@ -2007,6 +2049,7 @@ DECLARE
   v_cost numeric;
   v_stock numeric;
   v_warehouse uuid;
+  v_workshop uuid;
   v_purchase_order uuid;
   v_free numeric;
   v_take numeric;
@@ -2084,9 +2127,11 @@ DECLARE
   v_paid_by_cash numeric := 0;
   v_paid_by_deduct numeric := 0;
   v_customer_seller_id uuid;
+  v_workshop_scope uuid[];
 BEGIN
   v_actor := public.erp_current_profile();
   v_company := v_actor.company_id;
+  v_workshop_scope := ARRAY(SELECT jsonb_array_elements_text(v_actor.scope_workshop_ids))::uuid[];
   -- Serialize first: retries, stock reservations and money share one authority.
   SELECT revision INTO STRICT v_revision FROM public.erp_metadata WHERE company_id = v_company FOR UPDATE;
   IF p_request_id IS NULL OR p_expected_revision IS NULL OR p_expected_revision < 0 OR p_expected_revision > 9007199254740991 THEN
@@ -2197,17 +2242,55 @@ BEGIN
           ELSE coalesce(NULLIF(btrim(coalesce(p_command ->> 'deactivatedAt', '')), '')::date, deactivated_at,
             (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) END
         WHERE company_id = v_company AND id = v_entity;
+    WHEN 'workshop.create' THEN
+      v_text := btrim(public.erp_text(p_command -> 'name', 'name'));
+      IF EXISTS (SELECT 1 FROM public.erp_workshops WHERE company_id = v_company AND lower(name) = lower(v_text)) THEN
+        RAISE EXCEPTION 'Sex nomi allaqachon mavjud' USING ERRCODE = '23505';
+      END IF;
+      INSERT INTO public.erp_workshops(company_id, name) VALUES (v_company, v_text) RETURNING id INTO v_entity;
+    WHEN 'workshop.update' THEN
+      v_entity := public.erp_uuid(p_command -> 'workshopId', 'workshopId');
+      IF NOT EXISTS (SELECT 1 FROM public.erp_workshops WHERE company_id = v_company AND id = v_entity) THEN
+        RAISE EXCEPTION 'Workshop not found' USING ERRCODE = '22023';
+      END IF;
+      v_active := public.erp_bool(p_command -> 'active', 'active');
+      IF NOT v_active AND NOT EXISTS (SELECT 1 FROM public.erp_workshops
+        WHERE company_id = v_company AND id <> v_entity AND active) THEN
+        RAISE EXCEPTION 'Kamida bitta faol sex qolishi kerak' USING ERRCODE = '23514';
+      END IF;
+      v_text := btrim(public.erp_text(p_command -> 'name', 'name'));
+      IF EXISTS (SELECT 1 FROM public.erp_workshops WHERE company_id = v_company AND id <> v_entity AND lower(name) = lower(v_text)) THEN
+        RAISE EXCEPTION 'Sex nomi allaqachon mavjud' USING ERRCODE = '23505';
+      END IF;
+      UPDATE public.erp_workshops SET name = v_text, active = v_active WHERE company_id = v_company AND id = v_entity;
     WHEN 'machine.create' THEN
-      INSERT INTO public.erp_machines(company_id, name, hourly_revenue_target) VALUES (v_company,
+      v_ref := CASE WHEN p_command ? 'workshopId' AND p_command -> 'workshopId' <> 'null'::jsonb
+        THEN public.erp_uuid(p_command -> 'workshopId', 'workshopId')
+        ELSE '00000000-0000-4000-8000-00000000b001'::uuid END;
+      IF NOT EXISTS (SELECT 1 FROM public.erp_workshops WHERE company_id = v_company AND id = v_ref) THEN
+        RAISE EXCEPTION 'Workshop not found' USING ERRCODE = '22023';
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM public.erp_workshops WHERE company_id = v_company AND id = v_ref AND active) THEN
+        RAISE EXCEPTION 'Sex nofaol' USING ERRCODE = '23514';
+      END IF;
+      INSERT INTO public.erp_machines(company_id, name, hourly_revenue_target, workshop_id) VALUES (v_company,
         btrim(public.erp_text(p_command -> 'name', 'name')),
-        public.erp_money(p_command -> 'hourlyRevenueTarget', 'hourlyRevenueTarget', true)) RETURNING id INTO v_entity;
+        public.erp_money(p_command -> 'hourlyRevenueTarget', 'hourlyRevenueTarget', true), v_ref) RETURNING id INTO v_entity;
     WHEN 'machine.update' THEN
       v_entity := public.erp_uuid(p_command -> 'machineId', 'machineId');
       SELECT * INTO v_machine FROM public.erp_machines WHERE company_id = v_company AND id = v_entity;
       IF NOT FOUND THEN RAISE EXCEPTION 'Machine not found' USING ERRCODE = '22023'; END IF;
+      v_ref := CASE WHEN p_command ? 'workshopId' AND p_command -> 'workshopId' <> 'null'::jsonb
+        THEN public.erp_uuid(p_command -> 'workshopId', 'workshopId') ELSE v_machine.workshop_id END;
+      IF NOT EXISTS (SELECT 1 FROM public.erp_workshops WHERE company_id = v_company AND id = v_ref) THEN
+        RAISE EXCEPTION 'Workshop not found' USING ERRCODE = '22023';
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM public.erp_workshops WHERE company_id = v_company AND id = v_ref AND active) THEN
+        RAISE EXCEPTION 'Sex nofaol' USING ERRCODE = '23514';
+      END IF;
       UPDATE public.erp_machines SET name = btrim(public.erp_text(p_command -> 'name', 'name')),
         hourly_revenue_target = public.erp_money(p_command -> 'hourlyRevenueTarget', 'hourlyRevenueTarget', true),
-        active = public.erp_bool(p_command -> 'active', 'active') WHERE id = v_entity;
+        active = public.erp_bool(p_command -> 'active', 'active'), workshop_id = v_ref WHERE id = v_entity;
     WHEN 'operation.create' THEN
       v_unit := public.erp_unit(p_command -> 'unit');
       IF NOT (p_command ? 'machineId') THEN RAISE EXCEPTION 'machineId is required (UUID or null)' USING ERRCODE = '22023'; END IF;
@@ -2223,17 +2306,27 @@ BEGIN
         END IF;
         v_employee_ids := v_employee_ids || v_id;
       END LOOP;
-      INSERT INTO public.erp_operations(company_id, name, unit, sale_price, worker_rate, standard_minutes, machine_id, employee_ids, active, auto_accept, norms)
+      v_workshop := CASE WHEN p_command ? 'workshopId' AND p_command -> 'workshopId' <> 'null'::jsonb
+        THEN public.erp_uuid(p_command -> 'workshopId', 'workshopId')
+        ELSE '00000000-0000-4000-8000-00000000b001'::uuid END;
+      IF NOT EXISTS (SELECT 1 FROM public.erp_workshops WHERE company_id = v_company AND id = v_workshop) THEN
+        RAISE EXCEPTION 'Workshop not found' USING ERRCODE = '22023';
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM public.erp_workshops WHERE company_id = v_company AND id = v_workshop AND active) THEN
+        RAISE EXCEPTION 'Sex nofaol' USING ERRCODE = '23514';
+      END IF;
+      INSERT INTO public.erp_operations(company_id, name, unit, sale_price, worker_rate, standard_minutes, machine_id, employee_ids, active, auto_accept, norms, workshop_id)
         VALUES (v_company, btrim(public.erp_text(p_command -> 'name', 'name')), v_unit,
           public.erp_money(p_command -> 'salePrice', 'salePrice', true),
           public.erp_money(p_command -> 'workerRate', 'workerRate', true),
           public.erp_num(p_command -> 'standardMinutes', 'standardMinutes', true),
           v_ref, v_employee_ids, public.erp_bool(p_command -> 'active', 'active'),
           public.erp_bool(p_command -> 'autoAccept', 'autoAccept'),
-          public.erp_norms(v_company, p_command -> 'norms')) RETURNING id INTO v_entity;
+          public.erp_norms(v_company, p_command -> 'norms'), v_workshop) RETURNING id INTO v_entity;
     WHEN 'operation.update' THEN
       v_entity := public.erp_uuid(p_command -> 'operationId', 'operationId');
-      IF NOT EXISTS (SELECT 1 FROM public.erp_operations WHERE company_id = v_company AND id = v_entity) THEN
+      SELECT workshop_id INTO v_workshop FROM public.erp_operations WHERE company_id = v_company AND id = v_entity;
+      IF NOT FOUND THEN
         RAISE EXCEPTION 'Operation not found' USING ERRCODE = '22023';
       END IF;
       v_unit := public.erp_unit(p_command -> 'unit');
@@ -2250,6 +2343,15 @@ BEGIN
         END IF;
         v_employee_ids := v_employee_ids || v_id;
       END LOOP;
+      IF p_command ? 'workshopId' AND p_command -> 'workshopId' <> 'null'::jsonb THEN
+        v_workshop := public.erp_uuid(p_command -> 'workshopId', 'workshopId');
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM public.erp_workshops WHERE company_id = v_company AND id = v_workshop) THEN
+        RAISE EXCEPTION 'Workshop not found' USING ERRCODE = '22023';
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM public.erp_workshops WHERE company_id = v_company AND id = v_workshop AND active) THEN
+        RAISE EXCEPTION 'Sex nofaol' USING ERRCODE = '23514';
+      END IF;
       UPDATE public.erp_operations SET name = btrim(public.erp_text(p_command -> 'name', 'name')), unit = v_unit,
         sale_price = public.erp_money(p_command -> 'salePrice', 'salePrice', true),
         worker_rate = public.erp_money(p_command -> 'workerRate', 'workerRate', true),
@@ -2257,7 +2359,7 @@ BEGIN
         machine_id = v_ref, employee_ids = v_employee_ids,
         active = public.erp_bool(p_command -> 'active', 'active'),
         auto_accept = public.erp_bool(p_command -> 'autoAccept', 'autoAccept'),
-        norms = public.erp_norms(v_company, p_command -> 'norms') WHERE id = v_entity;
+        norms = public.erp_norms(v_company, p_command -> 'norms'), workshop_id = v_workshop WHERE id = v_entity;
     WHEN 'item.create' THEN
       IF NOT (p_command ? 'customerId') THEN RAISE EXCEPTION 'customerId is required (UUID or null)' USING ERRCODE = '22023'; END IF;
       v_customer := CASE WHEN p_command -> 'customerId' = 'null'::jsonb THEN NULL ELSE public.erp_uuid(p_command -> 'customerId', 'customerId') END;
@@ -2644,6 +2746,11 @@ BEGIN
       v_entity := public.erp_uuid(p_command -> 'orderId', 'orderId');
       SELECT * INTO v_order FROM public.erp_orders WHERE company_id = v_company AND id = v_entity;
       IF NOT FOUND OR v_order.status <> 'production' THEN RAISE EXCEPTION 'Production order required' USING ERRCODE = '23514'; END IF;
+      IF v_actor.role = 'worker' AND cardinality(v_workshop_scope) > 0 AND NOT EXISTS (
+        SELECT 1 FROM public.erp_tasks t WHERE t.company_id = v_company AND t.order_id = v_order.id
+          AND t.workshop_id = ANY(v_workshop_scope)) THEN
+        RAISE EXCEPTION 'Bu buyurtma boshqa sexga tegishli' USING ERRCODE = '42501';
+      END IF;
       v_line_id := CASE WHEN p_command ? 'lineId' THEN public.erp_uuid(p_command -> 'lineId', 'lineId') ELSE NULL END;
       IF v_line_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.erp_order_items
         WHERE company_id = v_company AND order_id = v_entity AND id = v_line_id) THEN
@@ -2845,6 +2952,10 @@ BEGIN
       SELECT * INTO v_task FROM public.erp_tasks WHERE company_id = v_company AND id = v_report.task_id FOR UPDATE;
       IF NOT FOUND THEN RAISE EXCEPTION 'Task not found' USING ERRCODE = '22023'; END IF;
       IF v_report.employee_id <> v_task.employee_id THEN RAISE EXCEPTION 'Report employee is not assigned' USING ERRCODE = '23514'; END IF;
+      IF v_actor.role = 'worker' AND cardinality(v_workshop_scope) > 0
+         AND NOT (v_task.workshop_id = ANY(v_workshop_scope)) THEN
+        RAISE EXCEPTION 'Bu bosqich boshqa sexga tegishli' USING ERRCODE = '42501';
+      END IF;
       IF v_order.status <> 'production' OR EXISTS (SELECT 1 FROM public.erp_order_materials WHERE company_id = v_company AND order_id = v_order.id AND issued_qty < qty) THEN
         RAISE EXCEPTION 'Materials must be issued before review' USING ERRCODE = '23514';
       END IF;

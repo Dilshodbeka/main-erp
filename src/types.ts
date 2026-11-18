@@ -14,14 +14,15 @@ export interface Actor {
 export interface Customer { id: string; name: string; phone: string; address: string; kind: CustomerKind; employeeId: string | null; sellerId?: string | null }
 export interface Supplier { id: string; name: string; phone: string }
 export interface Warehouse { id: string; name: string; active: boolean }
+export interface Workshop { id: string; name: string; active: boolean }
 export interface Employee { id: string; name: string; active: boolean; deactivatedAt?: string | null }
 export type OperationUnit = 'sheet' | 'meter' | 'squareMeter' | 'piece' | 'hole' | 'minute' | 'hour';
-export interface Machine { id: string; name: string; hourlyRevenueTarget: number; active: boolean }
+export interface Machine { id: string; name: string; hourlyRevenueTarget: number; active: boolean; workshopId?: string }
 export interface OperationNorm { itemId: string; qtyPerM2: number }
 export interface Operation {
   id: string; name: string; unit: OperationUnit; salePrice: number; workerRate: number;
   standardMinutes: number; machineId: string | null; employeeIds: string[]; active: boolean; autoAccept: boolean;
-  norms: OperationNorm[];
+  norms: OperationNorm[]; workshopId?: string;
 }
 export type ItemKind = 'material' | 'blank' | 'finished';
 export interface Item {
@@ -39,7 +40,7 @@ export interface RecipeComponent {
 export type RecipeComponentInput = Omit<RecipeComponent, 'id'>;
 export interface RecipeVersion { id: string; version: number; components: RecipeComponent[]; createdAt: string }
 export interface Recipe { id: string; outputItemId: string; name: string; versions: RecipeVersion[]; active: boolean }
-export interface RouteLine { id: string; lineId: string; operationId: string; name: string; executorKind: ExecutorKind; employeeId: string | null; supplierId: string | null; rate: number; supplierCost?: number; salePrice?: number; standardMinutes?: number; planned: number; completed: number; status: TaskStatus }
+export interface RouteLine { id: string; lineId: string; operationId: string; name: string; executorKind: ExecutorKind; employeeId: string | null; supplierId: string | null; rate: number; supplierCost?: number; salePrice?: number; standardMinutes?: number; planned: number; completed: number; status: TaskStatus; workshopId?: string }
 export interface Order {
   id: string; number: string; kind: 'product' | 'service' | 'series' | 'composite'; customerId: string; title: string;
   outputItemId: string | null; recipeVersionId: string | null; substitutions: Record<string, string>;
@@ -168,6 +169,7 @@ export interface State {
   version: 4; revision: number; companyId: string; customers: Customer[]; suppliers: Supplier[]; employees: Employee[];
   machines: Machine[]; operations: Operation[]; items: Item[]; recipes: Recipe[]; orders: Order[]; purchases: Purchase[]; movements: StockMovement[];
   warehouses: Warehouse[];
+  workshops: Workshop[];
   cash: CashEntry[]; reports: WorkReport[]; defects: DefectRow[]; payroll: PayrollEntry[]; salaryPlans: SalaryPlan[]; expensePlans: ExpensePlan[]; loans: LoanRow[]; routeTemplates: RouteTemplate[]; workerDeductions: WorkerDeduction[]; shipments: Shipment[]; tickets: SupportTicket[]; audit: AuditEntry[];
 }
 export type OrderMaterialInput = { itemId: string; qty: number };
@@ -200,10 +202,12 @@ export type Command =
   | { type: 'supplier.create'; name: string; phone: string }
   | { type: 'employee.create'; name: string }
   | { type: 'employee.update'; employeeId: string; name: string; active: boolean; deactivatedAt?: string | null }
-  | { type: 'machine.create'; name: string; hourlyRevenueTarget: number }
-  | { type: 'machine.update'; machineId: string; name: string; hourlyRevenueTarget: number; active: boolean }
-  | { type: 'operation.create'; name: string; unit: OperationUnit; salePrice: number; workerRate: number; standardMinutes: number; machineId: string | null; employeeIds: string[]; active: boolean; autoAccept: boolean; norms?: OperationNorm[] }
-  | { type: 'operation.update'; operationId: string; name: string; unit: OperationUnit; salePrice: number; workerRate: number; standardMinutes: number; machineId: string | null; employeeIds: string[]; active: boolean; autoAccept: boolean; norms?: OperationNorm[] }
+  | { type: 'workshop.create'; name: string }
+  | { type: 'workshop.update'; workshopId: string; name: string; active: boolean }
+  | { type: 'machine.create'; name: string; hourlyRevenueTarget: number; workshopId?: string }
+  | { type: 'machine.update'; machineId: string; name: string; hourlyRevenueTarget: number; active: boolean; workshopId?: string }
+  | { type: 'operation.create'; name: string; unit: OperationUnit; salePrice: number; workerRate: number; standardMinutes: number; machineId: string | null; employeeIds: string[]; active: boolean; autoAccept: boolean; norms?: OperationNorm[]; workshopId?: string }
+  | { type: 'operation.update'; operationId: string; name: string; unit: OperationUnit; salePrice: number; workerRate: number; standardMinutes: number; machineId: string | null; employeeIds: string[]; active: boolean; autoAccept: boolean; norms?: OperationNorm[]; workshopId?: string }
   | { type: 'item.create'; name: string; unit: string; minQty: number; cost: number; customerId: string | null; kind?: ItemKind; salePrice?: number; category?: string | null; openQty?: number; photo?: string }
   | { type: 'item.update'; itemId: string; name: string; unit: string; minQty: number; salePrice: number; category: string | null; photo?: string }
   | { type: 'recipe.create'; outputItemId: string; name: string; components: RecipeComponentInput[] }

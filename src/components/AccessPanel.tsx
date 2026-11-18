@@ -3,7 +3,8 @@ import { KeyRound, Plus, RefreshCw, ShieldCheck, Trash2, Tv, UserRound } from 'l
 import { accessErrorText as accessErrorLabel, resetPasswordError, validateAccessDraft, type AccessAccount, type AccessDraft } from '../access';
 import { AccessError, createAccount, deleteAccount, listAccounts, resetAccountPassword } from '../accessApi';
 import { PERMISSION_GROUPS, PERMISSION_LABEL, PRESETS, type Permission, type PresetKey } from '../permissions';
-import type { Employee, Role } from '../types';
+import type { Employee, Role, Workshop } from '../types';
+import { activeWorkshops } from '../workshop-view';
 import { Empty, Field, Section } from '../ui';
 
 const emptyDraft: AccessDraft = {
@@ -26,7 +27,7 @@ function accessErrorText(error: unknown): string {
   return accessErrorLabel(code, error instanceof Error ? error.message : '');
 }
 
-export function AccessPanel({ cloud, employees }: { cloud: boolean; employees: Employee[] }) {
+export function AccessPanel({ cloud, employees, workshops }: { cloud: boolean; employees: Employee[]; workshops: Workshop[] }) {
   const [accounts, setAccounts] = useState<AccessAccount[]>([]);
   const [loading, setLoading] = useState(cloud);
   const [error, setError] = useState('');
@@ -187,6 +188,18 @@ export function AccessPanel({ cloud, employees }: { cloud: boolean; employees: E
               ))}
             </div>
           </>}
+          {(draft.role === 'display' || draft.preset === 'Sex boshlig‘i') && activeWorkshops(workshops).length > 0 && <div className="scope-picker">
+            <div className="form-section-title"><div><h3>Sexlar</h3><small>{draft.role === 'display' ? 'Bo‘sh qoldirilsa, ekran barcha sexlarni ko‘rsatadi' : 'Boshliq faqat tanlangan sexlarni boshqaradi'}</small></div></div>
+            <div className="employee-picker">{activeWorkshops(workshops).map(ws => <label key={ws.id}>
+              <input type="checkbox" checked={draft.scopeWorkshopIds.includes(ws.id)} onChange={event => setDraft({
+                ...draft,
+                scopeWorkshopIds: event.target.checked
+                  ? [...draft.scopeWorkshopIds, ws.id]
+                  : draft.scopeWorkshopIds.filter(id => id !== ws.id),
+              })} />
+              {ws.name}
+            </label>)}</div>
+          </div>}
           {draft.role === 'worker' && !available.length && <p className="subtle-note">Barcha faol xodimlar allaqachon bog‘langan. Avval «Xodimlar» bo‘limida yangi xodim qo‘shing.</p>}
           {formError && <div className="warning">{formError}</div>}
           {notice && <div className="info-note"><ShieldCheck size={18} />{notice}</div>}

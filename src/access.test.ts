@@ -42,6 +42,12 @@ describe('validateAccessDraft', () => {
     expect(validateAccessDraft({ ...draft, email: 'OWNER@example.com' }, employees, accounts)).toBe('Bu email allaqachon ro‘yxatda');
   });
 
+  it('requires at least one workshop for the Sex boshlig‘i preset', () => {
+    const chief: AccessDraft = { ...draft, preset: 'Sex boshlig‘i', permissions: [...PRESETS['Sex boshlig‘i']] };
+    expect(validateAccessDraft(chief, employees, accounts)).toBe('Sex boshlig‘i uchun kamida bitta sex tanlang');
+    expect(validateAccessDraft({ ...chief, scopeWorkshopIds: ['w2'] }, employees, accounts)).toBe('');
+  });
+
   it('requires matching passwords of 8 to 72 characters', () => {
     expect(validateAccessDraft({ ...draft, password: 'short', confirm: 'short' }, employees, accounts)).toBe('Parol kamida 8 belgidan iborat bo‘lsin');
     expect(validateAccessDraft({ ...draft, password: 'x'.repeat(73), confirm: 'x'.repeat(73) }, employees, accounts)).toBe('Parol 72 belgidan oshmasin');

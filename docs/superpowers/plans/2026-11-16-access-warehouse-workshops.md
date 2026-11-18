@@ -1213,9 +1213,9 @@ Run: `npx vitest run src/supply.test.ts`, `npx tsc -b`
 - Consumes: `State`.
 - Produces: `Workshop`, `MAIN_WORKSHOP_ID = '00000000-0000-4000-8000-00000000b001'`, `mainWorkshop()`, `State.workshops`.
 
-- [ ] **Step 1:** Типы и дефолт (по образцу B1). Нормализация: `workshops ??= [mainWorkshop()]`; `machine/operation/routeLine.workshopId ??= MAIN_WORKSHOP_ID`.
-- [ ] **Step 2:** RED — тест нормализации `migrateState` заполняет `workshops` и `workshopId`.
-- [ ] **Step 3:** Run → GREEN.
+- [x] **Step 1:** Типы и дефолт (по образцу B1). Нормализация: `workshops ??= [mainWorkshop()]`; `machine/operation/routeLine.workshopId ??= MAIN_WORKSHOP_ID`.
+- [x] **Step 2:** RED — тест нормализации `migrateState` заполняет `workshops` и `workshopId`.
+- [x] **Step 3:** Run → GREEN.
 
 ---
 
@@ -1229,7 +1229,7 @@ Run: `npx vitest run src/supply.test.ts`, `npx tsc -b`
 - Consumes: `actor.workshopIds`, `Operation.workshopId`, `RouteLine.workshopId`.
 - Produces: этап несёт цех операции на момент создания; перенос операции не переписывает историю; `work.review` начальником — только этапы его цехов.
 
-- [ ] **Step 1: RED**
+- [x] **Step 1: RED**
 
 ```ts
 it('route line copies operation workshop at creation, not later', () => {
@@ -1241,11 +1241,11 @@ it('shop chief reviews only own workshop stage', () => {
 });
 ```
 
-- [ ] **Step 2: Реализация**
+- [x] **Step 2: Реализация**
 
 При построении `RouteLine` (в `order.create`/`series.create`/`order.update`/применении шаблона) — `workshopId = operation.workshopId`. В `work.review`: если `actor.role === 'worker'` и `actor.workshopIds` непустой — этап должен принадлежать одному из `workshopIds`, иначе ошибка. (Для admin — без ограничений; для исполнителя-работника — по-прежнему «свой этап».)
 
-- [ ] **Step 3: Run — GREEN**
+- [x] **Step 3: Run — GREEN**
 
 ---
 
@@ -1255,17 +1255,17 @@ it('shop chief reviews only own workshop stage', () => {
 - Modify: `supabase/schema.sql`, Create: `supabase/migrations/20261121_workshops.sql`
 - Test: `src/workshop-contract.test.ts`
 
-- [ ] **Step 1:** `CREATE TABLE erp_workshops`; для каждой компании — «Asosiy ishlab chiqarish»; `workshop_id` в `erp_machines`/`erp_operations`/`erp_tasks`; backfill основным цехом; `SET NOT NULL`; FK.
-- [ ] **Step 2:** `erp_snapshot`: массив `workshops`, поле `workshopId`; фильтрация ТВ по `scope_workshop_ids` (для `display`).
-- [ ] **Step 3:** `erp_execute`: проверка scope для `work.review` и выдачи материалов начальником цеха.
-- [ ] **Step 4:** Миграция + контрактный тест.
+- [x] **Step 1:** `CREATE TABLE erp_workshops`; для каждой компании — «Asosiy ishlab chiqarish»; `workshop_id` в `erp_machines`/`erp_operations`/`erp_tasks`; backfill основным цехом; `SET NOT NULL`; FK.
+- [x] **Step 2:** `erp_snapshot`: массив `workshops`, поле `workshopId`; фильтрация ТВ по `scope_workshop_ids` (для `display`).
+- [x] **Step 3:** `erp_execute`: проверка scope для `work.review` и выдачи материалов начальником цеха.
+- [x] **Step 4:** Миграция + контрактный тест.
 
 ---
 
 ## Task D4: PGlite-зонд D
 
-- [ ] **Step 1:** `.validation-pglite-20261029/workshops-probe.mjs` — таблица/«Asosiy ishlab chiqarish» с детерминированным id; backfill `workshop_id`; `erp_snapshot` для display с `scope_workshop_ids` отдаёт только заказы этих цехов.
-- [ ] **Step 2:** Run → `OK workshops-probe`.
+- [x] **Step 1:** `.validation-pglite-20261029/workshops-probe.mjs` — таблица/«Asosiy ishlab chiqarish» с детерминированным id; backfill `workshop_id`; `erp_snapshot` для display с `scope_workshop_ids` отдаёт только заказы этих цехов.
+- [x] **Step 2:** Run → `OK workshops-probe`.
 
 ---
 
@@ -1275,18 +1275,18 @@ it('shop chief reviews only own workshop stage', () => {
 - Modify: экран «Sex» (канбан), панель настроек («Sexlar»), AccessPanel (scope цехов для display и Sex boshlig‘i).
 - Test: визуально в демо.
 
-- [ ] **Step 1:** Экран «Sex»: при 2+ цехах — табы «Barchasi» + по цеху; выбор в localStorage. Заказ виден в колонке цеха его текущего незавершённого этапа; заказ с этапами двух цехов — в обоих, но показывает только этапы своего цеха. Счётчики шапки — по выбранному цеху. В «Barchasi» карточка показывает цех у этапа.
-- [ ] **Step 2:** AccessPanel: для `display` — мультивыбор цехов (`scopeWorkshopIds`); для пресета «Sex boshlig‘i» — обязательный мультивыбор цехов.
-- [ ] **Step 3:** Панель «Sexlar» в настройках (добавить/переименовать/отключить; admin-only).
-- [ ] **Step 4:** Проверка: при одном цехе — ноль изменений; с двумя — табы, разный набор этапов, начальник видит только свой цех.
+- [x] **Step 1:** Экран «Sex»: при 2+ цехах — табы «Barchasi» + по цеху; выбор в localStorage. Заказ виден в колонке цеха его текущего незавершённого этапа; заказ с этапами двух цехов — в обоих, но показывает только этапы своего цеха. Счётчики шапки — по выбранному цеху. В «Barchasi» карточка показывает цех у этапа.
+- [x] **Step 2:** AccessPanel: для `display` — мультивыбор цехов (`scopeWorkshopIds`); для пресета «Sex boshlig‘i» — обязательный мультивыбор цехов.
+- [x] **Step 3:** Панель «Sexlar» в настройках (добавить/переименовать/отключить; admin-only).
+- [x] **Step 4:** Проверка: при одном цехе — ноль изменений; с двумя — табы, разный набор этапов, начальник видит только свой цех.
 
 ---
 
 ## Task D6: Проверка пакета D
 
-- [ ] **Step 1:** `npx tsc -b`, `npx vitest run`, `npm run build`.
-- [ ] **Step 2:** Демо-сценарий D (два цеха, табы, начальник цеха, ТВ-scope, перенос операции не меняет запущенные заказы).
-- [ ] **Step 3:** Итоговый отчёт владельцу на русском: все 4 пакета готовы; SQL `20261118–20261121` и `npm run deploy` — по отдельному разрешению на каждый пакет, в порядке A→B→C→D.
+- [x] **Step 1:** `npx tsc -b`, `npx vitest run`, `npm run build`.
+- [x] **Step 2:** Демо-сценарий D (два цеха, табы, начальник цеха, ТВ-scope, перенос операции не меняет запущенные заказы).
+- [x] **Step 3:** Итоговый отчёт владельцу на русском: все 4 пакета готовы; SQL `20261118–20261121` и `npm run deploy` — по отдельному разрешению на каждый пакет, в порядке A→B→C→D.
 
 ---
 

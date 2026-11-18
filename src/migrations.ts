@@ -1,7 +1,8 @@
 import type {
-  CashEntry, Customer, DefectRow, Employee, Item, Machine, MaterialLine, Operation, Order, OrderLine, PayrollEntry, Purchase, RouteTemplate, Shipment, ShipmentLine, State, StockMovement, SupportTicket, Warehouse, WorkReport,
+  CashEntry, Customer, DefectRow, Employee, Item, Machine, MaterialLine, Operation, Order, OrderLine, PayrollEntry, Purchase, RouteTemplate, Shipment, ShipmentLine, State, StockMovement, SupportTicket, Warehouse, WorkReport, Workshop,
 } from './types';
 import { MAIN_WAREHOUSE_ID, mainWarehouse } from './warehouse-default';
+import { MAIN_WORKSHOP_ID, mainWorkshop } from './workshop-default';
 
 export const DEMO_COMPANY_ID = '00000000-0000-4000-8000-0000000000c1';
 
@@ -20,7 +21,8 @@ export function migrateState(value: unknown): State {
   }
   const employees = source.employees as Employee[];
   const activeEmployees = employees.filter(employee => employee.active).map(employee => employee.id);
-  const machines = Array.isArray(source.machines) ? source.machines as Machine[] : [];
+  const machines = (Array.isArray(source.machines) ? source.machines as Machine[] : [])
+    .map(machine => ({ ...machine, workshopId: machine.workshopId ?? MAIN_WORKSHOP_ID }));
   const operations = (source.operations as (Partial<Operation> & { rate?: number })[]).map(operation => ({
     id: operation.id!,
     name: operation.name!,
@@ -33,6 +35,7 @@ export function migrateState(value: unknown): State {
     active: operation.active ?? true,
     autoAccept: operation.autoAccept ?? true,
     norms: Array.isArray(operation.norms) ? operation.norms : [],
+    workshopId: operation.workshopId ?? MAIN_WORKSHOP_ID,
   }));
   const reports = source.reports as WorkReport[];
   const customers = (source.customers as Customer[]).map(customer => ({
@@ -42,14 +45,20 @@ export function migrateState(value: unknown): State {
     sellerId: customer.sellerId ?? null,
   }));
   const orders = (source.orders as Order[]).map(order => {
-    const route = order.route.map(task => ({
-      ...task,
-      executorKind: task.executorKind ?? 'employee',
-      employeeId: task.employeeId ?? null,
-      supplierId: task.supplierId ?? null,
-      status: task.status ?? (task.completed >= task.planned ? 'completed'
-        : reports.some(row => row.taskId === task.id && row.status === 'submitted') ? 'submitted' : 'assigned'),
-    }));
+    const route = order.route.map(task => {
+      const workshopId = task.workshopId
+        ?? operations.find(operation => operation.id === task.operationId)?.workshopId
+        ?? MAIN_WORKSHOP_ID;
+      return {
+        ...task,
+        executorKind: task.executorKind ?? 'employee',
+        employeeId: task.employeeId ?? null,
+        supplierId: task.supplierId ?? null,
+        workshopId,
+        status: task.status ?? (task.completed >= task.planned ? 'completed'
+          : reports.some(row => row.taskId === task.id && row.status === 'submitted') ? 'submitted' : 'assigned'),
+      };
+    });
     const lines: OrderLine[] = Array.isArray(order.lines) && order.lines.length > 0
       ? order.lines.map(line => ({ ...line, status: line.status ?? order.status ?? 'draft' }))
       : [{
@@ -135,6 +144,8 @@ export function migrateState(value: unknown): State {
   }));
   const warehouses = Array.isArray(source.warehouses) && source.warehouses.length > 0
     ? source.warehouses as Warehouse[] : [mainWarehouse()];
+  const workshops = Array.isArray(source.workshops) && source.workshops.length > 0
+    ? source.workshops as Workshop[] : [mainWorkshop()];
   const movements = (source.movements as StockMovement[]).map(row => ({ ...row, warehouseId: row.warehouseId ?? MAIN_WAREHOUSE_ID }));
   return {
     ...source,
@@ -146,6 +157,7 @@ export function migrateState(value: unknown): State {
     operations,
     items,
     warehouses,
+    workshops,
     movements,
     recipes: Array.isArray(source.recipes) ? source.recipes : [],
     orders,

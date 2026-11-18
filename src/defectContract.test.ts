@@ -29,7 +29,8 @@ describe('defect and review SQL contract', () => {
 
   it('snapshots defects for admins, defect reviewers and the involved worker', () => {
     expect(schema).toContain("'defects', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', d.id, 'reportId', d.report_id");
-    expect(schema).toContain('FROM public.erp_defects d WHERE d.company_id = v_company AND (v_admin OR v_has_defects_view OR d.employee_id = v_profile.employee_id)');
+    expect(schema).toContain('FROM public.erp_defects d WHERE d.company_id = v_company AND (v_admin OR (v_has_defects_view AND NOT v_chief_scope)');
+    expect(schema).toContain('OR (v_chief_scope AND EXISTS (SELECT 1 FROM public.erp_tasks t WHERE t.company_id = d.company_id AND t.id = d.task_id');
     expect(schema).toContain("'materials', d.materials");
   });
 

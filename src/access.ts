@@ -82,5 +82,6 @@ export function validateAccessDraft(draft: AccessDraft, employees: Employee[], a
   if (!draft.employeeId) return 'Xodimni tanlang';
   if (accounts.some(account => account.employeeId === draft.employeeId)) return 'Bu xodimga kirish allaqachon bog‘langan';
   if (!employees.some(employee => employee.id === draft.employeeId && employee.active)) return 'Faol xodimni tanlang';
+  if (draft.preset === 'Sex boshlig‘i' && !draft.scopeWorkshopIds.length) return 'Sex boshlig‘i uchun kamida bitta sex tanlang';
   return '';
 }

@@ -2,32 +2,35 @@ import { useState } from 'react';
 import { Pencil, Plus } from 'lucide-react';
 import { Dialog, Empty, Field, Section, money, num } from '../ui';
 import { operationUnits, unitLabel } from '../work-view';
+import { MAIN_WORKSHOP_ID } from '../workshop-default';
+import { activeWorkshops, workshopName } from '../workshop-view';
 import type { Command, Machine, Operation, OperationUnit, State } from '../types';
 
 interface MachineDraft {
-  id: string | null; name: string; hourlyRevenueTarget: number; active: boolean;
+  id: string | null; name: string; hourlyRevenueTarget: number; active: boolean; workshopId: string;
 }
 
 interface OperationDraft {
   id: string | null; name: string; unit: OperationUnit; salePrice: number; workerRate: number;
-  standardMinutes: number; machineId: string; employeeIds: string[]; active: boolean; autoAccept: boolean;
+  standardMinutes: number; machineId: string; employeeIds: string[]; active: boolean; autoAccept: boolean; workshopId: string;
 }
 
-const blankMachine = (): MachineDraft => ({ id: null, name: '', hourlyRevenueTarget: 0, active: true });
+const blankMachine = (): MachineDraft => ({ id: null, name: '', hourlyRevenueTarget: 0, active: true, workshopId: MAIN_WORKSHOP_ID });
 
 const blankOperation = (state: State): OperationDraft => ({
   id: null, name: '', unit: 'piece', salePrice: 0, workerRate: 0, standardMinutes: 0,
-  machineId: '', employeeIds: state.employees.filter(emp => emp.active).map(emp => emp.id), active: true, autoAccept: true,
+  machineId: '', employeeIds: state.employees.filter(emp => emp.active).map(emp => emp.id), active: true, autoAccept: true, workshopId: MAIN_WORKSHOP_ID,
 });
 
 const machineDraft = (machine: Machine): MachineDraft => ({
-  id: machine.id, name: machine.name, hourlyRevenueTarget: machine.hourlyRevenueTarget, active: machine.active,
+  id: machine.id, name: machine.name, hourlyRevenueTarget: machine.hourlyRevenueTarget, active: machine.active, workshopId: machine.workshopId ?? MAIN_WORKSHOP_ID,
 });
 
 const operationDraft = (operation: Operation): OperationDraft => ({
   id: operation.id, name: operation.name, unit: operation.unit, salePrice: operation.salePrice,
   workerRate: operation.workerRate, standardMinutes: operation.standardMinutes,
   machineId: operation.machineId ?? '', employeeIds: [...operation.employeeIds], active: operation.active, autoAccept: operation.autoAccept,
+  workshopId: operation.workshopId ?? MAIN_WORKSHOP_ID,
 });
 
 export function CatalogSettings({ state, busy, run, onAddEmployee, onEditEmployee }: {
@@ -37,12 +40,14 @@ export function CatalogSettings({ state, busy, run, onAddEmployee, onEditEmploye
   const [machine, setMachine] = useState<MachineDraft | null>(null);
   const [operation, setOperation] = useState<OperationDraft | null>(null);
   const machineName = (id: string | null) => state.machines.find(row => row.id === id)?.name ?? 'Dastgohsiz';
+  const workshops = activeWorkshops(state.workshops);
+  const multiWorkshop = workshops.length > 1;
 
   const saveMachine = async () => {
     if (!machine) return;
     const command: Command = machine.id
-      ? { type: 'machine.update', machineId: machine.id, name: machine.name, hourlyRevenueTarget: machine.hourlyRevenueTarget, active: machine.active }
-      : { type: 'machine.create', name: machine.name, hourlyRevenueTarget: machine.hourlyRevenueTarget };
+      ? { type: 'machine.update', machineId: machine.id, name: machine.name, hourlyRevenueTarget: machine.hourlyRevenueTarget, active: machine.active, workshopId: machine.workshopId }
+      : { type: 'machine.create', name: machine.name, hourlyRevenueTarget: machine.hourlyRevenueTarget, workshopId: machine.workshopId };
     if (await run(command)) setMachine(null);
   };
 
@@ -51,7 +56,7 @@ export function CatalogSettings({ state, busy, run, onAddEmployee, onEditEmploye
     const body = {
       name: operation.name, unit: operation.unit, salePrice: operation.salePrice, workerRate: operation.workerRate,
       standardMinutes: operation.standardMinutes, machineId: operation.machineId || null,
-      employeeIds: operation.employeeIds, active: operation.active, autoAccept: operation.autoAccept,
+      employeeIds: operation.employeeIds, active: operation.active, autoAccept: operation.autoAccept, workshopId: operation.workshopId,
     };
     const command: Command = operation.id
       ? { type: 'operation.update', operationId: operation.id, ...body }
@@ -69,7 +74,7 @@ export function CatalogSettings({ state, busy, run, onAddEmployee, onEditEmploye
       </div>}
     >
       <div className="catalog-machines">{state.machines.map(row => <article className="catalog-machine" key={row.id}>
-        <header><b>{row.name}</b><span className={`task-status ${row.active ? 'completed' : 'rejected'}`}>{row.active ? 'Faol' : 'O‘chirilgan'}</span></header>
+        <header><b>{row.name}</b>{multiWorkshop && <small className="muted">{workshopName(state.workshops, row.workshopId)}</small>}<span className={`task-status ${row.active ? 'completed' : 'rejected'}`}>{row.active ? 'Faol' : 'O‘chirilgan'}</span></header>
         <strong>{money(row.hourlyRevenueTarget)}<small> soatlik maqsad</small></strong>
         <button className="text-button" onClick={() => setMachine(machineDraft(row))}><Pencil size={14} />Tahrirlash</button>
       </article>)}</div>
@@ -78,7 +83,7 @@ export function CatalogSettings({ state, busy, run, onAddEmployee, onEditEmploye
         <span>{String(index + 1).padStart(2, '0')}</span>
         <div className="catalog-op">
           <b>{row.name}</b>
-          <small>{unitLabel(row.unit)} · norma {num(row.standardMinutes)} daq. · {machineName(row.machineId)} · ruxsat {row.employeeIds.length}</small>
+          <small>{unitLabel(row.unit)} · norma {num(row.standardMinutes)} daq. · {machineName(row.machineId)}{multiWorkshop ? ` · ${workshopName(state.workshops, row.workshopId)}` : ''} · ruxsat {row.employeeIds.length}</small>
         </div>
         <div className="catalog-price"><b>{money(row.salePrice)}</b><small>mijozga · tannarx {money(row.workerRate)}</small></div>
         <span className={`task-status ${row.active ? 'completed' : 'rejected'}`}>{row.active ? 'Faol' : 'O‘chirilgan'}</span>
@@ -110,6 +115,7 @@ export function CatalogSettings({ state, busy, run, onAddEmployee, onEditEmploye
         <div className="form-body">
           <Field label="Dastgoh nomi"><input value={machine.name} onChange={event => setMachine({ ...machine, name: event.target.value })} required maxLength={120} autoFocus /></Field>
           <Field label="Soatlik tushum maqsadi, UZS"><input type="number" min="0" step="0.01" value={machine.hourlyRevenueTarget || ''} onChange={event => setMachine({ ...machine, hourlyRevenueTarget: Number(event.target.value) })} required /></Field>
+          {multiWorkshop && <Field label="Sex"><select value={machine.workshopId} onChange={event => setMachine({ ...machine, workshopId: event.target.value })}>{workshops.map(ws => <option key={ws.id} value={ws.id}>{ws.name}</option>)}</select></Field>}
           {machine.id && <label className="check-field"><input type="checkbox" checked={machine.active} onChange={event => setMachine({ ...machine, active: event.target.checked })} />Dastgoh faol</label>}
         </div>
         <footer className="form-footer">
@@ -128,7 +134,12 @@ export function CatalogSettings({ state, busy, run, onAddEmployee, onEditEmploye
             <Field label="Mijoz uchun birlik narxi, UZS"><input type="number" min="0" step="0.01" value={operation.salePrice || ''} onChange={event => setOperation({ ...operation, salePrice: Number(event.target.value) })} required /></Field>
             <Field label="Bosqich tannarxi, UZS"><input type="number" min="0" step="0.01" value={operation.workerRate || ''} onChange={event => setOperation({ ...operation, workerRate: Number(event.target.value) })} required /></Field>
             <Field label="Vaqt normasi, daqiqa"><input type="number" min="0" step="0.1" value={operation.standardMinutes || ''} onChange={event => setOperation({ ...operation, standardMinutes: Number(event.target.value) })} required /></Field>
-            <Field label="Dastgoh"><select value={operation.machineId} onChange={event => setOperation({ ...operation, machineId: event.target.value })}><option value="">Dastgohsiz</option>{state.machines.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select></Field>
+            <Field label="Dastgoh"><select value={operation.machineId} onChange={event => {
+              const machineId = event.target.value;
+              const ws = state.machines.find(row => row.id === machineId)?.workshopId;
+              setOperation({ ...operation, machineId, workshopId: machineId ? (ws ?? MAIN_WORKSHOP_ID) : operation.workshopId });
+            }}><option value="">Dastgohsiz</option>{state.machines.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select></Field>
+            {multiWorkshop && <Field label="Sex"><select value={operation.workshopId} onChange={event => setOperation({ ...operation, workshopId: event.target.value })}>{workshops.map(ws => <option key={ws.id} value={ws.id}>{ws.name}</option>)}</select></Field>}
           </div>
           <div className="form-section-title"><div><h3>Ruxsat berilgan xodimlar</h3><small>Bosqich faqat belgilangan xodimlarga ochiq</small></div></div>
           <div className="employee-picker">{state.employees.map(emp => <label key={emp.id}>

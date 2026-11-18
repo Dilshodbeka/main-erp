@@ -88,7 +88,7 @@ describe('access permissions SQL contract', () => {
 
   it('keeps payroll, defects, loans and reports visible only to permitted viewers', () => {
     expect(schema).toContain('FROM public.erp_payroll p WHERE p.company_id = v_company AND (v_admin OR v_has_salaries_view OR p.employee_id = v_profile.employee_id)');
-    expect(schema).toContain('FROM public.erp_defects d WHERE d.company_id = v_company AND (v_admin OR v_has_defects_view OR d.employee_id = v_profile.employee_id)');
+    expect(schema).toContain('FROM public.erp_defects d WHERE d.company_id = v_company AND (v_admin OR (v_has_defects_view AND NOT v_chief_scope)');
     expect(schema).toContain('FROM public.erp_salary_plans p WHERE p.company_id = v_company AND (v_admin OR v_has_salaries_view)');
     expect(schema).toContain('FROM public.erp_expense_plans p WHERE p.company_id = v_company AND (v_admin OR v_has_salaries_view)');
     expect(schema).toContain('FROM public.erp_loans l WHERE l.company_id = v_company AND (v_admin OR v_has_reports_view)');
