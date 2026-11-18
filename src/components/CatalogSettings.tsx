@@ -17,9 +17,9 @@ interface OperationDraft {
 
 const blankMachine = (): MachineDraft => ({ id: null, name: '', hourlyRevenueTarget: 0, active: true, workshopId: MAIN_WORKSHOP_ID });
 
-const blankOperation = (state: State): OperationDraft => ({
+export const blankOperation = (state: State): OperationDraft => ({
   id: null, name: '', unit: 'piece', salePrice: 0, workerRate: 0, standardMinutes: 0,
-  machineId: '', employeeIds: state.employees.filter(emp => emp.active).map(emp => emp.id), active: true, autoAccept: true, workshopId: MAIN_WORKSHOP_ID,
+  machineId: '', employeeIds: [], active: true, autoAccept: true, workshopId: MAIN_WORKSHOP_ID,
 });
 
 const machineDraft = (machine: Machine): MachineDraft => ({

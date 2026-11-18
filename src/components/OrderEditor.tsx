@@ -186,7 +186,7 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
     </div>
     <ShortageNotice rows={shortage} onGo={onGo} onTransfer={onTransfer} />
     {position.materials.map((row, index) => <div className="editor-line material-editor" key={index}>
-      <MaterialPicker label={`Material ${index + 1}`} value={row.itemId} disabled={row.issuedQty > 0}
+      <MaterialPicker label={`Material ${index + 1}`} value={row.itemId} disabled={row.issuedQty > 0} qty={row.qty}
         groups={materialGroups(state, customerId, row.itemId, position.materials.map(material => material.itemId))}
         describe={describeMaterial} onChange={itemId => setMaterial(index, { itemId })} />
       <input aria-label={`Material miqdori ${index + 1}`} type="number" min={row.issuedQty > 0 ? row.issuedQty : 0.001} step="0.001" value={row.qty} required onChange={event => setMaterial(index, { qty: Number(event.target.value) })} />

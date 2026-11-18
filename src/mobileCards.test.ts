@@ -17,6 +17,7 @@ const tableFiles = [
   'components/FinanceStatements.tsx',
   'components/ItemImport.tsx',
   'components/LoansPanel.tsx',
+  'components/MaterialPicker.tsx',
   'components/OrderHistory.tsx',
   'components/SalaryPanel.tsx',
   'components/SalesAnalytics.tsx',
