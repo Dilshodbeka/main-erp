@@ -14,8 +14,9 @@ const emptyDraft: AccessDraft = {
 
 const roleLabel: Record<Role, string> = { admin: 'Egasi', worker: 'Xodim', display: 'TV ekran' };
 
-function presetName(permissions: string[]): string {
-  const sorted = (list: string[]) => [...list].sort().join(',');
+export function presetName(permissions: string[] | null | undefined): string {
+  if (!Array.isArray(permissions)) return 'Huquqlarsiz';
+  const sorted = (items: string[]) => [...items].sort().join(',');
   for (const key of Object.keys(PRESETS) as PresetKey[]) {
     if (sorted(PRESETS[key]) === sorted(permissions)) return key;
   }
