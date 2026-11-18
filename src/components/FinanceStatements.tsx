@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ArrowUpRight, Banknote, FileText, Layers, Package, Send, Wallet, Wrench, ChevronRight } from 'lucide-react';
 import { periodEnd, periodKey, periodStart, type PeriodKind } from '../analytics';
 import { customerKindLabel } from '../customers';
 import { statusLabel } from '../i18n';
@@ -9,7 +9,7 @@ import {
   type CustomerStatementRow, type OrderStatementRow, type PaymentRow, type SupplierStatementRow,
 } from '../statements';
 import type { Actor, State } from '../types';
-import { Empty, Section, dateTime, money } from '../ui';
+import { Empty, Metric, Section, dateTime, money } from '../ui';
 import { PeriodSwitch, periodTitle } from './PeriodSwitch';
 import { SortSelect } from './SortSelect';
 
@@ -34,6 +34,10 @@ function periodLabel(key: string, kind: PeriodKind): string {
   if (key === 'all') return 'Butun davr';
   if (kind !== 'month') return periodTitle(key, kind);
   return new Date(`${key}-02T00:00:00`).toLocaleDateString('uz-UZ', { month: 'long', year: 'numeric' });
+}
+
+export function rowClass(selectedId: string | null, rowId: string): string {
+  return selectedId === rowId ? 'expanded' : '';
 }
 
 export function statementDates(state: State, tab: Tab): string[] {
@@ -118,6 +122,9 @@ export function FinanceStatements({ state, actor, search = '', onOpenCustomer }:
   const orderTotal = orderRows.reduce((sum, row) => sum + row.price, 0);
   const orderPaid = orderRows.reduce((sum, row) => sum + row.paid, 0);
   const orderDebt = orderRows.reduce((sum, row) => sum + row.debt, 0);
+  const customerDebtors = customerRows.filter(row => row.debt > 0).length;
+  const supplierDebtors = supplierRows.filter(row => row.debt > 0).length;
+  const orderDebtors = orderRows.filter(row => row.debt > 0).length;
 
   const selectedCustomer = customerRows.find(row => row.customerId === expanded);
   const selectedSupplier = supplierRows.find(row => row.supplierId === expanded);
@@ -139,23 +146,23 @@ export function FinanceStatements({ state, actor, search = '', onOpenCustomer }:
       {keys.map(key => <option key={key} value={key}>{periodLabel(key, kind)}</option>)}
     </select>
   </div>}>
-    {tab === 'customers' && <div className="settings-facts">
-      <span>Yuborilgan<b>{money(shipped)}</b></span>
-      <span>Olingan pul<b>{money(customerPaid)}</b></span>
-      <span>Hozirgi qarz<b>{money(customerDebt)}</b></span>
-      <span>Avanslar<b>{money(customerAdvance)}</b></span>
+    {tab === 'customers' && <div className="metrics statement-metrics">
+      <Metric label="Yuborilgan" value={money(shipped)} detail={`${customerRows.length} mijoz harakati`} icon={Send} />
+      <Metric label="Olingan pul" value={money(customerPaid)} detail="Kassa va bankdan o‘tgan" icon={Wallet} />
+      <Metric label="Hozirgi qarz" value={money(customerDebt)} detail={customerDebtors ? `${customerDebtors} mijoz bizga qarzdor` : 'Mijozlar qarzdor emas'} icon={ArrowUpRight} accent />
+      <Metric label="Avanslar" value={money(customerAdvance)} detail={customerAdvance > 0 ? 'To‘lovdan ortiqcha qoldiq' : 'Hozircha avans yo‘q'} icon={Banknote} />
     </div>}
-    {tab === 'suppliers' && <div className="settings-facts">
-      <span>Qabul qilingan<b>{money(received)}</b></span>
-      <span>Xizmatlar<b>{money(outsourced)}</b></span>
-      <span>To‘langan<b>{money(supplierPaid)}</b></span>
-      <span>Hozirgi qarz<b>{money(supplierTotalDebt)}</b></span>
+    {tab === 'suppliers' && <div className="metrics statement-metrics">
+      <Metric label="Qabul qilingan" value={money(received)} detail={`${supplierRows.length} ta’minotchi harakati`} icon={Package} />
+      <Metric label="Xizmatlar" value={money(outsourced)} detail="Pudratchiga berilgan ishlar" icon={Wrench} />
+      <Metric label="To‘langan" value={money(supplierPaid)} detail="Kassa va bankdan o‘tgan" icon={Wallet} />
+      <Metric label="Hozirgi qarz" value={money(supplierTotalDebt)} detail={supplierDebtors ? `Biz ${supplierDebtors} ta’minotchiga qarzdormiz` : 'Ta’minotchilarga qarz yo‘q'} icon={ArrowUpRight} accent />
     </div>}
-    {tab === 'orders' && <div className="settings-facts">
-      <span>Buyurtmalar<b>{orderRows.length}</b></span>
-      <span>Summa<b>{money(orderTotal)}</b></span>
-      <span>To‘langan<b>{money(orderPaid)}</b></span>
-      <span>Qarz<b>{money(orderDebt)}</b></span>
+    {tab === 'orders' && <div className="metrics statement-metrics">
+      <Metric label="Buyurtmalar" value={orderRows.length} detail="Davr bo‘yicha jami" icon={FileText} />
+      <Metric label="Summa" value={money(orderTotal)} detail="Shartnoma qiymati" icon={Layers} />
+      <Metric label="To‘langan" value={money(orderPaid)} detail="Kassa va bankdan o‘tgan" icon={Wallet} />
+      <Metric label="Qarz" value={money(orderDebt)} detail={orderDebtors ? `${orderDebtors} buyurtma to‘lanmagan` : 'Hammasi to‘langan'} icon={ArrowUpRight} accent />
     </div>}
 
     <div className="filter-bar">
@@ -168,20 +175,20 @@ export function FinanceStatements({ state, actor, search = '', onOpenCustomer }:
     </div>
 
     {tab === 'customers' && <>
-      <div className="table-scroll cardable"><table>
-        <thead><tr><th>Mijoz</th><th className="right">Buyurtmalar</th><th className="right">Yuborilgan</th><th className="right">To‘langan</th><th className="right">Qarz</th><th>Oxirgi to‘lov</th><th /></tr></thead>
-        <tbody>{customerRows.map(row => <tr key={row.customerId}>
+      <div className="table-scroll cardable statement-report"><table>
+        <thead><tr><th>Mijoz</th><th className="right">Buyurtmalar</th><th className="right">Yuborilgan</th><th className="right">To‘langan</th><th className="right">Qarz</th><th>Oxirgi to‘lov</th><th className="chevron" /></tr></thead>
+        <tbody>{customerRows.map(row => <tr key={row.customerId} className={rowClass(expanded, row.customerId)}>
           <td data-label="Mijoz"><button className="row-link" onClick={() => setExpanded(expanded === row.customerId ? null : row.customerId)}>{row.name}</button><small>{customerKindLabel(row.kind)}{row.employeeId ? ' · Xodim' : ''}</small></td>
           <td data-label="Buyurtmalar" className="right">{row.orders}</td>
           <td data-label="Yuborilgan" className="right">{money(row.shipped)}</td>
           <td data-label="To‘langan" className="right positive">{money(row.paid)}</td>
           <td data-label="Qarz" className="right"><b className={row.debt > 0 ? 'debt' : ''}>{money(row.debt)}</b>{row.advance > 0 && <small>avans {money(row.advance)}</small>}</td>
           <td data-label="Oxirgi to‘lov">{row.lastPaidAt ? dateTime(row.lastPaidAt) : '—'}</td>
-          <td data-label="Batafsil"><button className="icon-button" aria-label={`${row.name} batafsil`} onClick={() => setExpanded(expanded === row.customerId ? null : row.customerId)}><ChevronRight size={16} style={{ transform: expanded === row.customerId ? 'rotate(90deg)' : undefined }} /></button></td>
+          <td data-label="Batafsil" className="chevron"><button className="icon-button" aria-label={`${row.name} batafsil`} onClick={() => setExpanded(expanded === row.customerId ? null : row.customerId)}><ChevronRight size={16} style={{ transform: expanded === row.customerId ? 'rotate(90deg)' : undefined }} /></button></td>
         </tr>)}</tbody>
       </table></div>
       {!customerRows.length && <Empty text="Bu davrda mijozlar harakati yo‘q" />}
-      {selectedCustomer && <div className="statement-detail">
+      {selectedCustomer && <div className="statement-detail statement-detail-report">
         <div className="statement-head"><h4>{selectedCustomer.name} · {periodLabel(period, kind)}</h4>{onOpenCustomer && <button className="secondary small" onClick={() => onOpenCustomer(selectedCustomer.customerId)}>To‘liq karta</button>}</div>
         <div><h4>To‘lovlar</h4><Payments rows={selectedCustomer.payments} empty="Bu davrda to‘lov yo‘q" /></div>
         <div><h4>Yuborishlar</h4>
@@ -198,9 +205,9 @@ export function FinanceStatements({ state, actor, search = '', onOpenCustomer }:
     </>}
 
     {tab === 'suppliers' && <>
-      <div className="table-scroll cardable"><table>
-        <thead><tr><th>Ta’minotchi</th><th className="right">Xaridlar</th><th className="right">Qabul qilingan</th><th className="right">Xizmatlar</th><th className="right">To‘langan</th><th className="right">Qarz</th><th>Oxirgi to‘lov</th><th /></tr></thead>
-        <tbody>{supplierRows.map(row => <tr key={row.supplierId}>
+      <div className="table-scroll cardable statement-report"><table>
+        <thead><tr><th>Ta’minotchi</th><th className="right">Xaridlar</th><th className="right">Qabul qilingan</th><th className="right">Xizmatlar</th><th className="right">To‘langan</th><th className="right">Qarz</th><th>Oxirgi to‘lov</th><th className="chevron" /></tr></thead>
+        <tbody>{supplierRows.map(row => <tr key={row.supplierId} className={rowClass(expanded, row.supplierId)}>
           <td data-label="Ta’minotchi"><button className="row-link" onClick={() => setExpanded(expanded === row.supplierId ? null : row.supplierId)}>{row.name}</button></td>
           <td data-label="Xaridlar" className="right">{row.purchases}</td>
           <td data-label="Qabul qilingan" className="right">{money(row.receivedValue)}</td>
@@ -208,11 +215,11 @@ export function FinanceStatements({ state, actor, search = '', onOpenCustomer }:
           <td data-label="To‘langan" className="right positive">{money(row.paid)}</td>
           <td data-label="Qarz" className="right"><b className={row.debt > 0 ? 'debt' : ''}>{money(row.debt)}</b></td>
           <td data-label="Oxirgi to‘lov">{row.lastPaidAt ? dateTime(row.lastPaidAt) : '—'}</td>
-          <td data-label="Batafsil"><button className="icon-button" aria-label={`${row.name} batafsil`} onClick={() => setExpanded(expanded === row.supplierId ? null : row.supplierId)}><ChevronRight size={16} style={{ transform: expanded === row.supplierId ? 'rotate(90deg)' : undefined }} /></button></td>
+          <td data-label="Batafsil" className="chevron"><button className="icon-button" aria-label={`${row.name} batafsil`} onClick={() => setExpanded(expanded === row.supplierId ? null : row.supplierId)}><ChevronRight size={16} style={{ transform: expanded === row.supplierId ? 'rotate(90deg)' : undefined }} /></button></td>
         </tr>)}</tbody>
       </table></div>
       {!supplierRows.length && <Empty text="Bu davrda ta’minotchilar harakati yo‘q" />}
-      {selectedSupplier && <div className="statement-detail">
+      {selectedSupplier && <div className="statement-detail statement-detail-report">
         <div><h4>To‘lovlar · {periodLabel(period, kind)}</h4><Payments rows={selectedSupplier.payments} empty="Bu davrda to‘lov yo‘q" /></div>
         <div><h4>Xaridlar · {periodLabel(period, kind)}</h4>
           {selectedSupplier.purchaseRows.length ? <div className="table-scroll cardable"><table>
@@ -227,7 +234,7 @@ export function FinanceStatements({ state, actor, search = '', onOpenCustomer }:
     </>}
 
     {tab === 'orders' && <>
-      <div className="table-scroll cardable"><table>
+      <div className="table-scroll cardable statement-report"><table>
         <thead><tr><th>Buyurtma</th><th>Mijoz</th><th>Holat</th><th className="right">Summa</th><th className="right">To‘langan</th><th className="right">Qarz</th><th>Sana / vaqt</th></tr></thead>
         <tbody>{orderRows.map(row => <tr key={row.orderId}>
           <td data-label="Buyurtma"><b>{row.number}</b><small>{row.title}</small></td>
