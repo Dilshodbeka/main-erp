@@ -4,7 +4,7 @@
 -- аудита и SECURITY DEFINER функции. Идемпотентно — можно выполнять повторно.
 --
 -- Существующие фирмы получают тариф 'lifetime' (без срока): для них ничего не меняется.
--- Новая фирма, созданная через регистрацию, получает 14 дней пробного периода.
+-- Новая фирма, созданная через регистрацию, получает 1 день пробного периода.
 
 BEGIN;
 
@@ -20,7 +20,7 @@ ALTER TABLE public.erp_companies ADD COLUMN IF NOT EXISTS platform_note text NOT
 UPDATE public.erp_companies SET plan = 'lifetime' WHERE plan IS NULL;
 ALTER TABLE public.erp_companies ALTER COLUMN plan SET DEFAULT 'trial';
 ALTER TABLE public.erp_companies ALTER COLUMN plan SET NOT NULL;
-ALTER TABLE public.erp_companies ALTER COLUMN trial_ends_at SET DEFAULT (transaction_timestamp() + interval '14 days');
+ALTER TABLE public.erp_companies ALTER COLUMN trial_ends_at SET DEFAULT (transaction_timestamp() + interval '1 day');
 
 DO $$
 BEGIN
