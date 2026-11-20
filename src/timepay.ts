@@ -31,7 +31,8 @@ async function list<T>(path: string, token: string, fetcher: Fetch): Promise<T[]
 export async function fetchAttendance(token: string, today: string, fetcher: Fetch): Promise<AttendanceData> {
   const [employees, schedules, checks] = await Promise.all([
     list<AttendanceData['employees'][number]>('/employees/', token, fetcher),
-    list<AttendanceData['schedules'][number]>('/schedules/', token, fetcher),
+    // Schedules are optional: without them the working hours from the settings are used.
+    list<AttendanceData['schedules'][number]>('/schedules/', token, fetcher).catch(() => []),
     list<AttendanceData['checks'][number]>(`/checkinouts/?date=${encodeURIComponent(today)}`, token, fetcher),
   ]);
   return { employees, schedules, checks };

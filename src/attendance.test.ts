@@ -68,8 +68,32 @@ describe('timepay attendance', () => {
 
   it('inactive employees and days off are ignored', () => {
     const all = data([], [schedule({ employee_ids: [1, 4] })]);
-    expect(attendanceRows(all, TODAY, at('10:00')).map(row => row.employeeId)).toEqual([1]);
+    expect(attendanceRows(all, TODAY, at('10:00')).map(row => row.employeeId)).toEqual([1, 3, 2]); // 2 and 3 have no schedule: usual hours
+    expect(attendanceRows(all, TODAY, at('10:00')).some(row => row.employeeId === 4)).toBe(false);
     expect(attendanceRows(all, '2026-11-22', at('10:00'))).toEqual([]);
+  });
+
+  it('works without schedules: usual hours 09:00–19:00, lateness counted from the arrival time', () => {
+    const none = data([check(1, 'IN', '08:54'), { ...check(2, 'IN', '09:27'), status: null, late_minutes: 0 }], []);
+    const rows = attendanceRows(none, TODAY, at('10:00'));
+    expect(rows.map(row => [row.employeeId, row.state, row.lateMinutes])).toEqual([[1, 'on_time', 0], [3, 'absent', 0], [2, 'late', 27]]);
+    expect(attendanceFindings(none, TODAY, at('10:00')).map(row => row.key.split(':')[0]).sort()).toEqual(['absent', 'late']);
+    expect(attendanceRows(none, TODAY, at('09:10')).find(row => row.employeeId === 3)?.state).toBe('waiting');
+  });
+
+  it('reads records with other field names and never fails on odd data', () => {
+    const odd = {
+      employees: [{ id: 7, full_name: 'Zafar X', status: 'active' }, { id: 8, name: 'Ketgan', status: 'fired' }, { nothing: true }],
+      schedules: [{ id: 1, name: 'x' }],
+      checks: [{ employee_id: 7, type: 'check_in', time: '2026-11-20T09:05:00+05:00' }, { employee: 7, type: 'check_out', time: '2026-11-20T12:00:00+05:00' }, { broken: 1 }],
+    } as unknown as AttendanceData;
+    const rows = attendanceRows(odd, TODAY, at('14:00'));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ employeeId: 7, name: 'Zafar X', firstIn: 545, lateMinutes: 5, lastAction: 'OUT', state: 'left_early' });
+    const empty = attendanceReport({ employees: [], schedules: [], checks: [{ id: 1, employee: { id: 1, first_name: 'Maxfiy', last_name: 'Ism' } }] } as unknown as AttendanceData, TODAY, at('10:00'));
+    expect(empty).toContain('xodimlar: 0');
+    expect(empty).toContain('employee: {id, first_name, last_name}');
+    expect(empty).not.toContain('Maxfiy'); // field names only, no personal data
   });
 
   it('builds the on-demand report', () => {

@@ -413,7 +413,7 @@ function shipmentQty(shipment) {
   return shipment.lines.reduce((total, line) => total + line.qty, 0);
 }
 function shipmentTotals(shipment) {
-  const sum2 = (pick) => round(shipment.lines.reduce((total, line) => total + line.qty * pick(line), 0));
+  const sum2 = (pick2) => round(shipment.lines.reduce((total, line) => total + line.qty * pick2(line), 0));
   return { revenue: sum2((line) => line.salePrice), cost: sum2((line) => line.unitCost), materialCost: sum2((line) => line.materialCost), laborCost: sum2((line) => line.laborCost) };
 }
 
@@ -3432,7 +3432,6 @@ function planOwnerAction(input, state, actor, today) {
 // src/attendance.ts
 var ATTENDANCE_DEFAULTS = { absentAfterMinutes: 30, earlyLeaveMinutes: 30, earlyLeaveGraceMinutes: 60 };
 var esc3 = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-var fullName = (row) => esc3(`${row.first_name} ${row.last_name}`.trim());
 function minutesOf(value) {
   if (!value) return null;
   const clock = value.length > 8 ? value.slice(11, 16) : value.slice(0, 5);
@@ -3450,30 +3449,74 @@ function shiftOn(schedule, today) {
   if (!day?.is_working || start === null) return null;
   return { start, end: minutesOf(day.end_time) };
 }
-function attendanceRows(data, today, nowMinutes, config = ATTENDANCE_DEFAULTS) {
-  const rows = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const schedule of data.schedules) {
-    const shift = shiftOn(schedule, today);
-    if (!shift) continue;
-    for (const employeeId of schedule.employee_ids) {
-      const employee = data.employees.find((row) => row.id === employeeId);
-      if (!employee?.is_active || seen.has(employeeId)) continue;
-      seen.add(employeeId);
-      const events = data.checks.filter((row) => row.employee.id === employeeId && row.action && minutesOf(row.created_at) !== null).sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""));
-      const firstIn = events.find((row) => row.action === "IN");
-      const last = events.at(-1);
-      const firstInAt = firstIn ? minutesOf(firstIn.created_at) : null;
-      const lastAt = last ? minutesOf(last.created_at) : null;
-      const lateMinutes = firstIn?.status === "LATE" ? Math.max(firstIn.late_minutes, 1) : 0;
-      let state;
-      if (!firstIn) state = nowMinutes >= shift.start + config.absentAfterMinutes ? "absent" : "waiting";
-      else if (last?.action === "OUT" && shift.end !== null && lastAt !== null && lastAt <= shift.end - config.earlyLeaveMinutes && nowMinutes >= lastAt + config.earlyLeaveGraceMinutes && nowMinutes < shift.end) state = "left_early";
-      else state = lateMinutes > 0 ? "late" : "on_time";
-      rows.push({ employeeId, name: fullName(employee), shiftStart: shift.start, shiftEnd: shift.end, firstIn: firstInAt, lateMinutes, lastAction: last?.action ?? null, lastAt, state });
+var DEFAULT_HOURS = { start: 9 * 60, end: 19 * 60 };
+var pick = (row, ...names) => {
+  for (const name of names) if (row && row[name] !== void 0 && row[name] !== null) return row[name];
+  return void 0;
+};
+function readEmployee(raw) {
+  const row = raw;
+  const id = Number(pick(row, "id", "employee_id"));
+  if (!Number.isFinite(id)) return null;
+  const name = String(pick(row, "full_name", "name") ?? `${pick(row, "first_name") ?? ""} ${pick(row, "last_name") ?? ""}`).trim();
+  const status = String(pick(row, "status") ?? "").toLowerCase();
+  const active = pick(row, "is_active", "active") !== false && !["inactive", "fired", "deleted", "archived"].includes(status) && !pick(row, "deleted_at", "fired_at");
+  return { id, name: esc3(name || `#${id}`), active };
+}
+function readCheck(raw) {
+  const row = raw;
+  const person = pick(row, "employee", "employee_id", "user", "user_id");
+  const employeeId = Number(typeof person === "object" && person ? pick(person, "id") : person);
+  const kind = String(pick(row, "action", "type", "event", "direction", "check_type") ?? "").toUpperCase();
+  const action = /OUT|EXIT|LEAVE|CHIQ/.test(kind) ? "OUT" : /IN|ENTER|KIR/.test(kind) ? "IN" : null;
+  const at = minutesOf(String(pick(row, "created_at", "time", "timestamp", "check_time", "datetime", "date_time") ?? ""));
+  if (!Number.isFinite(employeeId) || !action || at === null) return null;
+  const status = String(pick(row, "status") ?? "").toUpperCase();
+  const late = Number(pick(row, "late_minutes", "late", "delay_minutes") ?? 0) || 0;
+  return { employeeId, action, at, late: action === "IN" && (status === "LATE" || late > 0) ? Math.max(late, 1) : 0 };
+}
+function attendanceRows(data, today, nowMinutes, config = ATTENDANCE_DEFAULTS, hours = DEFAULT_HOURS) {
+  const shifts = /* @__PURE__ */ new Map();
+  const dayOff = /* @__PURE__ */ new Set();
+  for (const schedule of data.schedules ?? []) {
+    const ids = Array.isArray(schedule?.employee_ids) ? schedule.employee_ids : [];
+    const shift = Array.isArray(schedule?.work_days) ? shiftOn(schedule, today) : null;
+    for (const id of ids) {
+      if (shift) shifts.set(Number(id), shift);
+      else if (Array.isArray(schedule?.work_days) && schedule.work_days.length) dayOff.add(Number(id));
     }
   }
+  const checks = (data.checks ?? []).map(readCheck).filter((row) => row !== null).sort((a, b) => a.at - b.at);
+  const rows = [];
+  const seen = /* @__PURE__ */ new Set();
+  const sunday = (/* @__PURE__ */ new Date(`${today}T00:00:00Z`)).getUTCDay() === 0;
+  for (const raw of data.employees ?? []) {
+    const employee = readEmployee(raw);
+    if (!employee || !employee.active || seen.has(employee.id)) continue;
+    seen.add(employee.id);
+    const events = checks.filter((row) => row.employeeId === employee.id);
+    if (!shifts.has(employee.id) && dayOff.has(employee.id) && !events.length) continue;
+    if (!shifts.has(employee.id) && sunday && !events.length) continue;
+    const shift = shifts.get(employee.id) ?? { start: hours.start, end: hours.end };
+    const firstIn = events.find((row) => row.action === "IN");
+    const last = events.at(-1);
+    const lateMinutes = firstIn ? firstIn.late > 0 ? firstIn.late : Math.max(0, firstIn.at - shift.start) : 0;
+    let state;
+    if (!firstIn) state = nowMinutes >= shift.start + config.absentAfterMinutes ? "absent" : "waiting";
+    else if (last?.action === "OUT" && shift.end !== null && last.at <= shift.end - config.earlyLeaveMinutes && nowMinutes >= last.at + config.earlyLeaveGraceMinutes && nowMinutes < shift.end) state = "left_early";
+    else state = lateMinutes > 0 ? "late" : "on_time";
+    rows.push({ employeeId: employee.id, name: employee.name, shiftStart: shift.start, shiftEnd: shift.end, firstIn: firstIn?.at ?? null, lateMinutes, lastAction: last?.action ?? null, lastAt: last?.at ?? null, state });
+  }
   return rows.sort((a, b) => a.name.localeCompare(b.name));
+}
+function attendanceDiagnostics(data) {
+  const keys = (rows) => rows?.length && typeof rows[0] === "object" && rows[0] ? Object.keys(rows[0]).slice(0, 25).join(", ") : "—";
+  const nested = data.checks?.[0]?.employee;
+  return [
+    `xodimlar: ${data.employees?.length ?? 0} [${keys(data.employees)}]`,
+    `jadvallar: ${data.schedules?.length ?? 0} [${keys(data.schedules)}]`,
+    `belgilar: ${data.checks?.length ?? 0} [${keys(data.checks)}]${nested && typeof nested === "object" ? ` · employee: {${Object.keys(nested).slice(0, 10).join(", ")}}` : ""}`
+  ].join("\n");
 }
 function attendanceFindings(data, today, nowMinutes, config = ATTENDANCE_DEFAULTS) {
   const found = [];
@@ -3507,7 +3550,11 @@ function attendanceFindings(data, today, nowMinutes, config = ATTENDANCE_DEFAULT
 }
 function attendanceReport(data, today, nowMinutes) {
   const rows = attendanceRows(data, today, nowMinutes);
-  if (!rows.length) return "🕘 <b>Davomat</b>\n\nBugun smenasi bor xodim yo‘q.";
+  if (!rows.length) return `🕘 <b>Davomat</b>
+
+Timepay’dan faol xodim topilmadi.
+
+<code>${esc3(attendanceDiagnostics(data))}</code>`;
   const list2 = (state, render) => rows.filter((row) => row.state === state).map(render);
   const onTime = list2("on_time", (row) => `• ${row.name} — ${row.firstIn !== null ? hhmm(row.firstIn) : ""}`);
   const late = list2("late", (row) => `• ${row.name} — ${row.firstIn !== null ? hhmm(row.firstIn) : ""}, ${row.lateMinutes} daqiqa kechikdi`);
@@ -4341,7 +4388,8 @@ async function list(path, token, fetcher) {
 async function fetchAttendance(token, today, fetcher) {
   const [employees, schedules, checks] = await Promise.all([
     list("/employees/", token, fetcher),
-    list("/schedules/", token, fetcher),
+    // Schedules are optional: without them the working hours from the settings are used.
+    list("/schedules/", token, fetcher).catch(() => []),
     list(`/checkinouts/?date=${encodeURIComponent(today)}`, token, fetcher)
   ]);
   return { employees, schedules, checks };
