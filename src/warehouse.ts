@@ -11,6 +11,7 @@ export const warehouseGroups: WarehouseGroup[] = [
       { code: '01.05', name: 'Shisha' },
       { code: '01.06', name: 'Oynalar' },
       { code: '01.07', name: 'Fasadlar' },
+      { code: '01.08', name: 'Stoleshnitsalar' },
     ],
   },
   {
@@ -27,6 +28,7 @@ export const warehouseGroups: WarehouseGroup[] = [
       { code: '03.02', name: 'Shtapik' },
       { code: '03.03', name: 'Plintus' },
       { code: '03.04', name: 'Quvur' },
+      { code: '03.05', name: 'Stoleshnitsa plankalari' },
     ],
   },
   {
@@ -44,6 +46,7 @@ export const warehouseGroups: WarehouseGroup[] = [
       { code: '05.03', name: 'Dastalar' },
       { code: '05.04', name: 'Qulflar va dovarchilar' },
       { code: '05.05', name: 'Ko‘tarish mexanizmlari' },
+      { code: '05.06', name: 'Oshxona aksessuarlari' },
     ],
   },
   {
