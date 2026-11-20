@@ -55,6 +55,8 @@ export interface PurchaseReceiptModel {
   number: string; date: string; supplier: string; phone: string;
   warehouse: string; orderNumber: string | null;
   lines: PurchaseReceiptLine[]; receivedTotal: number; total: number;
+  /** The supplier's receipt ("Chek № 20307 · 12.11.2026"), when it was entered. */
+  docLabel?: string;
 }
 
 export function routeSheet(state: State, orderId: string): RouteSheetModel {

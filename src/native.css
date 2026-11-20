@@ -198,3 +198,8 @@ button:active:not(:disabled){transform:scale(.97)}
 @media (max-width:700px){.order-chat-composer .chat-tool,.order-chat-composer .primary{height:44px;min-width:44px}}
 @media (prefers-reduced-motion:reduce){.order-chat-composer .chat-tool.recording{animation:none}}
 .position-card>header>div>b,.position-card>header>div>small{display:block}
+
+/* ── Xarid: chek raqami va sanasi ── */
+.form-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.purchase-doc{display:block;margin-top:6px;font-size:12px;font-weight:700;color:#1e5a52}
+@media (max-width:700px){.form-pair{grid-template-columns:1fr}}

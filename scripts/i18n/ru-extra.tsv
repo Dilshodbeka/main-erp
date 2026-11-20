@@ -300,3 +300,10 @@ Matn mijozga ham boradi — agar uning Telegrami ulangan bo‘lsa. Fayl, ovoz va
 Fayl hajmi 50 MB dan oshmasligi kerak.	Размер файла не должен превышать 50 МБ.
 Demo rejimida faqat matn yuboriladi. Fayl, ovoz va video umumiy bazada ishlaydi.	В демо-режиме отправляется только текст. Файлы, голос и видео работают в общей базе.
 Mikrofonga ruxsat berilmadi. Brauzer sozlamalarida ruxsatni yoqing.	Доступ к микрофону не выдан. Включите разрешение в настройках браузера.
+Chek raqami (ixtiyoriy)	Номер чека (необязательно)
+Chek sanasi (ixtiyoriy)	Дата чека (необязательно)
+Masalan, 20307	Например, 20307
+Chek № {0}	Чек № {0}
+Chek № {0} · {1}	Чек № {0} · {1}
+Chek	Чек
+Chek raqami saqlanmadi. Bazada yangilanish qo‘llanmagan bo‘lishi mumkin.	Номер чека не сохранён. Возможно, в базе не применено обновление.

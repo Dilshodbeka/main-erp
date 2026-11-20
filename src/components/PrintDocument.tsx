@@ -108,7 +108,7 @@ function PurchaseReceipt({ data }: { data: PurchaseReceiptModel }) {
   return <article className="print-page purchase-receipt">
     <header className="print-head">
       <div><small>ALIYA ERP · SKLAD</small><h1>QABUL VARAQASI</h1></div>
-      <div className="print-head-right"><b>{data.number}</b><span>Sana: {date(data.date)}</span></div>
+      <div className="print-head-right"><b>{data.number}</b><span>Sana: {date(data.date)}</span>{data.docLabel && <span>{data.docLabel}</span>}</div>
     </header>
     <div className="print-meta">
       <div><small>Yetkazib beruvchi</small><b>{data.supplier}</b><span>{data.phone || 'Telefon ko‘rsatilmagan'}</span></div>
