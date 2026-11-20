@@ -10,7 +10,7 @@ import { canTouchOrder, requiredPermission, WORKER_BASE } from './permissions';
 import { MAIN_WAREHOUSE_ID, mainWarehouse } from './warehouse-default';
 import { mainWorkshop, MAIN_WORKSHOP_ID } from './workshop-default';
 import type {
-  Account, Actor, CashEntry, CashSource, Command, Customer, CustomerKind, DefectMaterial, DefectReason, Envelope, Item, ItemKind, MaterialLine, Operation,
+  Account, Actor, CashEntry, CashSource, Command, CrewMember, Customer, CustomerKind, DefectMaterial, DefectReason, Envelope, Item, ItemKind, MaterialLine, Operation,
   OperationNorm, OperationUnit, Order, OrderInput, OrderLine, OrderLineInput, OrderLineKind, OrderMaterialInput, OrderRouteInput,
   RecipeComponent, RecipeComponentInput, RouteLine, RouteTemplate, RouteTemplateStage, SeriesInput, Shipment,
   ShipmentLine, State, Status, StockMovement, SupportTicket, TaskStatus, Warehouse, WorkerDeduction, WorkReport,
@@ -247,6 +247,25 @@ function routeExecutor(state: State, operation: Operation, line: OrderRouteInput
   return { executorKind, employeeId: null, supplierId: supplier.id };
 }
 
+function routeCrew(state: State, operation: Operation, executor: Pick<RouteLine, 'executorKind' | 'employeeId'>, line: OrderRouteInput):
+  Pick<RouteLine, 'assembly' | 'crew'> {
+  const crew: CrewMember[] = (line.crew ?? []).map(member => ({ employeeId: member.employeeId, weight: quantity(member.weight) }));
+  if (line.assembly !== true) {
+    check(crew.length === 0, 'Brigada faqat yig‘ish bosqichida bo‘ladi');
+    return {};
+  }
+  check(executor.executorKind === 'employee', 'Yig‘ish bosqichini xodimlar bajaradi');
+  if (crew.length === 0) return { assembly: true };
+  unique(crew.map(member => member.employeeId), 'crew member');
+  for (const member of crew) {
+    const employee = find(state.employees, member.employeeId, 'Employee');
+    check(employee.active, 'Employee is inactive');
+    check(operation.employeeIds.includes(member.employeeId), 'Employee is not authorized for this operation');
+  }
+  check(crew.some(member => member.employeeId === executor.employeeId), 'Mas’ul yig‘uvchi brigadada bo‘lishi kerak');
+  return { assembly: true, crew };
+}
+
 function routeValues(state: State, lines: OrderRouteInput[], qty: number, lineId: string): RouteLine[] {
   return lines.map(line => {
     const operation = find(state.operations, line.operationId, 'Operation');
@@ -262,6 +281,7 @@ function routeValues(state: State, lines: OrderRouteInput[], qty: number, lineId
       salePrice: operation.salePrice, standardMinutes: operation.standardMinutes,
       planned: stageQty, completed: 0, status: 'assigned' as const,
       workshopId: operation.workshopId,
+      ...routeCrew(state, operation, executor, line),
     };
   });
 }
@@ -743,10 +763,12 @@ function workContext(state: State, command: { orderId: string; taskId: string },
   check(task.executorKind === 'employee' && task.employeeId !== null, 'Outsourced task is not available to workers');
   const operation = find(state.operations, task.operationId, 'Operation');
   const employee = find(state.employees, task.employeeId, 'Employee');
-  check(actor.role === 'admin' || actor.id === task.employeeId, 'Worker is not assigned to this task');
+  const crew = task.crew ?? [];
+  check(actor.role === 'admin' || actor.id === task.employeeId || crew.some(member => member.employeeId === actor.id), 'Worker is not assigned to this task');
   check(operation.employeeIds.includes(employee.id), 'Worker is not authorized for this operation');
   check(employee.active, 'Employee is inactive');
-  check(lineMaterials(order, line.id).every(row => isIssued(row)), 'Materials must be issued before work');
+  // Yig'ish consumes blanks by fact at «Tayyor», so it never waits for the issue step.
+  if (!task.assembly) check(lineMaterials(order, line.id).every(row => isIssued(row)), 'Materials must be issued before work');
   const tasks = lineRoute(order, line.id);
   const index = tasks.indexOf(task);
   check(tasks.slice(0, index).every(row => !exceeds(row.planned, row.completed)), 'Previous route stage is incomplete');
@@ -767,7 +789,7 @@ export function availableTask(state: State, orderId: string, taskId: string): bo
   if (task.executorKind !== 'employee' || !task.employeeId) return false;
   const line = order.lines.find(row => row.id === task.lineId);
   if (!line || line.status !== 'production') return false;
-  if (lineMaterials(order, line.id).some(row => !isIssued(row))) return false;
+  if (lineMaterials(order, line.id).some(row => !isIssued(row)) && !task.assembly) return false;
   const operation = state.operations.find(row => row.id === task.operationId);
   const tasks = lineRoute(order, line.id);
   return !!operation && operation.employeeIds.includes(task.employeeId)
@@ -784,7 +806,7 @@ export function taskBlockReason(state: State, orderId: string, taskId: string): 
   const order = state.orders.find(row => row.id === orderId);
   const task = order?.route.find(row => row.id === taskId);
   if (!order || !task) return 'other';
-  if (lineMaterials(order, task.lineId).some(row => !isIssued(row))) return 'materials';
+  if (!task.assembly && lineMaterials(order, task.lineId).some(row => !isIssued(row))) return 'materials';
   const tasks = lineRoute(order, task.lineId);
   if (tasks.slice(0, tasks.indexOf(task)).some(row => exceeds(row.planned, row.completed))) return 'previous-stage';
   return 'other';
@@ -869,6 +891,9 @@ function ready(state: State, order: Order): void {
       && lineMaterials(order, line.id).every(row => isIssued(row))) {
       line.status = 'ready';
       if (order.kind === 'series') receiveSeriesOutput(state, order);
+      else if (lineRoute(order, line.id).some(row => row.assembly && row.assemblyOutput === 'stock')) {
+        receiveAssemblyOutput(state, order, line);
+      }
     }
   }
   syncOrder(order);
@@ -908,12 +933,120 @@ function receiveSeriesOutput(state: State, order: Order): void {
   });
 }
 
+export function lineMaterialCost(order: Order, lineId: string): number {
+  return round(lineMaterials(order, lineId).reduce((sum, row) => sum + round(row.issuedQty * row.actualCost), 0));
+}
+
+export function lineLaborCost(state: State, order: Order, lineId: string): number {
+  const tasks = new Set(lineRoute(order, lineId).map(row => row.id));
+  return round(state.payroll.reduce((sum, row) =>
+    row.orderId === order.id && tasks.has(row.taskId) && row.status === 'accepted' ? sum + row.amount : sum, 0)
+    + acceptedRouteCost(order, lineId));
+}
+
+function receiveAssemblyOutput(state: State, order: Order, line: OrderLine): void {
+  if (state.movements.some(row => row.source === 'production' && row.sourceId === order.id)) return;
+  const item = find(state.items, order.outputItemId ?? '', 'Item');
+  const qty = quantity(line.qty);
+  const material = lineMaterialCost(order, line.id);
+  const labor = lineLaborCost(state, order, line.id);
+  const total = round(material + labor);
+  const before = stockQty(state, item.id);
+  const after = before + qty;
+  check(Number.isFinite(after), 'Stock quantity is too large');
+  const cost = round((before * item.cost + total) / after);
+  const laborCost = Math.min(cost, round((before * item.laborCost + labor) / after));
+  item.cost = cost;
+  item.laborCost = laborCost;
+  item.materialCost = round(cost - laborCost);
+  movement(state, {
+    itemId: item.id, direction: 'in', qty, unitCost: round(total / qty),
+    source: 'production', sourceId: order.id, note: '', warehouseId: order.warehouseId ?? MAIN_WAREHOUSE_ID,
+  });
+}
+
 function ticketText(value: unknown): string {
   check(typeof value === 'string', 'Ticket text is required');
   const body = value.trim();
   check(body.length > 0, 'Ticket text is required');
   check(body.length <= 2000, 'Ticket text is too long');
   return body;
+}
+
+function outputItem(state: State, itemId: string): string {
+  const item = find(state.items, itemId, 'Item');
+  check(item.customerId === null && item.kind === 'finished', 'Tayyor mahsulotni tanlang');
+  return item.id;
+}
+
+function payCrew(state: State, order: Order, task: RouteLine, total: number): void {
+  const crew: CrewMember[] = task.crew !== undefined && task.crew.length > 0
+    ? task.crew : [{ employeeId: task.employeeId!, weight: 1 }];
+  const weight = crew.reduce((sum, member) => sum + member.weight, 0);
+  let paid = 0;
+  crew.forEach((member, index) => {
+    const employee = find(state.employees, member.employeeId, 'Employee');
+    check(employee.active, 'Employee is inactive');
+    const amount = index === crew.length - 1 ? round(total - paid) : round(total * member.weight / weight);
+    paid = round(paid + amount);
+    const payroll = state.payroll.find(row => row.orderId === order.id && row.taskId === task.id && row.employeeId === member.employeeId);
+    if (payroll) {
+      payroll.amount = amount;
+      payroll.status = 'accepted';
+    } else {
+      state.payroll.push({
+        id: uuid(), employeeId: member.employeeId, reportId: '', orderId: order.id,
+        taskId: task.id, amount, status: 'accepted', createdAt: now(),
+      });
+    }
+  });
+}
+
+function assemblyWriteOff(state: State, order: Order, task: RouteLine, entries: { id: string; qty: number; itemId?: string }[]): void {
+  const rows = lineMaterials(order, task.lineId);
+  check(entries.length === rows.length, 'Haqiqiy sarf to‘liq kiritilishi kerak');
+  unique(entries.map(entry => entry.id), 'material');
+  const warehouseId = order.warehouseId ?? MAIN_WAREHOUSE_ID;
+  const drop = new Set<string>();
+  for (const entry of entries) {
+    const row = find(rows, entry.id, 'Material');
+    check(typeof entry.qty === 'number' && Number.isFinite(entry.qty) && entry.qty >= 0 && entry.qty <= 1e9, 'Invalid quantity');
+    const actual = round3(entry.qty);
+    const plannedItemId = row.itemId;
+    const item = find(state.items, entry.itemId ?? plannedItemId, 'Item');
+    check(item.customerId === null || item.customerId === order.customerId, 'Material belongs to another customer');
+    if (row.issuedQty > 0 && item.id !== plannedItemId) {
+      movement(state, {
+        itemId: plannedItemId, direction: 'in', qty: quantity(row.issuedQty), unitCost: row.actualCost,
+        source: 'order', sourceId: order.id, note: 'Yig‘ishda material almashtirildi', warehouseId,
+      });
+      row.issuedQty = 0;
+      row.actualCost = 0;
+    }
+    const delta = round3(actual - row.issuedQty);
+    if (delta > 0) {
+      const free = Math.max(0, stockQty(state, item.id, warehouseId) - reservedElsewhere(state, item.id, warehouseId, order.id));
+      check(!exceeds(delta, free), 'Omborda material yo‘q. Qoldiqni to‘ldiring');
+      movement(state, {
+        itemId: item.id, direction: 'out', qty: delta, unitCost: item.customerId === null ? item.cost : 0,
+        source: 'order', sourceId: order.id, note: '', warehouseId,
+      });
+    } else if (delta < 0) {
+      movement(state, {
+        itemId: item.id, direction: 'in', qty: quantity(-delta), unitCost: row.actualCost,
+        source: 'order', sourceId: order.id, note: 'Yig‘ishda ortiqcha material qaytarildi', warehouseId,
+      });
+    }
+    row.itemId = item.id;
+    row.actualItemId = item.id === plannedItemId ? null : item.id;
+    row.actualQty = actual;
+    row.estimatedCost = item.customerId === null ? item.cost : 0;
+    row.actualCost = item.customerId === null ? item.cost : 0;
+    row.issuedQty = actual;
+    row.qty = actual;
+    if (actual === 0) drop.add(row.id);
+  }
+  if (drop.size > 0) order.materials = order.materials.filter(row => !drop.has(row.id));
 }
 
 function mutate(state: State, command: Command, actor: Actor): string {
@@ -1087,7 +1220,8 @@ function mutate(state: State, command: Command, actor: Actor): string {
       const order: Order = {
         id: uuid(), number: `ORD-${String(state.orders.length + 1).padStart(4, '0')}`,
         kind: 'product', customerId: input.customerId, title: '',
-        outputItemId: null, recipeVersionId: null, substitutions: {},
+        outputItemId: input.outputItemId === undefined ? null : outputItem(state, input.outputItemId),
+        recipeVersionId: null, substitutions: {},
         qty: 0, price: 0, overhead, markup: input.markup === undefined ? 0 : signedMoney(input.markup),
         dueDate: input.dueDate, createdAt: now(),
         status: 'draft', lines: [], materials: [], route: [],
@@ -1128,6 +1262,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
       check(order.kind !== 'series', 'Series orders follow their recipe');
       check(order.status === 'draft' || order.status === 'production' || order.status === 'ready', 'Order cannot be edited');
       find(state.customers, order.customerId, 'Customer');
+      if (command.outputItemId !== undefined) order.outputItemId = outputItem(state, command.outputItemId);
       if (command.warehouseId !== undefined) {
         const next = warehouseFor(state, command.warehouseId);
         if (next !== (order.warehouseId ?? MAIN_WAREHOUSE_ID)) {
@@ -1340,6 +1475,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
     }
     case 'work.submit': {
       const { order, task, operation, employee } = workContext(state, command, actor);
+      check(!task.assembly, 'Yig‘ish bosqichi «Tayyor» tugmasi bilan yakunlanadi');
       check(task.status === 'in_progress', 'Task must be started before submission');
       const qty = quantity(command.qty);
       check(!exceeds(qty, task.planned - task.completed), 'Report exceeds remaining quantity');
@@ -1396,7 +1532,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
         check(workshopScope.includes(task.workshopId ?? operation.workshopId ?? MAIN_WORKSHOP_ID),
           'Bu bosqich boshqa sexga tegishli');
       }
-      check(order.status === 'production' && order.materials.every(row => isIssued(row)), 'Materials must be issued before review');
+      check(order.status === 'production' && lineMaterials(order, task.lineId).every(row => isIssued(row)), 'Materials must be issued before review');
       check(task.status === 'submitted', 'Task is not awaiting review');
       const payroll = state.payroll.find(row => row.orderId === order.id && row.taskId === task.id && row.employeeId === task.employeeId);
       if (command.accept) {
@@ -1464,6 +1600,41 @@ function mutate(state: State, command: Command, actor: Actor): string {
         }
       }
       return report.id;
+    }
+    case 'assembly.complete': {
+      const order = state.orders.find(row => row.route.some(task => task.id === command.taskId));
+      check(order, 'Order not found');
+      const task = find(order.route, command.taskId, 'Task');
+      check(task.assembly === true, 'Bu bosqich yig‘ish emas');
+      check(task.executorKind === 'employee' && task.employeeId !== null, 'Yig‘ishni faqat xodim bajaradi');
+      const operation = find(state.operations, task.operationId, 'Operation');
+      const workshopScope = actor.workshopIds ?? [];
+      if (actor.role === 'worker' && workshopScope.length > 0) {
+        check(workshopScope.includes(task.workshopId ?? operation.workshopId ?? MAIN_WORKSHOP_ID),
+          'Bu bosqich boshqa sexga tegishli');
+      }
+      check(order.status === 'production', 'Order is not in production');
+      const line = orderLineOf(order, task.lineId);
+      check(line.status === 'production', 'Order line is not in production');
+      const crew = task.crew ?? [];
+      check(actor.role === 'admin' || actor.id === task.employeeId || crew.some(member => member.employeeId === actor.id),
+        'Worker is not assigned to this task');
+      const stages = lineRoute(order, line.id);
+      check(stages.slice(0, stages.indexOf(task)).every(row => !exceeds(row.planned, row.completed)), 'Previous route stage is incomplete');
+      check(task.status !== 'completed' && task.completed === 0, 'Task is already complete');
+      check(command.output === 'client' || command.output === 'stock', 'Invalid output');
+      if (command.outputItemId !== undefined) order.outputItemId = outputItem(state, command.outputItemId);
+      if (command.output === 'stock') {
+        check(activeLines(order).length === 1, 'Omborga chiqarish uchun bitta pozitsiya bo‘lishi kerak');
+        check(order.outputItemId !== null, 'Tayyor mahsulotni tanlang');
+      }
+      assemblyWriteOff(state, order, task, command.materials);
+      task.completed = task.planned;
+      task.status = 'completed';
+      task.assemblyOutput = command.output;
+      payCrew(state, order, task, round(task.rate * task.planned));
+      ready(state, order);
+      return task.id;
     }
     case 'outsource.accept': {
       const order = state.orders.find(row => row.route.some(task => task.id === command.taskId));

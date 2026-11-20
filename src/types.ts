@@ -32,7 +32,11 @@ export interface Item {
 }
 export type OrderLineKind = 'product' | 'service';
 export interface OrderLine { id: string; kind: OrderLineKind; title: string; qty: number; total: number; status: Status }
-export interface MaterialLine { id: string; lineId: string; itemId: string; qty: number; issuedQty: number; estimatedCost: number; actualCost: number }
+export interface MaterialLine {
+  id: string; lineId: string; itemId: string; qty: number; issuedQty: number; estimatedCost: number; actualCost: number;
+  actualQty?: number;          // фактический расход сборки (Yig'ish)
+  actualItemId?: string | null; // материал, который реально израсходован вместо запланированного
+}
 export interface RecipeComponent {
   id: string; slot: string; itemId: string | null;
   allowedItemIds: string[]; qtyPerUnit: number;
@@ -40,7 +44,8 @@ export interface RecipeComponent {
 export type RecipeComponentInput = Omit<RecipeComponent, 'id'>;
 export interface RecipeVersion { id: string; version: number; components: RecipeComponent[]; createdAt: string }
 export interface Recipe { id: string; outputItemId: string; name: string; versions: RecipeVersion[]; active: boolean }
-export interface RouteLine { id: string; lineId: string; operationId: string; name: string; executorKind: ExecutorKind; employeeId: string | null; supplierId: string | null; rate: number; supplierCost?: number; salePrice?: number; standardMinutes?: number; planned: number; completed: number; status: TaskStatus; workshopId?: string }
+export interface CrewMember { employeeId: string; weight: number }
+export interface RouteLine { id: string; lineId: string; operationId: string; name: string; executorKind: ExecutorKind; employeeId: string | null; supplierId: string | null; rate: number; supplierCost?: number; salePrice?: number; standardMinutes?: number; planned: number; completed: number; status: TaskStatus; workshopId?: string; assembly?: boolean; crew?: CrewMember[]; assemblyOutput?: 'client' | 'stock' }
 export interface Order {
   id: string; number: string; kind: 'product' | 'service' | 'series' | 'composite'; customerId: string; title: string;
   outputItemId: string | null; recipeVersionId: string | null; substitutions: Record<string, string>;
@@ -182,6 +187,8 @@ export type OrderRouteInput = {
   supplierCost?: number;
   qty?: number;
   taskId?: string;
+  assembly?: boolean;
+  crew?: CrewMember[];
 };
 export interface OrderLineInput {
   id?: string; kind: OrderLineKind; title: string; qty: number; unitPrice: number;
@@ -194,6 +201,7 @@ export interface OrderInput {
   materials?: OrderMaterialInput[]; route?: OrderRouteInput[];
   lines?: OrderLineInput[];
   warehouseId?: string;
+  outputItemId?: string;
 }
 export type Command =
   | { type: 'customer.create'; name: string; phone: string; address: string; kind: CustomerKind; employeeId?: string | null }
@@ -214,7 +222,7 @@ export type Command =
   | { type: 'recipe.version.create'; recipeId: string; components: RecipeComponentInput[] }
   | { type: 'customer.receive'; itemId: string; qty: number; note: string }
   | { type: 'order.create'; input: OrderInput }
-  | { type: 'order.update'; orderId: string; title?: string; qty?: number; price?: number; overhead: number; markup?: number; dueDate: string; materials?: OrderMaterialInput[]; route?: OrderRouteInput[]; lines?: OrderLineInput[]; warehouseId?: string }
+  | { type: 'order.update'; orderId: string; title?: string; qty?: number; price?: number; overhead: number; markup?: number; dueDate: string; materials?: OrderMaterialInput[]; route?: OrderRouteInput[]; lines?: OrderLineInput[]; warehouseId?: string; outputItemId?: string }
   | { type: 'series.create'; input: SeriesInput }
   | { type: 'order.launch'; orderId: string }
   | { type: 'order.issue'; orderId: string; lineId?: string }
@@ -225,6 +233,7 @@ export type Command =
   | { type: 'work.start'; orderId: string; taskId: string }
   | { type: 'work.submit'; orderId: string; taskId: string; qty: number; note: string }
   | { type: 'work.review'; reportId: string; accept: boolean; defectQty?: number; reason?: DefectReason; note?: string }
+  | { type: 'assembly.complete'; orderId: string; taskId: string; materials: { id: string; qty: number; itemId?: string }[]; output: 'client' | 'stock'; outputItemId?: string }
   | { type: 'outsource.accept'; taskId: string }
   | { type: 'purchase.create'; supplierId: string; lines: { itemId: string; qty: number; price: number }[]; warehouseId?: string; orderId?: string | null }
   | { type: 'purchase.receive'; purchaseId: string; lines: { lineId: string; qty: number }[] }

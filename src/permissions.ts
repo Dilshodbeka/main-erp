@@ -24,7 +24,7 @@ export const PRESETS: Record<PresetKey, Permission[]> = {
 };
 
 // Базовые действия любого worker — не права каталога, разрешены всегда (для своих этапов).
-export const WORKER_BASE: ReadonlySet<Command['type']> = new Set(['work.accept', 'work.start', 'work.submit', 'ticket.create', 'ticket.reply']);
+export const WORKER_BASE: ReadonlySet<Command['type']> = new Set(['work.accept', 'work.start', 'work.submit', 'assembly.complete', 'ticket.create', 'ticket.reply']);
 
 export type Gate =
   | { kind: 'base' }                                  // worker base actions
