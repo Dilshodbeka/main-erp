@@ -121,7 +121,7 @@ describe('watcher delivery rules', () => {
     expect(watchRun(snapshot, {}, now, dayOf(now), 3).text).toBeNull();
     const first = watchRun(snapshot, {}, now, dayOf(now), 10);
     expect(first.text).toContain('qoralama');
-    expect(first.sentKeys).toEqual(first.activeKeys);
+    expect(first.sentKeys).toEqual(first.activeKeys.filter(key => !key.startsWith('digest:')));
     const sent = Object.fromEntries(first.sentKeys.map(key => [key, now]));
     expect(watchRun(snapshot, sent, later(4), dayOf(later(4)), 11).text).toBeNull();
   });

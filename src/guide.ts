@@ -28,7 +28,7 @@ const build = (inputs: StepInput[]): GuideStep[] => {
 };
 
 const titles: Record<string, string> = {
-  dashboard: 'Umumiy ko‘rinish', orders: 'Savdo va CRM', history: 'Tarix va analitika',
+  dashboard: 'Umumiy ko‘rinish', advisor: 'Tavsiyalar', orders: 'Savdo va CRM', history: 'Tarix va analitika',
   shops: 'Do‘konlar', production: 'Ishlab chiqarish', warehouse: 'Ombor',
   series: 'Seriyalar va retseptlar', purchases: 'Ta’minot', people: 'Xodimlar',
   logistics: 'Yetkazib berish', cash: 'Moliya va kassa', analytics: 'Hisobotlar', settings: 'Sozlamalar',

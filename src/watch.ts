@@ -53,7 +53,7 @@ function head(state: State, order: Order): string {
 }
 
 /** The last thing that happened on the shop floor for this order: launch, issue or a work report. */
-function lastActivity(state: State, order: Order): string {
+export function lastActivity(state: State, order: Order): string {
   let latest = order.createdAt;
   for (const entry of state.audit) if (entry.entityId === order.id && entry.createdAt > latest) latest = entry.createdAt;
   for (const report of state.reports) if (report.orderId === order.id && report.createdAt > latest) latest = report.createdAt;

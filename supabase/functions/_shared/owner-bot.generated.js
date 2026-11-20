@@ -83,6 +83,16 @@ function t(key) {
 }
 var moneyFormat = new Intl.NumberFormat("uz-UZ", { maximumFractionDigits: 0 });
 var qtyFormat = new Intl.NumberFormat("uz-UZ", { maximumFractionDigits: 3 });
+function formatMoney(value) {
+  return `${moneyFormat.format(value)} so‘m`;
+}
+function formatQty(value) {
+  return qtyFormat.format(value);
+}
+var dateLocale = "uz-UZ";
+function formatDate(value) {
+  return value ? new Date(value.length === 10 ? `${value}T12:00:00` : value).toLocaleDateString(dateLocale, { day: "2-digit", month: "short" }) : "—";
+}
 var statuses = {
   draft: "statusDraft",
   production: "statusProduction",
@@ -93,6 +103,16 @@ var statuses = {
 };
 function statusLabel(status) {
   return t(statuses[status]);
+}
+var defectReasonLabels = {
+  quality: "Sifat nuqsoni",
+  measurement: "Noto‘g‘ri o‘lchov",
+  drawing: "Chizmadagi xato",
+  customer: "Mijoz topshirig‘i",
+  other: "Boshqa"
+};
+function unitText(unit) {
+  return { "шт": "dona", "лист": "list", "м": "m", "м²": "m²", "кг": "kg", "л": "l" }[unit] ?? unit;
 }
 var errorMessages = [
   [/revision conflict/i, "Hisob boshqa foydalanuvchi tomonidan o‘zgartirildi. Ma’lumotlarni yangilang va amalni tekshiring."],
@@ -266,8 +286,8 @@ function migrateState(value) {
   }));
   const shipments = source2.shipments.map((shipment) => {
     const order = orders.find((row) => row.id === shipment.orderId);
-    const qty = shipment.qty ?? 0;
-    const lines = Array.isArray(shipment.lines) ? shipment.lines.map((line) => ({ ...line, itemId: line.itemId ?? null })) : qty > 0 && order ? [legacyShipmentLine(shipment.id ?? "", order, qty, payroll)] : [];
+    const qty2 = shipment.qty ?? 0;
+    const lines = Array.isArray(shipment.lines) ? shipment.lines.map((line) => ({ ...line, itemId: line.itemId ?? null })) : qty2 > 0 && order ? [legacyShipmentLine(shipment.id ?? "", order, qty2, payroll)] : [];
     return {
       id: shipment.id,
       orderId: shipment.orderId ?? null,
@@ -360,7 +380,7 @@ function acceptReportedWork(orders, reports, payroll) {
     if (order.kind !== "series" && order.materials.every((row) => row.issuedQty >= row.qty) && order.route.every((row) => row.completed >= row.planned)) order.status = "ready";
   }
 }
-function legacyShipmentLine(shipmentId, order, qty, payroll) {
+function legacyShipmentLine(shipmentId, order, qty2, payroll) {
   const material = order.materials.reduce((sum2, line) => sum2 + line.issuedQty * line.actualCost, 0);
   const outsourced = order.route.reduce((sum2, row) => row.executorKind === "supplier" && row.status === "completed" ? sum2 + row.completed * row.rate : sum2, 0);
   const labor = payroll.reduce((sum2, row) => row.orderId === order.id && row.status === "accepted" ? sum2 + row.amount : sum2, 0) + outsourced;
@@ -370,7 +390,7 @@ function legacyShipmentLine(shipmentId, order, qty, payroll) {
     id: `${shipmentId}-line`,
     itemId: null,
     description: `${order.number} · ${order.title}`,
-    qty,
+    qty: qty2,
     salePrice: perUnit(order.price),
     unitCost: perUnit(cost),
     materialCost: perUnit(material),
@@ -512,6 +532,10 @@ function expenseLedger(state, planId, asOf) {
   const owed = Math.max(0, plannedTotal - paidTotal);
   return { planId, title: versions[versions.length - 1].title, months, prepaid, owed, paidTotal, plannedTotal };
 }
+function expensesDebt(state) {
+  const ids = new Set(state.expensePlans.map((row) => row.planId));
+  return round3([...ids].reduce((sum2, id) => sum2 + expenseLedger(state, id).owed, 0));
+}
 
 // src/loans.ts
 var round4 = (value) => Math.sign(value) * Math.round((Math.abs(value) + Number.EPSILON) * 100) / 100;
@@ -531,6 +555,12 @@ function loanLedger(state, loanId) {
     repaid,
     owed: Math.max(0, round4(principal - repaid))
   };
+}
+function loansDebt(state) {
+  return round4(state.loans.reduce((total, loan) => total + loanLedger(state, loan.id).owed, 0));
+}
+function loansAvailable(state) {
+  return round4(state.loans.reduce((total, loan) => total + loanLedger(state, loan.id).available, 0));
 }
 
 // src/salary.ts
@@ -717,8 +747,8 @@ function exceeds(value, limit) {
 function isIssued(row) {
   return !exceeds(row.qty, row.issuedQty);
 }
-function text(value, label) {
-  check(typeof value === "string" && value.trim().length > 0, `${label} is required`);
+function text(value, label2) {
+  check(typeof value === "string" && value.trim().length > 0, `${label2} is required`);
   return value.trim();
 }
 function named(rows, name) {
@@ -726,17 +756,17 @@ function named(rows, name) {
   check(!rows.some((row) => row.name.trim().toLocaleLowerCase() === result.toLocaleLowerCase()), "Name already exists");
   return result;
 }
-function find(rows, id, label) {
+function find(rows, id, label2) {
   const row = rows.find((entry) => entry.id === id);
-  check(row, `${label} not found`);
+  check(row, `${label2} not found`);
   return row;
 }
 function account(value) {
   check(value === "cash" || value === "bank", "Invalid account");
   return value;
 }
-function unique(values, label) {
-  check(new Set(values).size === values.length, `Duplicate ${label}`);
+function unique(values, label2) {
+  check(new Set(values).size === values.length, `Duplicate ${label2}`);
 }
 var units = ["sheet", "meter", "squareMeter", "piece", "hole", "minute", "hour"];
 var itemKinds = ["material", "blank", "finished"];
@@ -858,9 +888,9 @@ function syncOrder(order) {
     order.status = "cancelled";
     return;
   }
-  const qty = active.reduce((total, line) => total + line.qty, 0);
-  check(Number.isFinite(qty) && qty > 0 && qty <= 1e9, "Order quantity is out of range");
-  order.qty = qty;
+  const qty2 = active.reduce((total, line) => total + line.qty, 0);
+  check(Number.isFinite(qty2) && qty2 > 0 && qty2 <= 1e9, "Order quantity is out of range");
+  order.qty = qty2;
   const markup = order.markup ?? 0;
   const price = round6(active.reduce((total, line) => total + line.total, 0) + markup);
   check(price >= 0, "Markup exceeds order total");
@@ -891,13 +921,13 @@ function routeExecutor(state, operation, line) {
   const supplier = find(state.suppliers, supplierId, "Supplier");
   return { executorKind, employeeId: null, supplierId: supplier.id };
 }
-function routeCrew(state, operation, executor, line) {
+function routeCrew(state, operation, executor2, line) {
   const crew = (line.crew ?? []).map((member) => ({ employeeId: member.employeeId, weight: quantity(member.weight) }));
   if (line.assembly !== true) {
     check(crew.length === 0, "Brigada faqat yig‘ish bosqichida bo‘ladi");
     return {};
   }
-  check(executor.executorKind === "employee", "Yig‘ish bosqichini xodimlar bajaradi");
+  check(executor2.executorKind === "employee", "Yig‘ish bosqichini xodimlar bajaradi");
   if (crew.length === 0) return { assembly: true };
   unique(crew.map((member) => member.employeeId), "crew member");
   for (const member of crew) {
@@ -905,32 +935,32 @@ function routeCrew(state, operation, executor, line) {
     check(employee.active, "Employee is inactive");
     check(operation.employeeIds.includes(member.employeeId), "Employee is not authorized for this operation");
   }
-  check(crew.some((member) => member.employeeId === executor.employeeId), "Mas’ul yig‘uvchi brigadada bo‘lishi kerak");
+  check(crew.some((member) => member.employeeId === executor2.employeeId), "Mas’ul yig‘uvchi brigadada bo‘lishi kerak");
   return { assembly: true, crew };
 }
-function routeValues(state, lines, qty, lineId) {
+function routeValues(state, lines, qty2, lineId) {
   return lines.map((line) => {
     const operation = find(state.operations, line.operationId, "Operation");
     check(operation.active, "Operation is inactive");
-    const executor = routeExecutor(state, operation, line);
+    const executor2 = routeExecutor(state, operation, line);
     const rate = money(line.rate);
-    const stageQty = line.qty === void 0 ? qty : quantity(line.qty);
+    const stageQty = line.qty === void 0 ? qty2 : quantity(line.qty);
     round6(stageQty * rate);
     return {
       id: uuid(),
       lineId,
       operationId: operation.id,
       name: operation.name,
-      ...executor,
+      ...executor2,
       rate,
-      supplierCost: executor.executorKind === "supplier" ? money(line.supplierCost ?? 0) : 0,
+      supplierCost: executor2.executorKind === "supplier" ? money(line.supplierCost ?? 0) : 0,
       salePrice: operation.salePrice,
       standardMinutes: operation.standardMinutes,
       planned: stageQty,
       completed: 0,
       status: "assigned",
       workshopId: operation.workshopId,
-      ...routeCrew(state, operation, executor, line)
+      ...routeCrew(state, operation, executor2, line)
     };
   });
 }
@@ -976,16 +1006,16 @@ function orderMaterials(state, lines, customerId, lineId) {
     const item = find(state.items, line.itemId, "Item");
     check(item.customerId === null || item.customerId === customerId, "Material belongs to another customer");
     if (item.customerId !== null) find(state.customers, item.customerId, "Customer");
-    const qty = quantity(line.qty);
-    round6(qty * item.cost);
-    return { id: uuid(), lineId, itemId: item.id, qty, estimatedCost: item.customerId === null ? item.cost : 0, issuedQty: 0, actualCost: 0 };
+    const qty2 = quantity(line.qty);
+    round6(qty2 * item.cost);
+    return { id: uuid(), lineId, itemId: item.id, qty: qty2, estimatedCost: item.customerId === null ? item.cost : 0, issuedQty: 0, actualCost: 0 };
   });
 }
 var round32 = (value) => Math.round((value + Number.EPSILON) * 1e3) / 1e3;
-function defectMaterials(state, task, qty) {
+function defectMaterials(state, task, qty2) {
   const operation = state.operations.find((row) => row.id === task.operationId);
   if (!operation || operation.unit !== "squareMeter") return [];
-  return operation.norms.filter((norm) => state.items.some((item) => item.id === norm.itemId)).map((norm) => ({ itemId: norm.itemId, qty: round32(norm.qtyPerM2 * qty) }));
+  return operation.norms.filter((norm) => state.items.some((item) => item.id === norm.itemId)).map((norm) => ({ itemId: norm.itemId, qty: round32(norm.qtyPerM2 * qty2) }));
 }
 function normMaterialLines(state, route, lineId) {
   const lines = [];
@@ -1034,15 +1064,15 @@ function revisionMaterials(state, order, lines, lineId) {
     const item = find(state.items, line.itemId, "Item");
     check(item.customerId === null || item.customerId === order.customerId, "Material belongs to another customer");
     if (item.customerId !== null) find(state.customers, item.customerId, "Customer");
-    const qty = quantity(line.qty);
+    const qty2 = quantity(line.qty);
     const estimatedCost2 = item.customerId === null ? item.cost : 0;
-    round6(qty * estimatedCost2);
+    round6(qty2 * estimatedCost2);
     if (existing) {
-      existing.qty = qty;
+      existing.qty = qty2;
       existing.estimatedCost = estimatedCost2;
       return existing;
     }
-    return { id: uuid(), lineId, itemId: item.id, qty, estimatedCost: estimatedCost2, issuedQty: 0, actualCost: 0 };
+    return { id: uuid(), lineId, itemId: item.id, qty: qty2, estimatedCost: estimatedCost2, issuedQty: 0, actualCost: 0 };
   });
 }
 function startedTask(state, order, task) {
@@ -1100,25 +1130,25 @@ function normDelta(state, lineId, materials, previous, next) {
   }
   return materials;
 }
-function routeRevision(state, order, lines, qty, lineId) {
+function routeRevision(state, order, lines, qty2, lineId) {
   check(lines.length > 0, "Order requires a production route");
   unique(lines.map((line) => line.taskId).filter((id) => id !== void 0), "task");
   const current = lineRoute(order, lineId);
   for (const line of lines) {
     if (line.taskId === void 0) continue;
     const existing = find(current, line.taskId, "Task");
-    const stageQty = line.qty === void 0 ? qty : quantity(line.qty);
+    const stageQty = line.qty === void 0 ? qty2 : quantity(line.qty);
     check(!exceeds(existing.completed, stageQty), "Stage quantity is below accepted work");
   }
   for (const task of current.filter((row) => startedTask(state, order, row))) {
     const line = lines.find((row) => row.taskId === task.id);
     check(line, "Started stage cannot be removed");
     const operation = find(state.operations, line.operationId, "Operation");
-    const executor = routeExecutor(state, operation, line);
-    check(line.operationId === task.operationId && executor.executorKind === task.executorKind && executor.employeeId === task.employeeId && executor.supplierId === task.supplierId && money(line.rate) === task.rate && revisionCostKept(task, line), "Started stage cannot be changed");
+    const executor2 = routeExecutor(state, operation, line);
+    check(line.operationId === task.operationId && executor2.executorKind === task.executorKind && executor2.employeeId === task.employeeId && executor2.supplierId === task.supplierId && money(line.rate) === task.rate && revisionCostKept(task, line), "Started stage cannot be changed");
   }
   const route = lines.map((line) => {
-    const values = routeValues(state, [line], qty, lineId)[0];
+    const values = routeValues(state, [line], qty2, lineId)[0];
     const existing = line.taskId === void 0 ? void 0 : find(current, line.taskId, "Task");
     if (!existing) return values;
     const task = { ...existing, ...values, id: existing.id };
@@ -1141,19 +1171,19 @@ function buildLines(state, customerId, inputs) {
   const materials = [];
   const route = [];
   for (const input of inputs) {
-    const qty = quantity(input.qty);
+    const qty2 = quantity(input.qty);
     const unitPrice = money(input.unitPrice);
     const line = {
       id: uuid(),
       kind: orderLineKind(input.kind),
       title: text(input.title, "Title"),
-      qty,
-      total: round6(qty * unitPrice),
+      qty: qty2,
+      total: round6(qty2 * unitPrice),
       status: "draft"
     };
     lines.push(line);
     materials.push(...orderMaterials(state, input.materials, customerId, line.id));
-    route.push(...routeValues(state, input.route, qty, line.id));
+    route.push(...routeValues(state, input.route, qty2, line.id));
   }
   return { lines, materials, route };
 }
@@ -1174,16 +1204,16 @@ function revisionLines(state, order, inputs) {
       total: 0,
       status: order.status === "draft" ? "draft" : "production"
     };
-    const qty = quantity(input.qty);
-    check(!exceeds(shippedForLine(state, order, current), qty), "Quantity is below shipped quantity");
+    const qty2 = quantity(input.qty);
+    check(!exceeds(shippedForLine(state, order, current), qty2), "Quantity is below shipped quantity");
     const draft = current.status === "draft";
     current.kind = orderLineKind(input.kind);
     current.title = text(input.title, "Title");
-    current.qty = qty;
-    current.total = round6(qty * money(input.unitPrice));
+    current.qty = qty2;
+    current.total = round6(qty2 * money(input.unitPrice));
     const rows = draft ? orderMaterials(state, input.materials, order.customerId, current.id) : revisionMaterials(state, order, input.materials, current.id);
     const previousRoute = lineRoute(order, current.id);
-    const tasks = draft ? routeValues(state, input.route, qty, current.id) : routeRevision(state, order, input.route, qty, current.id);
+    const tasks = draft ? routeValues(state, input.route, qty2, current.id) : routeRevision(state, order, input.route, qty2, current.id);
     if (!draft) normDelta(state, current.id, rows, previousRoute, tasks);
     if (current.status === "ready" && !(rows.every((row) => isIssued(row)) && tasks.every((row) => !exceeds(row.planned, row.completed)))) {
       current.status = "production";
@@ -1203,7 +1233,7 @@ function stockQty(state, itemId, warehouseId) {
   return state.movements.reduce((total, row) => row.itemId === itemId && (warehouseId === void 0 || (row.warehouseId ?? MAIN_WAREHOUSE_ID) === warehouseId) ? total + (row.direction === "in" ? row.qty : -row.qty) : total, 0);
 }
 function reservedQty(state, itemId, warehouseId) {
-  return state.orders.reduce((total, order) => order.status === "production" && (warehouseId === void 0 || (order.warehouseId ?? MAIN_WAREHOUSE_ID) === warehouseId) ? total + order.materials.reduce((qty, line) => line.itemId === itemId && !isIssued(line) ? qty + (line.qty - line.issuedQty) : qty, 0) : total, 0);
+  return state.orders.reduce((total, order) => order.status === "production" && (warehouseId === void 0 || (order.warehouseId ?? MAIN_WAREHOUSE_ID) === warehouseId) ? total + order.materials.reduce((qty2, line) => line.itemId === itemId && !isIssued(line) ? qty2 + (line.qty - line.issuedQty) : qty2, 0) : total, 0);
 }
 function warehouseFor(state, warehouseId) {
   const id = warehouseId ?? MAIN_WAREHOUSE_ID;
@@ -1212,7 +1242,7 @@ function warehouseFor(state, warehouseId) {
   return id;
 }
 function reservedElsewhere(state, itemId, warehouseId, orderId) {
-  return state.orders.reduce((total, order) => order.id === orderId || order.status !== "production" || (order.warehouseId ?? MAIN_WAREHOUSE_ID) !== warehouseId ? total : total + order.materials.reduce((qty, line) => line.itemId === itemId && !isIssued(line) ? qty + (line.qty - line.issuedQty) : qty, 0), 0);
+  return state.orders.reduce((total, order) => order.id === orderId || order.status !== "production" || (order.warehouseId ?? MAIN_WAREHOUSE_ID) !== warehouseId ? total : total + order.materials.reduce((qty2, line) => line.itemId === itemId && !isIssued(line) ? qty2 + (line.qty - line.issuedQty) : qty2, 0), 0);
 }
 function cashBalance(state, selectedAccount) {
   account(selectedAccount);
@@ -1287,12 +1317,12 @@ function shippedForLine(state, order, line) {
 function deliveredForLine(state, order, line) {
   return qtyForLine(state, order, line, ["delivered"]);
 }
-function orderShipmentLine(state, order, line, beforeQty, qty) {
+function orderShipmentLine(state, order, line, beforeQty, qty2) {
   const materialTotal = round6(lineMaterials(order, line.id).reduce((sum2, row) => sum2 + round6(row.issuedQty * row.actualCost), 0));
   const tasks = new Set(lineRoute(order, line.id).map((row) => row.id));
   const laborTotal = round6(state.payroll.reduce((sum2, row) => row.orderId === order.id && tasks.has(row.taskId) && row.status === "accepted" ? sum2 + row.amount : sum2, 0) + acceptedRouteCost(order, line.id));
   const costTotal = round6(materialTotal + laborTotal);
-  const slice = (total) => round6(total * (beforeQty + qty) / line.qty) - round6(total * beforeQty / line.qty);
+  const slice = (total) => round6(total * (beforeQty + qty2) / line.qty) - round6(total * beforeQty / line.qty);
   const material = slice(materialTotal);
   const cost = slice(costTotal);
   return {
@@ -1300,19 +1330,19 @@ function orderShipmentLine(state, order, line, beforeQty, qty) {
     itemId: null,
     lineId: line.id,
     description: `${order.number} · ${line.title}`,
-    qty,
-    salePrice: slice(line.total) / qty,
-    unitCost: cost / qty,
-    materialCost: material / qty,
-    laborCost: round6(cost - material) / qty
+    qty: qty2,
+    salePrice: slice(line.total) / qty2,
+    unitCost: cost / qty2,
+    materialCost: material / qty2,
+    laborCost: round6(cost - material) / qty2
   };
 }
-function stockShipmentLine(item, qty) {
+function stockShipmentLine(item, qty2) {
   return {
     id: uuid(),
     itemId: item.id,
     description: item.name,
-    qty,
+    qty: qty2,
     salePrice: item.salePrice,
     unitCost: item.cost,
     materialCost: item.materialCost,
@@ -1326,10 +1356,10 @@ function shipmentRequest(order, command) {
   for (const entry of entries) {
     const line = orderLineOf(order, entry.lineId);
     check(line.status !== "cancelled", "Cancelled line cannot be shipped");
-    const qty = quantity(entry.qty);
-    grouped.set(line.id, round6((grouped.get(line.id) ?? 0) + qty));
+    const qty2 = quantity(entry.qty);
+    grouped.set(line.id, round6((grouped.get(line.id) ?? 0) + qty2));
   }
-  return [...grouped].map(([lineId, qty]) => ({ lineId, qty }));
+  return [...grouped].map(([lineId, qty2]) => ({ lineId, qty: qty2 }));
 }
 function workContext(state, command, actor) {
   const order = find(state.orders, command.orderId, "Order");
@@ -1466,11 +1496,11 @@ function actualSeriesCost(state, order) {
 function receiveSeriesOutput(state, order) {
   if (state.movements.some((row) => row.source === "production" && row.sourceId === order.id)) return;
   const item = find(state.items, order.outputItemId ?? "", "Item");
-  const qty = quantity(order.qty);
+  const qty2 = quantity(order.qty);
   const labor = actualSeriesLaborCost(state, order);
   const total = actualSeriesCost(state, order);
   const before = stockQty(state, item.id);
-  const after = before + qty;
+  const after = before + qty2;
   check(Number.isFinite(after), "Stock quantity is too large");
   const cost = round6((before * item.cost + total) / after);
   const laborCost = Math.min(cost, round6((before * item.laborCost + labor) / after));
@@ -1480,8 +1510,8 @@ function receiveSeriesOutput(state, order) {
   movement(state, {
     itemId: item.id,
     direction: "in",
-    qty,
-    unitCost: round6(total / qty),
+    qty: qty2,
+    unitCost: round6(total / qty2),
     source: "production",
     sourceId: order.id,
     note: "",
@@ -1498,12 +1528,12 @@ function lineLaborCost(state, order, lineId) {
 function receiveAssemblyOutput(state, order, line) {
   if (state.movements.some((row) => row.source === "production" && row.sourceId === order.id)) return;
   const item = find(state.items, order.outputItemId ?? "", "Item");
-  const qty = quantity(line.qty);
+  const qty2 = quantity(line.qty);
   const material = lineMaterialCost(order, line.id);
   const labor = lineLaborCost(state, order, line.id);
   const total = round6(material + labor);
   const before = stockQty(state, item.id);
-  const after = before + qty;
+  const after = before + qty2;
   check(Number.isFinite(after), "Stock quantity is too large");
   const cost = round6((before * item.cost + total) / after);
   const laborCost = Math.min(cost, round6((before * item.laborCost + labor) / after));
@@ -1513,8 +1543,8 @@ function receiveAssemblyOutput(state, order, line) {
   movement(state, {
     itemId: item.id,
     direction: "in",
-    qty,
-    unitCost: round6(total / qty),
+    qty: qty2,
+    unitCost: round6(total / qty2),
     source: "production",
     sourceId: order.id,
     note: "",
@@ -1852,18 +1882,18 @@ function mutate(state, command, actor) {
         order.title = built.lines.map((line) => line.title).join(" · ");
       } else {
         check(input.kind === "product" || input.kind === "service", "Invalid order kind");
-        const qty = quantity(input.qty);
+        const qty2 = quantity(input.qty);
         const line = {
           id: uuid(),
           kind: input.kind,
           title: text(input.title, "Title"),
-          qty,
+          qty: qty2,
           total: money(input.price),
           status: "draft"
         };
         order.lines = [line];
         order.title = line.title;
-        order.route = routeValues(state, input.route ?? [], qty, line.id);
+        order.route = routeValues(state, input.route ?? [], qty2, line.id);
         order.materials = mergeNormMaterials(
           orderMaterials(state, input.materials ?? [], input.customerId, line.id),
           normMaterialLines(state, order.route, line.id)
@@ -1902,18 +1932,18 @@ function mutate(state, command, actor) {
       const line = order.lines[0];
       check(line !== void 0, "Order line not found");
       check(activeLines(order).length === 1, "Order positions require a line revision");
-      const qty = quantity(command.qty);
-      check(!exceeds(shippedQty(state, order.id), qty), "Quantity is below shipped quantity");
+      const qty2 = quantity(command.qty);
+      check(!exceeds(shippedQty(state, order.id), qty2), "Quantity is below shipped quantity");
       const price = money(command.price);
       const overhead = money(command.overhead);
       const title = text(command.title, "Title");
       const draft = order.status === "draft";
       const materials = draft ? orderMaterials(state, command.materials ?? [], order.customerId, line.id) : revisionMaterials(state, order, command.materials ?? [], line.id);
       const previousRoute = lineRoute(order, line.id);
-      const route = draft ? routeValues(state, command.route ?? [], qty, line.id) : routeRevision(state, order, command.route ?? [], qty, line.id);
+      const route = draft ? routeValues(state, command.route ?? [], qty2, line.id) : routeRevision(state, order, command.route ?? [], qty2, line.id);
       if (!draft) normDelta(state, line.id, materials, previousRoute, route);
       line.title = title;
-      line.qty = qty;
+      line.qty = qty2;
       line.total = price;
       order.title = title;
       order.overhead = overhead;
@@ -1953,9 +1983,9 @@ function mutate(state, command, actor) {
         check(chosen === component.itemId || component.allowedItemIds.includes(chosen), "Substitution is not allowed for this slot");
         const item = find(state.items, chosen, "Item");
         check(item.customerId === null, "Customer materials cannot be used in recipes");
-        const qty = component.qtyPerUnit * input.qty;
-        round6(qty * item.cost);
-        return { id: uuid(), lineId: line.id, itemId: item.id, qty, estimatedCost: item.cost, issuedQty: 0, actualCost: 0 };
+        const qty2 = component.qtyPerUnit * input.qty;
+        round6(qty2 * item.cost);
+        return { id: uuid(), lineId: line.id, itemId: item.id, qty: qty2, estimatedCost: item.cost, issuedQty: 0, actualCost: 0 };
       });
       const materials = mergeNormMaterials([], componentLines);
       check(!input.route.some((row) => row.executorKind === "supplier"), "Series production uses employees only");
@@ -2125,8 +2155,8 @@ function mutate(state, command, actor) {
       const { order, task, operation, employee } = workContext(state, command, actor);
       check(!task.assembly, "Yig‘ish bosqichi «Tayyor» tugmasi bilan yakunlanadi");
       check(task.status === "in_progress", "Task must be started before submission");
-      const qty = quantity(command.qty);
-      check(!exceeds(qty, task.planned - task.completed), "Report exceeds remaining quantity");
+      const qty2 = quantity(command.qty);
+      check(!exceeds(qty2, task.planned - task.completed), "Report exceeds remaining quantity");
       check(!state.reports.some((row) => row.orderId === order.id && row.taskId === task.id && row.employeeId === employee.id && row.status === "submitted"), "Report already submitted");
       const autoAccept = operation.autoAccept;
       const report = {
@@ -2134,19 +2164,19 @@ function mutate(state, command, actor) {
         orderId: order.id,
         taskId: task.id,
         employeeId: employee.id,
-        qty,
+        qty: qty2,
         status: autoAccept ? "accepted" : "submitted",
         note: command.note,
         createdAt: now()
       };
       state.reports.push(report);
       if (autoAccept) {
-        task.completed = Math.min(task.planned, task.completed + qty);
+        task.completed = Math.min(task.planned, task.completed + qty2);
         task.status = !exceeds(task.planned, task.completed) ? "completed" : "in_progress";
       } else {
         task.status = "submitted";
       }
-      const amount = round6(task.rate * (autoAccept ? task.completed : task.completed + qty));
+      const amount = round6(task.rate * (autoAccept ? task.completed : task.completed + qty2));
       const payroll = state.payroll.find((row) => row.orderId === order.id && row.taskId === task.id && row.employeeId === employee.id);
       if (payroll) {
         if (autoAccept || payroll.status !== "accepted") {
@@ -2343,13 +2373,13 @@ function mutate(state, command, actor) {
       const lines = command.lines.map((line) => {
         const item = find(state.items, line.itemId, "Item");
         check(item.customerId === null, "Customer materials cannot be purchased");
-        const qty = quantity(line.qty);
+        const qty2 = quantity(line.qty);
         const price = money(line.price);
-        round6(qty * price);
+        round6(qty2 * price);
         return {
           id: uuid(),
           itemId: item.id,
-          qty,
+          qty: qty2,
           price,
           received: 0,
           previousPurchasePrice: 0,
@@ -2379,15 +2409,15 @@ function mutate(state, command, actor) {
         const line = find(purchase.lines, receipt.lineId, "Purchase line");
         const item = find(state.items, line.itemId, "Item");
         check(item.customerId === null, "Customer materials cannot be purchased");
-        const qty = quantity(receipt.qty);
-        check(!exceeds(qty, line.qty - line.received), "Receipt exceeds remaining quantity");
+        const qty2 = quantity(receipt.qty);
+        check(!exceeds(qty2, line.qty - line.received), "Receipt exceeds remaining quantity");
         const before = stockQty(state, item.id);
         check(!exceeds(0, before), "Stock cannot be negative");
-        const after = before + qty;
+        const after = before + qty2;
         check(Number.isFinite(after), "Stock quantity is too large");
-        const cost = round6((before * item.cost + qty * line.price) / after);
-        round6(qty * line.price);
-        return { line, item, qty, cost };
+        const cost = round6((before * item.cost + qty2 * line.price) / after);
+        round6(qty2 * line.price);
+        return { line, item, qty: qty2, cost };
       });
       for (const receipt of receipts) {
         const before = stockQty(state, receipt.item.id);
@@ -2592,9 +2622,9 @@ function mutate(state, command, actor) {
       const item = find(state.items, command.itemId, "Item");
       if (item.customerId !== null) find(state.customers, item.customerId, "Customer");
       const warehouseId = warehouseFor(state, command.warehouseId);
-      const qty = quantity(command.qty, true);
-      check(!exceeds(reservedQty(state, item.id, warehouseId), qty), "Count cannot be below reserved stock");
-      const delta = qty - stockQty(state, item.id, warehouseId);
+      const qty2 = quantity(command.qty, true);
+      check(!exceeds(reservedQty(state, item.id, warehouseId), qty2), "Count cannot be below reserved stock");
+      const delta = qty2 - stockQty(state, item.id, warehouseId);
       if (delta !== 0) movement(state, {
         itemId: item.id,
         direction: delta > 0 ? "in" : "out",
@@ -2628,14 +2658,14 @@ function mutate(state, command, actor) {
       const from = warehouseFor(state, command.fromId);
       const to = warehouseFor(state, command.toId);
       const item = find(state.items, command.itemId, "Item");
-      const qty = quantity(command.qty);
-      check(!exceeds(qty, stockQty(state, item.id, from) - reservedQty(state, item.id, from)), "Omborda yetarli qoldiq yo‘q");
+      const qty2 = quantity(command.qty);
+      check(!exceeds(qty2, stockQty(state, item.id, from) - reservedQty(state, item.id, from)), "Omborda yetarli qoldiq yo‘q");
       const sourceId = uuid();
       const unitCost = item.customerId === null ? item.cost : 0;
       movement(state, {
         itemId: item.id,
         direction: "out",
-        qty,
+        qty: qty2,
         unitCost,
         source: "transfer",
         sourceId,
@@ -2645,7 +2675,7 @@ function mutate(state, command, actor) {
       movement(state, {
         itemId: item.id,
         direction: "in",
-        qty,
+        qty: qty2,
         unitCost,
         source: "transfer",
         sourceId,
@@ -2739,11 +2769,11 @@ function mutate(state, command, actor) {
         const item = find(state.items, line.itemId, "Item");
         check(item.customerId === null, "Customer materials cannot be sold from stock");
         check(item.kind === "finished", "Only finished goods can be sold from stock");
-        const qty = quantity(line.qty);
-        const total2 = (requested.get(item.id) ?? 0) + qty;
+        const qty2 = quantity(line.qty);
+        const total2 = (requested.get(item.id) ?? 0) + qty2;
         requested.set(item.id, total2);
         check(!exceeds(total2, stockQty(state, item.id) - reservedQty(state, item.id)), "Insufficient stock");
-        return stockShipmentLine(item, qty);
+        return stockShipmentLine(item, qty2);
       });
       check(typeof command.allowDebt === "boolean", "Invalid debt approval");
       const total = round6(lines.reduce((sum2, line) => sum2 + line.qty * line.salePrice, 0));
@@ -3014,8 +3044,8 @@ function watchFindings(state, nowIso, today, config = WATCH_DEFAULTS) {
     if (waiting < config.transitHours) continue;
     const order2 = shipment.orderId ? state.orders.find((row) => row.id === shipment.orderId) : null;
     const customer = state.customers.find((row) => row.id === shipment.customerId)?.name ?? "—";
-    const label = order2 ? head(state, order2) : `Ombordan sotuv · ${esc(customer)}`;
-    found.push({ key: `transit:${shipment.id}`, group: "delivery", repeatHours: 24, text: `🚚 ${label} — ${ago(waiting)}dan beri yo‘lda, yetkazish tasdiqlanmagan` });
+    const label2 = order2 ? head(state, order2) : `Ombordan sotuv · ${esc(customer)}`;
+    found.push({ key: `transit:${shipment.id}`, group: "delivery", repeatHours: 24, text: `🚚 ${label2} — ${ago(waiting)}dan beri yo‘lda, yetkazish tasdiqlanmagan` });
   }
   for (const customer of state.customers) {
     const balance = customerBalance(state, customer.id);
@@ -3034,9 +3064,9 @@ function watchFindings(state, nowIso, today, config = WATCH_DEFAULTS) {
   }
   for (const item of state.items) {
     if (!(item.minQty > 0)) continue;
-    const qty = stockQty(state, item.id);
-    if (qty >= item.minQty) continue;
-    found.push({ key: `stock:${item.id}`, group: "stock", repeatHours: 72, text: `📉 ${esc(item.name)} — ${qty} ${esc(item.unit)} qoldi (me’yor ${item.minQty})` });
+    const qty2 = stockQty(state, item.id);
+    if (qty2 >= item.minQty) continue;
+    found.push({ key: `stock:${item.id}`, group: "stock", repeatHours: 72, text: `📉 ${esc(item.name)} — ${qty2} ${esc(item.unit)} qoldi (me’yor ${item.minQty})` });
   }
   const order = ["staff", "orders", "production", "delivery", "money", "stock"];
   return found.sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group));
@@ -3526,6 +3556,681 @@ function workerNotices(state) {
   return notices;
 }
 
+// src/console.ts
+var round8 = (value) => Math.sign(value) * Math.round((Math.abs(value) + Number.EPSILON) * 100) / 100;
+var nextMonth3 = (month) => {
+  const date = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+};
+function directorConsole(state, asOf) {
+  const iso = asOf ?? (/* @__PURE__ */ new Date()).toISOString();
+  const month = iso.slice(0, 7);
+  const day = Number(iso.slice(8, 10));
+  const cash = round8(cashBalance(state, "cash"));
+  const bank = round8(cashBalance(state, "bank"));
+  const customers = round8(state.customers.filter((row) => row.kind !== "shop").reduce((sum2, row) => sum2 + customerBalance(state, row.id).debt, 0));
+  const shops = round8(state.customers.filter((row) => row.kind === "shop").reduce((sum2, row) => sum2 + customerBalance(state, row.id).debt, 0));
+  const payroll = round8(state.employees.reduce((sum2, row) => sum2 + payrollDebt(state, row.id), 0));
+  const suppliers = round8(state.suppliers.reduce((sum2, row) => sum2 + Math.max(0, supplierDebt(state, row.id)), 0));
+  const expenses = round8(expensesDebt(state));
+  const loans = round8(loansDebt(state));
+  const future = [];
+  let cursor = month;
+  for (let i = 0; i < 3; i++) {
+    const at = `${cursor}-01T00:00:00.000Z`;
+    const salary = round8(state.employees.reduce((sum2, row) => sum2 + (salaryLedger(state, row.id, at).months.at(-1)?.obliged ?? 0), 0));
+    const monthlyExpenses = round8([...new Set(state.expensePlans.map((row) => row.planId))].reduce((sum2, planId) => sum2 + (expenseLedger(state, planId, at).months.at(-1)?.obliged ?? 0), 0));
+    future.push({ month: cursor, salary, expenses: monthlyExpenses, total: round8(salary + monthlyExpenses) });
+    cursor = nextMonth3(cursor);
+  }
+  const attention = [];
+  for (const planId of [...new Set(state.expensePlans.map((row) => row.planId))]) {
+    const ledger = expenseLedger(state, planId, iso);
+    const row = ledger.months.find((entry) => entry.month === month);
+    if (!row || row.unpaid <= 5e-3) continue;
+    const versions = state.expensePlans.filter((entry) => entry.planId === planId).sort((left, right) => left.fromMonth.localeCompare(right.fromMonth) || left.createdAt.localeCompare(right.createdAt));
+    const dueDay = versions.at(-1)?.dueDay ?? 1;
+    attention.push({
+      kind: "expense-due",
+      id: planId,
+      title: ledger.title,
+      amount: round8(row.unpaid),
+      hint: `${dueDay}-kungacha to‘lash`,
+      dueDay,
+      passed: dueDay < day
+    });
+  }
+  for (const row of state.loans) {
+    const ledger = loanLedger(state, row.id);
+    if (ledger.owed <= 5e-3) continue;
+    attention.push({
+      kind: "loan-owed",
+      id: row.id,
+      title: row.title,
+      amount: round8(ledger.owed),
+      hint: row.kind === "loan" ? "Zaym qaytarilishi kerak" : "Investitsiya qaytarilishi kerak"
+    });
+  }
+  for (const row of state.customers) {
+    if (!row.employeeId) continue;
+    const debt = round8(customerBalance(state, row.id).debt);
+    if (debt <= 5e-3) continue;
+    const owner = state.employees.find((entry) => entry.id === row.employeeId);
+    attention.push({
+      kind: "worker-debt",
+      id: row.id,
+      title: owner?.name ?? row.name,
+      amount: debt,
+      hint: "Xodimning material va xizmat qarzi"
+    });
+  }
+  attention.sort((left, right) => {
+    const order = { "expense-due": 0, "loan-owed": 1, "worker-debt": 2 };
+    if (order[left.kind] !== order[right.kind]) return order[left.kind] - order[right.kind];
+    if (left.kind === "expense-due") {
+      if (left.passed !== right.passed) return left.passed ? -1 : 1;
+      return (left.dueDay ?? 0) - (right.dueDay ?? 0);
+    }
+    return right.amount - left.amount;
+  });
+  return {
+    balances: { cash, bank, total: round8(cash + bank) },
+    receivable: { customers, shops, loansAvailable: round8(loansAvailable(state)) },
+    payable: { payroll, suppliers, expenses, loans, total: round8(payroll + suppliers + expenses + loans) },
+    future,
+    attention
+  };
+}
+
+// src/supply.ts
+function supplyNeeds(state) {
+  const needs = /* @__PURE__ */ new Map();
+  for (const order of state.orders) {
+    if (order.status !== "production") continue;
+    const warehouseId = order.warehouseId ?? MAIN_WAREHOUSE_ID;
+    const perItem = /* @__PURE__ */ new Map();
+    for (const line of order.materials) {
+      if (!line.itemId || line.issuedQty >= line.qty) continue;
+      perItem.set(line.itemId, (perItem.get(line.itemId) ?? 0) + (line.qty - line.issuedQty));
+    }
+    for (const [itemId, qty2] of perItem) {
+      const item = state.items.find((row) => row.id === itemId);
+      if (!item) continue;
+      const key = `${itemId}|${warehouseId}`;
+      const need = needs.get(key) ?? {
+        itemId,
+        name: item.name,
+        unit: item.unit,
+        warehouseId,
+        short: 0,
+        orders: [],
+        lastPurchasePrice: item.lastPurchasePrice
+      };
+      need.orders.push({ id: order.id, number: order.number, dueDate: order.dueDate, short: qty2 });
+      needs.set(key, need);
+    }
+  }
+  const rows = [];
+  for (const need of needs.values()) {
+    need.short = need.orders.reduce((sum2, row) => sum2 + row.short, 0) - stockQty(state, need.itemId, need.warehouseId);
+    if (need.short <= 0) continue;
+    need.orders.sort((left, right) => left.dueDate.localeCompare(right.dueDate));
+    rows.push(need);
+  }
+  return rows.sort((left, right) => right.short - left.short || left.orders[0].dueDate.localeCompare(right.orders[0].dueDate));
+}
+
+// src/insights.ts
+var INSIGHT_DEFAULTS = {
+  deadDays: 60,
+  deadMinValue: 1e5,
+  saleDiscount: 20,
+  runoutDays: 7,
+  stockDays: 14,
+  queueSize: 3,
+  overloadTasks: 4,
+  slowDropPercent: 50,
+  defectCount: 3,
+  lowMargin: 10,
+  targetMargin: 20,
+  overrunPercent: 10,
+  priceGrowthPercent: 10,
+  debtDays: 14,
+  debtCriticalDays: 30,
+  staleDraftDays: 7
+};
+var INSIGHT_TEXTS = {
+  frozen: "Muzlagan pul",
+  atRisk: "Xavf ostida",
+  toBuy: "Xarid summasi",
+  queued: "Navbatdagi buyurtmalar",
+  loss: "Zarar",
+  thinProfit: "Foyda",
+  extraCost: "Ortiqcha xarajat",
+  toCollect: "Undirish mumkin",
+  waitingSales: "Kutilayotgan savdo",
+  missing: "Yetishmaydi",
+  lost: "Yo‘qotish",
+  none: "",
+  deadTitle: "Harakatsiz zaxira: {0} ta pozitsiya",
+  deadFacts: "{0} kundan ortiq sarf yo‘q va buyurtmalarga band qilinmagan. Jami {1} muzlab turibdi.",
+  deadAdvice: "{0}% chegirma bilan sotilsa {1} qaytadi. Yoki shu materialni joriy buyurtmalarda ishlating, yoki yetkazib beruvchiga qaytaring.",
+  deadDetail: "{0} {1} · {2} · {3} kun",
+  needTitle: "{0} yetishmaydi",
+  needFacts: "Sexdagi {0} ta buyurtmaga {1} yetishmaydi. Eng yaqin muddat: {2}.",
+  needAdvice: "Bugun xarid qiling: taxminan {0}. Aks holda bu buyurtmalar to‘xtab qoladi.",
+  runoutTitle: "{0} — zaxira {1} kunga yetadi",
+  runoutFacts: "Oxirgi 30 kunda kuniga o‘rtacha {0} sarflangan, bo‘sh qoldiq {1}.",
+  runoutAdvice: "{0} kunlik zaxira uchun {1} xarid qiling: taxminan {2}.",
+  lateTitle: "{0} — muddati {1} kun o‘tgan",
+  lateFacts: "Mijoz: {0}. To‘xtagan joyi: «{1}», {2}. Buyurtma summasi {3}.",
+  lateFactsDone: "Mijoz: {0}. Barcha bosqichlar tugagan, yuborish qolgan. Buyurtma summasi {1}.",
+  lateAdvice: "Bugun «{0}» bosqichini birinchi navbatga qo‘ying va mijozga yangi sanani ayting.",
+  lateAdviceDone: "Bugun yuboring va mijozga xabar bering.",
+  riskTitle: "{0} — muddatga ulgurmaslik xavfi",
+  riskFactsHours: "Muddatgacha {0} kun, qolgan ish taxminan {1} soat ({2} ta bosqich). Hozir: «{3}», {4}.",
+  riskFactsStages: "Muddatgacha {0} kun, {1} ta bosqich qolgan. Hozir: «{2}», {3}.",
+  riskFactsDraft: "Muddatgacha {0} kun, buyurtma hali sexga tushirilmagan ({1} ta bosqich).",
+  riskAdvice: "«{0}» bosqichini birinchi navbatga qo‘ying yoki ishni ikki kishiga bo‘ling.",
+  riskAdviceDraft: "Bugun sexga tushiring yoki mijoz bilan muddatni qayta kelishing.",
+  queueTitle: "«{0}» bosqichida navbat: {1} ta topshiriq",
+  queueFacts: "Ijrochilar: {0}. Eng yaqin muddat: {1}.",
+  queueFactsHours: "Ijrochilar: {0}. Taxminan {1} soat ish. Eng yaqin muddat: {2}.",
+  queueAdvice: "Shu bosqichga yordamchi qo‘ying yoki muddati yaqin buyurtmalarni oldinga o‘tkazing.",
+  loadTitle: "{0} ortiqcha yuklangan: {1} ta ochiq topshiriq",
+  loadFactsHelper: "{0} bo‘sh va «{1}» ishini bajara oladi.",
+  loadAdviceHelper: "{0} ta topshiriqni {1}ga o‘tkazing.",
+  loadFactsNoHelper: "«{0}» ishini bajara oladigan bo‘sh xodim yo‘q.",
+  loadAdviceNoHelper: "Sozlamalarda «{0}» operatsiyasiga yana bir xodimga ruxsat bering.",
+  slowTitle: "{0}: qabul qilingan ish {1}% kamaydi",
+  slowFacts: "Oxirgi 14 kunda {0}, undan oldingi 14 kunda {1}.",
+  slowAdvice: "Sababini aniqlang: material kutilyaptimi, dastgoh nosozmi yoki topshiriq yetishmayaptimi.",
+  defectTitle: "{0}: 30 kunda {1} marta brak",
+  defectFacts: "Yo‘qotilgan material: {0}. Eng ko‘p sabab: {1}.",
+  defectAdvice: "Sababni ish joyida tekshiring; chizma va o‘lchovni ishni boshlashdan oldin nazorat qiling.",
+  lossTitle: "{0} — zarar bilan ketmoqda",
+  lossFacts: "Narx {0}, xarajat {1}. Zarar: {2}.",
+  lossAdvice: "Narxni mijoz bilan qayta kelishing yoki ortiqcha xarajat sababini toping.",
+  marginTitle: "{0} — marja {1}%",
+  marginFacts: "Narx {0}, xarajat {1}. Foyda atigi {2}.",
+  marginAdvice: "Keyingi shunday buyurtmada narxni kamida {0} qiling ({1}% marja).",
+  overrunTitle: "{0} — xarajat rejadan {1} oshdi",
+  overrunFacts: "Reja {0}, fakt {1}.",
+  overrunAdvice: "Material sarfi va brakni tekshiring; narxni keyingi buyurtmalar uchun yangilang.",
+  priceTitle: "{0} narxi {1}% oshdi",
+  priceFacts: "Oldin {0}, hozir {1}.",
+  priceFactsDrafts: "Oldin {0}, hozir {1}. Qoralamadagi {2} ta buyurtma eski narxda hisoblangan: farq {3}.",
+  priceAdvice: "Shu material ishlatiladigan mahsulot va xizmatlar narxini qayta hisoblang.",
+  debtTitle: "{0} — qarz {1}",
+  debtFacts: "Eng eski qarz {0} kundan beri to‘lanmagan.",
+  debtAdvice: "Qarz hujjatini yuboring va to‘lov sanasini kelishing; to‘lamaguncha yangi buyurtmani avans bilan oling.",
+  draftsTitle: "{0} ta buyurtma ishga tushmagan",
+  draftsFacts: "{0} kundan ortiq qoralamada turibdi. Jami summa: {1}.",
+  draftsAdvice: "Mijozlar bilan bog‘laning: tasdiqlasa ishga tushiring, voz kechgan bo‘lsa bekor qiling.",
+  readyTitle: "{0} ta buyurtma tayyor, yuborilmagan",
+  readyFacts: "Yuborilsa {0} tushum tan olinadi; mijozlardan {1} olinadi.",
+  readyAdvice: "Bugun yetkazib berishni rejalang va mijozlarga xabar bering.",
+  gapTitle: "Kassada pul yetmaydi: {0} kam",
+  gapFacts: "Kassa va bankda {0}. Majburiyatlar: yetkazib beruvchilar {1}, ish haqi {2}, oylik xarajatlar {3}.",
+  gapAdvice: "Mijozlardan {0} qarzni undiring va to‘lovlarni muddati bo‘yicha navbatga qo‘ying.",
+  idle: "{0} kun harakatsiz",
+  moving: "ish ketmoqda",
+  nobody: "ijrochi tayinlanmagan",
+  digestTitle: "🧭 <b>Ertalabki tavsiyalar</b>",
+  digestEmpty: "Bugun e’tibor talab qiladigan narsa yo‘q — hammasi rejada.",
+  digestMore: "…va yana {0} ta — ilovada «Tavsiyalar» bo‘limida."
+};
+var T = INSIGHT_TEXTS;
+var fill = (template, ...values) => template.replace(/\{(\d+)\}/g, (_, index) => String(values[Number(index)] ?? ""));
+var DAY = 864e5;
+var round9 = (value) => Math.round(value);
+var daysSince = (iso, now2) => Math.max(0, Math.floor((now2 - Date.parse(iso)) / DAY));
+var dayNumber = (date) => Math.floor(Date.parse(`${date.slice(0, 10)}T00:00:00Z`) / DAY);
+var qty = (value, unit) => `${formatQty(Math.round(value * 100) / 100)} ${unitText(unit)}`;
+var customerName2 = (state, order) => order.kind === "series" ? "ombor seriyasi" : state.customers.find((row) => row.id === order.customerId)?.name ?? "—";
+var label = (order) => `${order.number} · ${order.title}`;
+function executor(state, task) {
+  if (task.executorKind === "supplier") return state.suppliers.find((row) => row.id === task.supplierId)?.name ?? T.nobody;
+  return state.employees.find((row) => row.id === task.employeeId)?.name ?? T.nobody;
+}
+var openTask = (task) => task.status !== "completed" && task.completed < task.planned;
+function taskHours(state, task) {
+  const minutes = task.standardMinutes ?? state.operations.find((row) => row.id === task.operationId)?.standardMinutes ?? 0;
+  return Math.max(0, task.planned - task.completed) * minutes / 60;
+}
+function stockInsights(state, now2, cfg) {
+  const found = [];
+  const lastOut = /* @__PURE__ */ new Map();
+  const firstIn = /* @__PURE__ */ new Map();
+  const spent30 = /* @__PURE__ */ new Map();
+  for (const move of state.movements) {
+    if (move.direction === "out") {
+      if ((lastOut.get(move.itemId) ?? "") < move.createdAt) lastOut.set(move.itemId, move.createdAt);
+      if (move.source !== "transfer" && move.source !== "inventory" && now2 - Date.parse(move.createdAt) <= 30 * DAY) {
+        spent30.set(move.itemId, (spent30.get(move.itemId) ?? 0) + move.qty);
+      }
+    } else if (!firstIn.has(move.itemId) || firstIn.get(move.itemId) > move.createdAt) firstIn.set(move.itemId, move.createdAt);
+  }
+  const planned = /* @__PURE__ */ new Set();
+  for (const order of state.orders) {
+    if (order.status !== "draft" && order.status !== "production") continue;
+    for (const line of order.materials) if (line.qty - line.issuedQty > 1e-9) planned.add(line.itemId);
+  }
+  const dead = state.items.flatMap((item) => {
+    if (item.customerId || planned.has(item.id)) return [];
+    const stock = stockQty(state, item.id);
+    const value = round9(stock * item.cost);
+    const since = lastOut.get(item.id) ?? firstIn.get(item.id);
+    if (stock <= 0 || value < cfg.deadMinValue || !since) return [];
+    const days = daysSince(since, now2);
+    return days >= cfg.deadDays ? [{ item, stock, value, days }] : [];
+  }).sort((a, b) => b.value - a.value);
+  if (dead.length) {
+    const total = dead.reduce((sum2, row) => sum2 + row.value, 0);
+    const keep = (100 - cfg.saleDiscount) / 100;
+    found.push({
+      key: "dead-stock",
+      area: "stock",
+      priority: "growth",
+      effect: total,
+      effectLabel: T.frozen,
+      title: fill(T.deadTitle, dead.length),
+      facts: fill(T.deadFacts, cfg.deadDays, formatMoney(total)),
+      advice: fill(T.deadAdvice, cfg.saleDiscount, formatMoney(round9(total * keep))),
+      details: dead.slice(0, 8).map((row) => ({ label: row.item.name, value: fill(T.deadDetail, formatQty(row.stock), unitText(row.item.unit), formatMoney(row.value), row.days) })),
+      route: "warehouse/qoldiqlar",
+      list: dead.map((row) => [row.item.name, row.stock, unitText(row.item.unit), row.value, round9(row.value * keep), row.days])
+    });
+  }
+  const short = /* @__PURE__ */ new Set();
+  for (const need of supplyNeeds(state)) {
+    short.add(need.itemId);
+    const orders = state.orders.filter((order) => need.orders.some((row) => row.id === order.id));
+    found.push({
+      key: `need:${need.itemId}`,
+      area: "stock",
+      priority: "critical",
+      effect: round9(orders.reduce((sum2, order) => sum2 + order.price, 0)),
+      effectLabel: T.atRisk,
+      title: fill(T.needTitle, need.name),
+      facts: fill(T.needFacts, need.orders.length, qty(need.short, need.unit), formatDate(need.orders[0].dueDate)),
+      advice: fill(T.needAdvice, formatMoney(round9(need.short * need.lastPurchasePrice))),
+      details: need.orders.slice(0, 6).map((row) => ({ label: row.number, value: qty(row.short, need.unit) })),
+      route: "warehouse/taminot"
+    });
+  }
+  for (const item of state.items) {
+    if (item.customerId || item.kind !== "material" || short.has(item.id)) continue;
+    const perDay = (spent30.get(item.id) ?? 0) / 30;
+    if (perDay <= 0) continue;
+    const free = stockQty(state, item.id) - reservedQty(state, item.id);
+    if (free < 0) continue;
+    const days = Math.floor(free / perDay);
+    if (days > cfg.runoutDays) continue;
+    const buy = Math.max(0, perDay * cfg.stockDays - free);
+    const price = item.lastPurchasePrice || item.cost;
+    found.push({
+      key: `runout:${item.id}`,
+      area: "stock",
+      priority: days <= 2 ? "critical" : "attention",
+      effect: round9(buy * price),
+      effectLabel: T.toBuy,
+      title: fill(T.runoutTitle, item.name, days),
+      facts: fill(T.runoutFacts, qty(perDay, item.unit), qty(free, item.unit)),
+      advice: fill(T.runoutAdvice, cfg.stockDays, qty(buy, item.unit), formatMoney(round9(buy * price))),
+      details: [],
+      route: "purchases/xaridlar"
+    });
+  }
+  return found;
+}
+function productionInsights(state, now2, today) {
+  const found = [];
+  const todayNumber = dayNumber(today);
+  for (const order of state.orders) {
+    if (order.status !== "production" && order.status !== "draft" || !order.dueDate) continue;
+    const left = dayNumber(order.dueDate) - todayNumber;
+    const remaining = order.route.filter(openTask);
+    const current = remaining[0];
+    const idleDays = daysSince(lastActivity(state, order), now2);
+    const where = current ? `${executor(state, current)} · ${idleDays >= 1 ? fill(T.idle, idleDays) : T.moving}` : "";
+    if (left < 0) {
+      found.push({
+        key: `late:${order.id}`,
+        area: "production",
+        priority: "critical",
+        effect: round9(order.price),
+        effectLabel: T.atRisk,
+        title: fill(T.lateTitle, label(order), -left),
+        facts: current ? fill(T.lateFacts, customerName2(state, order), current.name, where, formatMoney(order.price)) : fill(T.lateFactsDone, customerName2(state, order), formatMoney(order.price)),
+        advice: current ? fill(T.lateAdvice, current.name) : T.lateAdviceDone,
+        details: [],
+        route: "orders/buyurtmalar",
+        orderId: order.id
+      });
+      continue;
+    }
+    if (!remaining.length) continue;
+    const hours = remaining.reduce((sum2, task) => sum2 + taskHours(state, task), 0);
+    const risky = hours > 0 ? hours > Math.max(left, 0.5) * 8 : remaining.length > left;
+    const draftLate = order.status === "draft" && left <= 2;
+    if (!risky && !draftLate) continue;
+    found.push({
+      key: `risk:${order.id}`,
+      area: "production",
+      priority: left <= 1 ? "critical" : "attention",
+      effect: round9(order.price),
+      effectLabel: T.atRisk,
+      title: fill(T.riskTitle, label(order)),
+      facts: order.status === "draft" ? fill(T.riskFactsDraft, left, remaining.length) : hours > 0 ? fill(T.riskFactsHours, left, Math.ceil(hours), remaining.length, current.name, where) : fill(T.riskFactsStages, left, remaining.length, current.name, where),
+      advice: order.status === "draft" ? T.riskAdviceDraft : fill(T.riskAdvice, current.name),
+      details: [],
+      route: "orders/buyurtmalar",
+      orderId: order.id
+    });
+  }
+  const queues = /* @__PURE__ */ new Map();
+  for (const order of state.orders) {
+    if (order.status !== "production") continue;
+    for (const task of order.route) {
+      if (!openTask(task) || task.status === "submitted" || !availableTask(state, order.id, task.id)) continue;
+      const row = queues.get(task.operationId) ?? { name: task.name, orders: [], people: /* @__PURE__ */ new Set(), hours: 0 };
+      row.orders.push(order);
+      row.people.add(executor(state, task));
+      row.hours += taskHours(state, task);
+      queues.set(task.operationId, row);
+    }
+  }
+  for (const [operationId, row] of queues) {
+    if (row.orders.length < INSIGHT_DEFAULTS.queueSize) continue;
+    const nearest = row.orders.map((order) => order.dueDate).filter(Boolean).sort()[0] ?? today;
+    const people = [...row.people].join(", ");
+    found.push({
+      key: `queue:${operationId}`,
+      area: "production",
+      priority: "attention",
+      effect: round9([...new Set(row.orders)].reduce((sum2, order) => sum2 + order.price, 0)),
+      effectLabel: T.queued,
+      title: fill(T.queueTitle, row.name, row.orders.length),
+      facts: row.hours > 0 ? fill(T.queueFactsHours, people, Math.ceil(row.hours), formatDate(nearest)) : fill(T.queueFacts, people, formatDate(nearest)),
+      advice: T.queueAdvice,
+      details: row.orders.slice(0, 6).map((order) => ({ label: order.number, value: `${order.title} · ${formatDate(order.dueDate)}` })),
+      route: "production/doska"
+    });
+  }
+  return found;
+}
+function staffInsights(state, now2, cfg) {
+  const found = [];
+  const active = state.employees.filter((row) => row.active);
+  const open = /* @__PURE__ */ new Map();
+  for (const order of state.orders) {
+    if (order.status !== "production") continue;
+    for (const task of order.route) {
+      if (!openTask(task) || task.executorKind === "supplier" || !task.employeeId) continue;
+      open.set(task.employeeId, [...open.get(task.employeeId) ?? [], task]);
+    }
+  }
+  for (const employee of active) {
+    const tasks = open.get(employee.id) ?? [];
+    if (tasks.length < cfg.overloadTasks) continue;
+    const waiting = tasks.filter((task) => task.status === "assigned");
+    let helper = null;
+    for (const other of active) {
+      if (other.id === employee.id || (open.get(other.id) ?? []).length > 0) continue;
+      const can = waiting.filter((task) => state.operations.find((row) => row.id === task.operationId)?.employeeIds.includes(other.id));
+      if (can.length && (!helper || can.length > helper.count)) helper = { name: other.name, operation: can[0].name, count: can.length };
+    }
+    const busiest = [...tasks.reduce((map, task) => map.set(task.name, (map.get(task.name) ?? 0) + 1), /* @__PURE__ */ new Map())].sort((a, b) => b[1] - a[1])[0][0];
+    found.push({
+      key: `load:${employee.id}`,
+      area: "staff",
+      priority: "attention",
+      effect: 0,
+      effectLabel: T.none,
+      title: fill(T.loadTitle, employee.name, tasks.length),
+      facts: helper ? fill(T.loadFactsHelper, helper.name, helper.operation) : fill(T.loadFactsNoHelper, busiest),
+      advice: helper ? fill(T.loadAdviceHelper, Math.max(1, Math.ceil(helper.count / 2)), helper.name) : fill(T.loadAdviceNoHelper, busiest),
+      details: [],
+      route: "production/doska"
+    });
+  }
+  const recent = /* @__PURE__ */ new Map();
+  const before = /* @__PURE__ */ new Map();
+  for (const row of state.payroll) {
+    if (row.status !== "accepted") continue;
+    const age = now2 - Date.parse(row.createdAt);
+    if (age < 0 || age > 28 * DAY) continue;
+    const bucket = age <= 14 * DAY ? recent : before;
+    bucket.set(row.employeeId, (bucket.get(row.employeeId) ?? 0) + row.amount);
+  }
+  for (const employee of active) {
+    const was = before.get(employee.id) ?? 0;
+    const is = recent.get(employee.id) ?? 0;
+    if (was <= 0 || is >= was * (100 - cfg.slowDropPercent) / 100) continue;
+    found.push({
+      key: `slow:${employee.id}`,
+      area: "staff",
+      priority: "attention",
+      effect: round9(was - is),
+      effectLabel: T.none,
+      title: fill(T.slowTitle, employee.name, Math.round((1 - is / was) * 100)),
+      facts: fill(T.slowFacts, formatMoney(is), formatMoney(was)),
+      advice: T.slowAdvice,
+      details: [],
+      route: "people/xodimlar"
+    });
+  }
+  const defects = /* @__PURE__ */ new Map();
+  for (const row of state.defects) {
+    if (now2 - Date.parse(row.createdAt) > 30 * DAY) continue;
+    const entry = defects.get(row.employeeId) ?? { count: 0, cost: 0, reasons: /* @__PURE__ */ new Map() };
+    entry.count += 1;
+    entry.cost += row.materials.reduce((sum2, material) => sum2 + material.qty * (state.items.find((item) => item.id === material.itemId)?.cost ?? 0), 0);
+    entry.reasons.set(row.reason, (entry.reasons.get(row.reason) ?? 0) + 1);
+    defects.set(row.employeeId, entry);
+  }
+  for (const [employeeId, entry] of defects) {
+    const employee = state.employees.find((row) => row.id === employeeId);
+    if (!employee || entry.count < cfg.defectCount) continue;
+    const reason = [...entry.reasons].sort((a, b) => b[1] - a[1])[0][0];
+    found.push({
+      key: `defect:${employeeId}`,
+      area: "staff",
+      priority: "attention",
+      effect: round9(entry.cost),
+      effectLabel: T.lost,
+      title: fill(T.defectTitle, employee.name, entry.count),
+      facts: fill(T.defectFacts, formatMoney(round9(entry.cost)), defectReasonLabels[reason] ?? reason),
+      advice: T.defectAdvice,
+      details: [],
+      route: "production/brak"
+    });
+  }
+  return found;
+}
+function financeInsights(state, now2, nowIso, cfg) {
+  const found = [];
+  for (const order of state.orders) {
+    if (order.kind === "series" || !["draft", "production", "ready"].includes(order.status) || !(order.price > 0)) continue;
+    const plan = estimatedCost(state, order);
+    const fact = actualCost(state, order) + order.overhead;
+    const cost = Math.max(plan, fact);
+    const profit = order.price - cost;
+    const margin = Math.round(profit / order.price * 100);
+    const base = { area: "finance", details: [], route: "orders/buyurtmalar", orderId: order.id };
+    if (profit < 0) {
+      found.push({
+        ...base,
+        key: `margin:${order.id}`,
+        priority: "critical",
+        effect: round9(-profit),
+        effectLabel: T.loss,
+        title: fill(T.lossTitle, label(order)),
+        facts: fill(T.lossFacts, formatMoney(order.price), formatMoney(cost), formatMoney(-profit)),
+        advice: T.lossAdvice
+      });
+    } else if (margin < cfg.lowMargin) {
+      found.push({
+        ...base,
+        key: `margin:${order.id}`,
+        priority: "attention",
+        effect: round9(profit),
+        effectLabel: T.thinProfit,
+        title: fill(T.marginTitle, label(order), margin),
+        facts: fill(T.marginFacts, formatMoney(order.price), formatMoney(cost), formatMoney(profit)),
+        advice: fill(T.marginAdvice, formatMoney(round9(cost / (1 - cfg.targetMargin / 100))), cfg.targetMargin)
+      });
+    } else if (plan > 0 && fact > plan * (1 + cfg.overrunPercent / 100)) {
+      found.push({
+        ...base,
+        key: `overrun:${order.id}`,
+        priority: "attention",
+        effect: round9(fact - plan),
+        effectLabel: T.extraCost,
+        title: fill(T.overrunTitle, label(order), formatMoney(fact - plan)),
+        facts: fill(T.overrunFacts, formatMoney(plan), formatMoney(fact)),
+        advice: T.overrunAdvice
+      });
+    }
+  }
+  const jumps = /* @__PURE__ */ new Map();
+  for (const purchase of state.purchases) {
+    if (now2 - Date.parse(purchase.createdAt) > 30 * DAY) continue;
+    for (const line of purchase.lines) {
+      if (!(line.received > 0) || !(line.previousPurchasePrice > 0)) continue;
+      if (line.newPurchasePrice < line.previousPurchasePrice * (1 + cfg.priceGrowthPercent / 100)) continue;
+      const known = jumps.get(line.itemId);
+      if (!known || known.at < purchase.createdAt) jumps.set(line.itemId, { before: line.previousPurchasePrice, after: line.newPurchasePrice, at: purchase.createdAt });
+    }
+  }
+  for (const [itemId, jump] of jumps) {
+    const item = state.items.find((row) => row.id === itemId);
+    if (!item) continue;
+    let extra = 0;
+    const drafts = /* @__PURE__ */ new Set();
+    for (const order of state.orders) {
+      if (order.status !== "draft") continue;
+      for (const line of order.materials) {
+        if (line.itemId !== itemId || line.estimatedCost >= item.cost) continue;
+        extra += (item.cost - line.estimatedCost) * line.qty;
+        drafts.add(order.id);
+      }
+    }
+    found.push({
+      key: `price:${itemId}`,
+      area: "finance",
+      priority: "attention",
+      effect: round9(extra),
+      effectLabel: T.extraCost,
+      title: fill(T.priceTitle, item.name, Math.round((jump.after / jump.before - 1) * 100)),
+      facts: drafts.size ? fill(T.priceFactsDrafts, formatMoney(jump.before), formatMoney(jump.after), drafts.size, formatMoney(round9(extra))) : fill(T.priceFacts, formatMoney(jump.before), formatMoney(jump.after)),
+      advice: T.priceAdvice,
+      details: [],
+      route: "purchases/narxlar"
+    });
+  }
+  for (const customer of state.customers) {
+    const balance = customerBalance(state, customer.id);
+    if (!(balance.debt > 0)) continue;
+    const oldest = balance.obligations.filter((row) => row.outstanding > 0).map((row) => row.createdAt).sort()[0];
+    const days = oldest ? daysSince(oldest, now2) : 0;
+    if (days < cfg.debtDays) continue;
+    found.push({
+      key: `debt:${customer.id}`,
+      area: "finance",
+      priority: days >= cfg.debtCriticalDays ? "critical" : "attention",
+      effect: round9(balance.debt),
+      effectLabel: T.toCollect,
+      title: fill(T.debtTitle, customer.name, formatMoney(balance.debt)),
+      facts: fill(T.debtFacts, days),
+      advice: T.debtAdvice,
+      details: [],
+      route: "orders/mijozlar"
+    });
+  }
+  const stale = state.orders.filter((order) => order.status === "draft" && order.kind !== "series" && daysSince(order.createdAt, now2) >= cfg.staleDraftDays);
+  if (stale.length) {
+    const total = stale.reduce((sum2, order) => sum2 + order.price, 0);
+    found.push({
+      key: "stale-drafts",
+      area: "finance",
+      priority: "growth",
+      effect: round9(total),
+      effectLabel: T.waitingSales,
+      title: fill(T.draftsTitle, stale.length),
+      facts: fill(T.draftsFacts, cfg.staleDraftDays, formatMoney(total)),
+      advice: T.draftsAdvice,
+      details: stale.slice(0, 6).map((order) => ({ label: order.number, value: `${order.title} · ${formatMoney(order.price)}` })),
+      route: "orders/buyurtmalar"
+    });
+  }
+  const ready2 = state.orders.filter((order) => order.status === "ready" && order.kind !== "series");
+  if (ready2.length) {
+    const revenue = ready2.reduce((sum2, order) => sum2 + order.price, 0);
+    const toCollect = ready2.reduce((sum2, order) => sum2 + Math.max(0, customerBalance(state, order.customerId).obligations.find((row) => row.orderId === order.id)?.outstanding ?? 0), 0);
+    found.push({
+      key: "ready-orders",
+      area: "finance",
+      priority: "growth",
+      effect: round9(revenue),
+      effectLabel: T.waitingSales,
+      title: fill(T.readyTitle, ready2.length),
+      facts: fill(T.readyFacts, formatMoney(revenue), formatMoney(toCollect)),
+      advice: T.readyAdvice,
+      details: ready2.slice(0, 6).map((order) => ({ label: order.number, value: `${order.title} · ${formatMoney(order.price)}` })),
+      route: "logistics"
+    });
+  }
+  const money2 = directorConsole(state, nowIso);
+  const due = money2.payable.suppliers + money2.payable.payroll + money2.payable.expenses;
+  if (due > money2.balances.total && due > 0) {
+    found.push({
+      key: "cash-gap",
+      area: "finance",
+      priority: "critical",
+      effect: round9(due - money2.balances.total),
+      effectLabel: T.missing,
+      title: fill(T.gapTitle, formatMoney(due - money2.balances.total)),
+      facts: fill(T.gapFacts, formatMoney(money2.balances.total), formatMoney(money2.payable.suppliers), formatMoney(money2.payable.payroll), formatMoney(money2.payable.expenses)),
+      advice: fill(T.gapAdvice, formatMoney(money2.receivable.customers + money2.receivable.shops)),
+      details: [],
+      route: "cash/pult"
+    });
+  }
+  return found;
+}
+var PRIORITY_ORDER = ["critical", "growth", "attention"];
+function buildInsights(state, nowIso, today, config = INSIGHT_DEFAULTS) {
+  const now2 = Date.parse(nowIso);
+  return [
+    ...stockInsights(state, now2, config),
+    ...productionInsights(state, now2, today),
+    ...staffInsights(state, now2, config),
+    ...financeInsights(state, now2, nowIso, config)
+  ].sort((a, b) => PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority) || b.effect - a.effect || a.key.localeCompare(b.key));
+}
+var esc4 = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+var GROUPS = [["critical", "🔴 <b>Muhim</b>"], ["growth", "🟢 <b>Daromad nuqtasi</b>"], ["attention", "🟡 <b>E’tibor</b>"]];
+function insightDigest(insights, perGroup = 3) {
+  if (!insights.length) return `${T.digestTitle}
+
+${T.digestEmpty}`;
+  const lines = [T.digestTitle];
+  let shown = 0;
+  for (const [priority, heading] of GROUPS) {
+    const rows = insights.filter((row) => row.priority === priority);
+    if (!rows.length) continue;
+    lines.push("", `${heading} · ${rows.length}`);
+    for (const row of rows.slice(0, perGroup)) {
+      lines.push(`• <b>${esc4(row.title)}</b>`, `  ${esc4(row.facts)}`, `  → ${esc4(row.advice)}`);
+      shown += 1;
+    }
+  }
+  if (insights.length > shown) lines.push("", fill(T.digestMore, insights.length - shown));
+  return lines.join("\n");
+}
+
 // src/webpush.ts
 var encoder = new TextEncoder();
 function toBase64Url(bytes) {
@@ -3686,18 +4391,26 @@ function parseOwnerIds(value) {
 function ownerErrorText(message) {
   return `⚠️ Bajarilmadi: ${esc2(translateError(message))}`;
 }
-function watchRun(rawSnapshot, sent, nowIso, today, localHour, attendance = null) {
+function watchRun(rawSnapshot, sent, nowIso, today, localHour, attendance = null, hiddenInsights = []) {
   const snapshot = rawSnapshot;
   const staff = attendance ? attendanceFindings(attendance.data, today, attendance.nowMinutes) : [];
   const state = migrateState(snapshot?.state);
   const findings = [...staff, ...watchFindings(state, nowIso, today)];
   const tasks = workerNotices(state);
-  const activeKeys = [...findings.map((row) => row.key), ...tasks.map((row) => row.key)];
-  if (isQuietHour(localHour)) return { text: null, sentKeys: [], activeKeys, push: null, workers: [] };
+  const digestKey = `digest:${today}`;
+  const activeKeys = [...findings.map((row) => row.key), ...tasks.map((row) => row.key), digestKey];
+  if (isQuietHour(localHour)) return { text: null, sentKeys: [], activeKeys, push: null, workers: [], digest: null };
   const workers = tasks.filter((row) => !sent[row.key]);
+  let digest = null;
+  if (!sent[digestKey] && localHour < 12) {
+    const insights = buildInsights(state, nowIso, today).filter((row) => !hiddenInsights.includes(row.key));
+    if (insights.length) {
+      digest = { key: digestKey, text: insightDigest(insights), push: { title: `Ertalabki tavsiyalar: ${insights.length} ta`, body: insights.slice(0, 3).map((row) => row.title).join("\n"), url: "#/advisor", tag: "digest" } };
+    }
+  }
   const due = dueFindings(findings, sent, nowIso);
-  if (!due.length) return { text: null, sentKeys: [], activeKeys, push: null, workers };
-  return { text: watchDigest(due, "🔔 <b>Nazorat: e’tibor bering</b>"), sentKeys: due.map((row) => row.key), activeKeys, push: ownerPush(due), workers };
+  if (!due.length) return { text: null, sentKeys: [], activeKeys, push: null, workers, digest };
+  return { text: watchDigest(due, "🔔 <b>Nazorat: e’tibor bering</b>"), sentKeys: due.map((row) => row.key), activeKeys, push: ownerPush(due), workers, digest };
 }
 function clockMinutes(hhmm2) {
   const [hours, minutes] = hhmm2.split(":").map(Number);

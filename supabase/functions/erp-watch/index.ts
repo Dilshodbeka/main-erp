@@ -89,9 +89,11 @@ async function watchCompany(target: OwnerTarget, now: Date, dry: boolean, keys: 
 
   // Timepay is one server secret, so attendance belongs to the legacy (platform owner's) company.
   const staff = target.companyId === null ? await attendance(today, minutes) : null;
-  const result = watchRun(snapshot, sent, now.toISOString(), today, hour, staff);
+  // Recommendations the owner already handled or postponed stay out of the morning digest.
+  const marks = await client().from('erp_insights').select('key').eq('company_id', companyId).gt('hidden_until', now.toISOString());
+  const result = watchRun(snapshot, sent, now.toISOString(), today, hour, staff, marks.error ? [] : (marks.data ?? []).map(row => row.key as string));
   const devices = keys ? await companyDevices(client(), companyId) : [];
-  if (dry) return { companyId, dry: true, active: result.activeKeys.length, due: result.sentKeys.length, workers: result.workers.length, devices: devices.length, text: result.text };
+  if (dry) return { companyId, dry: true, active: result.activeKeys.length, due: result.sentKeys.length, workers: result.workers.length, digest: result.digest?.text ?? null, devices: devices.length, text: result.text };
 
   // Situations that no longer exist are forgotten, so they are announced again if they come back.
   const gone = Object.keys(sent).filter(key => !result.activeKeys.includes(key));
@@ -109,6 +111,12 @@ async function watchCompany(target: OwnerTarget, now: Date, dry: boolean, keys: 
     const admins = devices.filter(device => device.role === 'admin');
     const byPush = Boolean(keys && result.push && admins.length && await deliverAll(client(), admins, result.push, keys, pushSubject));
     if (byTelegram || byPush) announced.push(...result.sentKeys);
+  }
+  if (result.digest) {
+    const byTelegram = (await Promise.all(target.chatIds.map(id => send(id, result.digest!.text)))).some(Boolean);
+    const admins = devices.filter(device => device.role === 'admin');
+    const byPush = Boolean(keys && admins.length && await deliverAll(client(), admins, result.digest.push, keys, pushSubject));
+    if (byTelegram || byPush) announced.push(result.digest.key);
   }
   if (announced.length) {
     await client().from('erp_watch_sent').upsert(

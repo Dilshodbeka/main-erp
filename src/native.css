@@ -120,3 +120,62 @@ button:active:not(:disabled){transform:scale(.97)}
 .push-hint{display:flex;align-items:flex-start;gap:8px;margin:0 10px 10px;font-size:11px;line-height:1.45;color:var(--muted)}
 .push-hint svg{flex-shrink:0;margin-top:1px}
 @media (max-width:700px){.push-toggle{min-height:44px}}
+
+/* ── Tavsiyalar markazi ── */
+.advisor-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px;margin-bottom:18px}
+.advisor-stat{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;border-top:3px solid var(--tone)}
+.advisor-stat span{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;color:var(--tone)}
+.advisor-stat strong{display:block;font-size:30px;font-weight:800;letter-spacing:-.04em;margin:8px 0 4px;color:#1d3129}
+.advisor-stat small{display:block;line-height:1.45}
+.advisor-stat.critical,.advisor-card.critical{--tone:#b3473b;--tint:#fbefec}
+.advisor-stat.growth,.advisor-card.growth{--tone:#1f7a63;--tint:#e9f5ef}
+.advisor-stat.attention,.advisor-card.attention{--tone:#a8741a;--tint:#fbf3e1}
+.advisor-filters{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.advisor-chips{display:flex;gap:6px;flex-wrap:wrap}
+.advisor-chips button{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;min-height:36px;border-radius:999px;border:1px solid var(--border);background:#fff;font-size:12px;font-weight:700;color:#55655b}
+.advisor-chips button.selected{background:var(--green);border-color:var(--green);color:#fff}
+.advisor-chips i{font-style:normal;font-size:11px;font-weight:800;padding:1px 7px;border-radius:999px;background:#eef2ea;color:#55655b}
+.advisor-chips .selected i{background:rgba(255,255,255,.18);color:#fff}
+.advisor-list{display:grid;gap:12px}
+.advisor-card{background:#fff;border:1px solid var(--border);border-left:4px solid var(--tone);border-radius:var(--radius);padding:18px 20px}
+.advisor-card header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.advisor-priority{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--tint);color:var(--tone);font-size:11px;font-weight:800}
+.advisor-area{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.advisor-effect{margin-left:auto;text-align:right;line-height:1.25}
+.advisor-effect small{display:block;font-size:10px}
+.advisor-effect b{font-size:16px;font-weight:800;color:var(--tone);white-space:nowrap}
+.advisor-card h3{font-size:17px;line-height:1.3;letter-spacing:-.02em;margin-bottom:6px;overflow-wrap:anywhere}
+.advisor-facts{font-size:13px;line-height:1.55;color:#55655b;overflow-wrap:anywhere}
+.advisor-advice{display:flex;gap:9px;align-items:flex-start;margin-top:10px;padding:11px 13px;border-radius:11px;background:#f4f7ef;font-size:13px;font-weight:600;line-height:1.5;color:#22392f}
+.advisor-advice svg{flex-shrink:0;margin-top:2px;color:var(--green)}
+.advisor-details{margin-top:10px;font-size:12px}
+.advisor-details summary{cursor:pointer;font-weight:700;color:var(--green);padding:4px 0}
+.advisor-details ul{list-style:none;margin:6px 0 0;padding:0;border-top:1px solid var(--border)}
+.advisor-details li{display:flex;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px solid var(--border)}
+.advisor-details li span{color:#55655b;text-align:right;overflow-wrap:anywhere}
+.advisor-card footer{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.advisor-card footer button{display:inline-flex;align-items:center;gap:7px;margin-left:0}
+.advisor-card footer .primary,.advisor-card footer .secondary{padding:9px 13px;min-height:38px;border-radius:10px;font-size:12px;font-weight:700}
+.advisor-card footer .text-button{font-size:12px;padding:8px 6px;min-height:36px;color:#55655b}
+.advisor-card footer .text-button.done{color:var(--green)}
+.advisor-spacer{flex:1 1 auto}
+.advisor-note{margin-top:14px}
+.advisor-teaser{display:flex;align-items:center;gap:12px;width:100%;margin-bottom:18px;padding:13px 16px;border-radius:14px;border:1px solid #ecd2cc;background:#fbefec;text-align:left;color:#7c2f26}
+.advisor-teaser.calm{border-color:#cfe5da;background:#e9f5ef;color:#195c4b}
+.advisor-teaser b{display:block;font-size:13px;font-weight:800}
+.advisor-teaser small{display:block;color:inherit;opacity:.85;line-height:1.4;overflow:hidden;text-overflow:ellipsis}
+.advisor-teaser>div{min-width:0;flex:1}
+.advisor-teaser svg{flex-shrink:0}
+@media (max-width:700px){
+  .advisor-summary{grid-template-columns:1fr;gap:10px}
+  .advisor-stat{display:grid;grid-template-columns:1fr auto;align-items:center;padding:14px 16px}
+  .advisor-stat strong{grid-row:1/3;grid-column:2;margin:0;font-size:28px}
+  .advisor-card{padding:15px 15px}
+  .advisor-effect{margin-left:0;width:100%;text-align:left;display:flex;align-items:baseline;gap:8px}
+  .advisor-card footer .primary,.advisor-card footer .secondary{flex:1 1 auto;justify-content:center;min-height:44px}
+  .advisor-spacer{display:none}
+  .advisor-card footer .text-button{flex:1 1 40%;min-height:44px}
+  .advisor-chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -2px;padding:0 2px}
+  .advisor-chips::-webkit-scrollbar{display:none}
+  .advisor-chips button{flex-shrink:0;min-height:40px}
+}

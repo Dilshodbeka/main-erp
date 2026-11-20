@@ -22,6 +22,7 @@ export const FULL_ACCESS: Subscription = {
 
 /** Sections a seller may switch off for a company. Everything else is the core and always stays. */
 export const OPTIONAL_MODULES: { id: string; title: string }[] = [
+  { id: 'advisor', title: 'Tavsiyalar markazi' },
   { id: 'history', title: 'Tarix va analitika' },
   { id: 'shops', title: 'Do‘konlar' },
   { id: 'series', title: 'Seriyalar va retseptlar' },

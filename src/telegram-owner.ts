@@ -8,6 +8,7 @@ import type { Actor, Command } from './types';
 import { attendanceFindings, attendanceReport, type AttendanceData } from './attendance';
 import { dueFindings, isQuietHour, watchDigest, watchFindings, type Finding } from './watch';
 import { ownerPush, workerNotices, type PushMessage, type WorkerNotice } from './push-messages';
+import { buildInsights, insightDigest } from './insights';
 import { esc, OWNER_COMMANDS, ownerMenuText, ownerReport, parseOwnerCommand, type ReportKey } from './telegram-reports';
 
 export interface OwnerReply {
@@ -92,6 +93,8 @@ export interface WatchRun {
   push: PushMessage | null;
   /** "A task is waiting for you" notifications for workers that were not announced yet. */
   workers: WorkerNotice[];
+  /** Morning recommendations: once a day, on the first run of the working morning. */
+  digest: { key: string; text: string; push: PushMessage } | null;
 }
 
 /**
@@ -100,18 +103,27 @@ export interface WatchRun {
  * `attendance` is today's Timepay data (when the integration is configured): late, absent, left early.
  */
 export function watchRun(rawSnapshot: unknown, sent: Record<string, string>, nowIso: string, today: string, localHour: number,
-  attendance: { data: AttendanceData; nowMinutes: number } | null = null): WatchRun {
+  attendance: { data: AttendanceData; nowMinutes: number } | null = null, hiddenInsights: string[] = []): WatchRun {
   const snapshot = rawSnapshot as { state?: unknown } | null;
   const staff: Finding[] = attendance ? attendanceFindings(attendance.data, today, attendance.nowMinutes) : [];
   const state = migrateState(snapshot?.state);
   const findings = [...staff, ...watchFindings(state, nowIso, today)];
   const tasks = workerNotices(state);
-  const activeKeys = [...findings.map(row => row.key), ...tasks.map(row => row.key)];
-  if (isQuietHour(localHour)) return { text: null, sentKeys: [], activeKeys, push: null, workers: [] };
+  const digestKey = `digest:${today}`;
+  const activeKeys = [...findings.map(row => row.key), ...tasks.map(row => row.key), digestKey];
+  if (isQuietHour(localHour)) return { text: null, sentKeys: [], activeKeys, push: null, workers: [], digest: null };
   const workers = tasks.filter(row => !sent[row.key]);
+  let digest: WatchRun['digest'] = null;
+  if (!sent[digestKey] && localHour < 12) {
+    const insights = buildInsights(state, nowIso, today).filter(row => !hiddenInsights.includes(row.key));
+    // A calm morning is not worth a message.
+    if (insights.length) {
+      digest = { key: digestKey, text: insightDigest(insights), push: { title: `Ertalabki tavsiyalar: ${insights.length} ta`, body: insights.slice(0, 3).map(row => row.title).join('\n'), url: '#/advisor', tag: 'digest' } };
+    }
+  }
   const due = dueFindings(findings, sent, nowIso);
-  if (!due.length) return { text: null, sentKeys: [], activeKeys, push: null, workers };
-  return { text: watchDigest(due, '🔔 <b>Nazorat: e’tibor bering</b>'), sentKeys: due.map(row => row.key), activeKeys, push: ownerPush(due), workers };
+  if (!due.length) return { text: null, sentKeys: [], activeKeys, push: null, workers, digest };
+  return { text: watchDigest(due, '🔔 <b>Nazorat: e’tibor bering</b>'), sentKeys: due.map(row => row.key), activeKeys, push: ownerPush(due), workers, digest };
 }
 
 export { generateVapidKeys, pushRequest, pushGone, allowedPushEndpoint } from './webpush';

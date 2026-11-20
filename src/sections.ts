@@ -9,6 +9,7 @@ const productionPanels: Panel[] = [
 
 const registry: SectionDef[] = [
   { id: 'dashboard', title: 'Umumiy ko‘rinish', panels: [] },
+  { id: 'advisor', title: 'Tavsiyalar', panels: [] },
   { id: 'orders', title: 'Savdo va CRM', panels: [{ id: 'buyurtmalar', title: 'Buyurtmalar' }, { id: 'mijozlar', title: 'Mijozlar' }] },
   { id: 'history', title: 'Tarix va analitika', panels: [{ id: 'tarix', title: 'Buyurtmalar tarixi' }, { id: 'sotuv', title: 'Sotuv analitikasi' }] },
   { id: 'shops', title: 'Do‘konlar', panels: [{ id: 'hisob-kitob', title: 'Hisob-kitob' }, { id: 'yuborish', title: 'Yuborishga tayyor' }] },

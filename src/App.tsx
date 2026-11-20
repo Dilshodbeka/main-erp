@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { LayoutDashboard, Users, Factory, Package, Pencil, ShoppingCart, Wallet, Truck, BarChart3, Settings, Plus, Search, ArrowUpRight, ChevronRight, Check, Download, RefreshCw, LogOut, Menu, X, CircleAlert, Clock, ShieldCheck, Banknote, Layers, Activity, ArrowDownLeft, ArrowUpRight as OutIcon, Undo2, Tv, Store, Printer, FileText, MessageCircle, History as HistoryIcon, Upload, type LucideIcon } from 'lucide-react';
+import { LayoutDashboard, Lightbulb, Users, Factory, Package, Pencil, ShoppingCart, Wallet, Truck, BarChart3, Settings, Plus, Search, ArrowUpRight, ChevronRight, Check, Download, RefreshCw, LogOut, Menu, X, CircleAlert, Clock, ShieldCheck, Banknote, Layers, Activity, ArrowDownLeft, ArrowUpRight as OutIcon, Undo2, Tv, Store, Printer, FileText, MessageCircle, History as HistoryIcon, Upload, type LucideIcon } from 'lucide-react';
 import { acceptedOutsourceCost, actualCost, availableTask, cashBalance, estimatedCost, orderDebt, orderPaid, payrollDebt, reservedQty, shippedQty, stockQty, supplierDebt, supplierStagePlan, supplierStagePriced } from './domain';
 import { customerBalance } from './receivables';
 import { haptic } from './haptics';
@@ -82,7 +82,10 @@ import { LangSwitch } from './components/LangSwitch';
 import { PushToggle } from './components/PushToggle';
 import { TelegramChat, ChatBadge } from './components/TelegramChat';
 import { OrderChat } from './components/OrderChat';
-import { orderChatOverview, subscribeOrderChat } from './order-chat';
+import { orderChatOverview, orderChatSend, subscribeOrderChat } from './order-chat';
+import { insightsFor, insightSummary, visibleInsights, type Insight, type InsightMarks, type InsightMarkStatus } from './insights';
+import { loadInsightMarks, saveInsightMark } from './insight-store';
+import { AdvisorCenter } from './components/AdvisorCenter';
 import { ChatError, chatErrorText, chatOverview, playChatChime, subscribeChat, type ChatOverview } from './chat';
 import { invoiceFileName, sendInvoiceFile, shouldSendInvoiceFile } from './invoiceSend';
 import { cashReceipt, invoice, purchaseReceipt, routeSheet } from './documents';
@@ -100,6 +103,7 @@ import { salaryLedger } from './salary';
 
 const pages = [
   { id: 'dashboard', title: 'Umumiy ko‘rinish', icon: LayoutDashboard, group: 'BOSHQARUV' },
+  { id: 'advisor', title: 'Tavsiyalar', icon: Lightbulb },
   { id: 'orders', title: 'Savdo va CRM', icon: Users },
   { id: 'history', title: 'Tarix va analitika', icon: HistoryIcon },
   { id: 'shops', title: 'Do‘konlar', icon: Store },
@@ -152,6 +156,7 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [needsCompany, setNeedsCompany] = useState(false);
   const [subscription, setSubscription] = useState<Subscription>(FULL_ACCESS);
+  const [insightMarks, setInsightMarks] = useState<InsightMarks>({});
   const [signup, setSignup] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
   const [orderView, setOrderView] = useState<'board' | 'table'>('board');
@@ -240,6 +245,12 @@ export default function App() {
     void loadCompanyProfile().then(profile => { if (active) setCompany(profile); });
     return () => { active = false; };
   }, [authenticated]);
+  useEffect(() => {
+    if (!authenticated || actor.role !== 'admin') { setInsightMarks({}); return; }
+    let active = true;
+    void loadInsightMarks(mode === 'cloud' ? supabase : null, actor.companyId, new Date().toISOString()).then(marks => { if (active) setInsightMarks(marks); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [authenticated, actor.role, actor.companyId]);
   useEffect(() => {
     if (!authenticated) { setSubscription(FULL_ACCESS); return; }
     let active = true;
@@ -628,6 +639,12 @@ export default function App() {
     debt: totals.debt + row.balance.debt, advance: totals.advance + row.balance.advance,
   }), { shipped: 0, paid: 0, debt: 0, advance: 0 });
   const finishedStock = state.items.filter(i => !i.customerId && i.kind === 'finished');
+  const advice = admin ? visibleInsights(insightsFor(state), insightMarks, new Date().toISOString()) : [];
+  const adviceSummary = insightSummary(advice);
+  const markInsight = (insight: Insight, status: InsightMarkStatus | null) => {
+    void saveInsightMark(mode === 'cloud' ? supabase : null, actor.companyId, insightMarks, insight, status, new Date().toISOString())
+      .then(setInsightMarks).catch(e => setNotice({ message: errorText(e), error: true }));
+  };
   const low = state.items.filter(i => !i.customerId && stockQty(state, i.id) - reservedQty(state, i.id) < i.minQty);
   const scopedWarehouse = state.warehouses.some(row => row.id === warehouseScope && row.active) ? warehouseScope : MAIN_WAREHOUSE_ID;
   const scopedLow = state.items.filter(i => !i.customerId && stockQty(state, i.id, scopedWarehouse) - reservedQty(state, i.id, scopedWarehouse) < i.minQty);
@@ -670,7 +687,7 @@ export default function App() {
     liveLabel={mode === 'demo' ? 'Shu brauzerda' : !sync.online ? 'Oflayn' : sync.pending.length ? `Navbatda: ${sync.pending.length}` : 'Umumiy baza'}
     onLive={() => show('sync')}
     onSignOut={leaveSession}
-    sidebar={<><div className="brand"><span>A</span><div>ALIYA<small>WORKSPACE / ERP</small></div><button className="icon-button mobile-only" aria-label="Menyuni yopish" onClick={() => setMenu(false)}><X size={18} /></button></div><div className="workspace-label"><i />Mebel ishlab chiqarish<small>O‘zbekiston · UZS</small></div><SectionNav pages={visiblePages} current={current} panel={panel} admin={admin} badges={{ production: myTasks, orders: chat.totalUnread + orderUnreadTotal, warehouse: low.length }} onNavigate={go} /><div className="sidebar-bottom"><LangSwitch />{mode === 'cloud' && supabase && <PushToggle supabase={supabase} onNotice={(message, error) => setNotice({ message, error: Boolean(error) })} />}<div className="system-state"><ShieldCheck size={17} /><div>{mode === 'demo' ? 'Lokal demo rejim' : 'Himoyalangan kirish'}<small>{mode === 'demo' ? 'Korxonaning umumiy bazasi emas' : 'Supabase Auth · RLS'}</small></div></div><div className="profile"><div className="avatar">{actor.name.slice(0, 1)}</div><div><b>{actor.name}</b><small>{admin ? 'Egasi' : 'Xodim'}</small></div>{mode === 'demo' ? <button className="icon-button" aria-label="Chiqish va profilni almashtirish" title="Chiqish va profilni almashtirish" onClick={leaveSession}><LogOut size={17} /></button> : supabase && <button className="icon-button" aria-label="Chiqish" onClick={() => void signOut().catch(e => setNotice({ message: errorText(e), error: true }))}><LogOut size={17} /></button>}</div></div></>}
+    sidebar={<><div className="brand"><span>A</span><div>ALIYA<small>WORKSPACE / ERP</small></div><button className="icon-button mobile-only" aria-label="Menyuni yopish" onClick={() => setMenu(false)}><X size={18} /></button></div><div className="workspace-label"><i />Mebel ishlab chiqarish<small>O‘zbekiston · UZS</small></div><SectionNav pages={visiblePages} current={current} panel={panel} admin={admin} badges={{ advisor: adviceSummary.critical, production: myTasks, orders: chat.totalUnread + orderUnreadTotal, warehouse: low.length }} onNavigate={go} /><div className="sidebar-bottom"><LangSwitch />{mode === 'cloud' && supabase && <PushToggle supabase={supabase} onNotice={(message, error) => setNotice({ message, error: Boolean(error) })} />}<div className="system-state"><ShieldCheck size={17} /><div>{mode === 'demo' ? 'Lokal demo rejim' : 'Himoyalangan kirish'}<small>{mode === 'demo' ? 'Korxonaning umumiy bazasi emas' : 'Supabase Auth · RLS'}</small></div></div><div className="profile"><div className="avatar">{actor.name.slice(0, 1)}</div><div><b>{actor.name}</b><small>{admin ? 'Egasi' : 'Xodim'}</small></div>{mode === 'demo' ? <button className="icon-button" aria-label="Chiqish va profilni almashtirish" title="Chiqish va profilni almashtirish" onClick={leaveSession}><LogOut size={17} /></button> : supabase && <button className="icon-button" aria-label="Chiqish" onClick={() => void signOut().catch(e => setNotice({ message: errorText(e), error: true }))}><LogOut size={17} /></button>}</div></div></>}
     banners={<>
     {mode === 'demo' && <div className="demo-banner"><span><CircleAlert size={15} />Namoyish: yozuvlar faqat shu brauzerda saqlanadi. Sex ishlashi uchun umumiy bazani ulang.</span><button onClick={() => go('settings', 'baza')}>Supabase ulash<ArrowUpRight size={14} /></button></div>}
     {planNotice && <div className={`demo-banner subscription-${planNotice.tone}`}><span><CircleAlert size={15} />{planNotice.text}</span><button onClick={() => go('settings', 'kirish')}>Tarif<ArrowUpRight size={14} /></button></div>}
@@ -707,6 +724,7 @@ export default function App() {
     {current === 'dashboard' && <>
       <Title eyebrow={`ISH KO‘RINISHI / ${monthName.toUpperCase()}`} title="Butun ishlab chiqarish. Bitta ekranda." description="Buyurtmalar, materiallar va pul bilan ayni damda nima bo‘lyapti." action={<button className="primary" onClick={() => show('order')}><Plus size={17} />Buyurtma qabul qilish</button>} />
       <div className="metrics"><Metric label="Ishdagi buyurtmalar" value={active.length} detail={`${state.orders.filter(o => o.status === 'draft').length} ishga tushishini kutmoqda`} icon={Factory} accent /><Metric label="Kassa va hisoblarda" value={money(cashBalance(state, 'cash') + cashBalance(state, 'bank'))} detail="Faqat haqiqiy pul harakati" icon={Wallet} /><Metric label="Mijozlar qarzi" value={money(customerDebt)} detail="Buyurtma va xizmatlar bo‘yicha yagona qarz" icon={ArrowUpRight} /><Metric label="E’tibor talab qiladi" value={low.length} detail={`${low.length} tanqislik`} icon={CircleAlert} /></div>
+      {admin && visibleIds.includes('advisor') && advice.length > 0 && <button type="button" className={adviceSummary.critical ? 'advisor-teaser' : 'advisor-teaser calm'} onClick={() => go('advisor')}><Lightbulb size={20} /><div><b>{adviceSummary.critical ? <>Tavsiyalar: {adviceSummary.critical} ta muhim holat</> : <>Tavsiyalar: {advice.length} ta</>}</b><small>{advice[0].title}</small></div><ArrowUpRight size={18} /></button>}
       <WidgetBoard state={state} chat={chat} onStage={stage => { setStatusFilter(stage); go('orders'); }} onGo={go} onOrder={id => setSelectedOrder(id)} onChat={openChat} />
       <Section title="Yagona bog‘langan hisob" hint="Har bir o‘tish jurnalda yozuv qoldiradi"><div className="workflow-note">{[{ icon: Users, title: 'Buyurtma va hisob-kitob', text: 'Bitta narx, bitta mijoz, bitta qarz' }, { icon: Package, title: 'Band qilish va materiallar', text: 'Avval mavjudlik, keyin ishga tushirish' }, { icon: Factory, title: 'Ish va qabul qilish', text: 'Qabul qilingan natija uchun hisob-kitob' }, { icon: Truck, title: 'Tayyorlik va yetkazib berish', text: 'Faqat tayyor miqdorni yuborish' }].map((step, i) => <div key={step.title}><span>{i + 1}</span><step.icon size={20} /><b>{step.title}</b><p>{step.text}</p></div>)}</div></Section>
     </>}
@@ -769,6 +787,8 @@ export default function App() {
       {admin && panel === 'oylik' && <SalaryPanel state={state} onPlan={id => show('salaryPlan', id)} onPay={id => show('salaryPay', id)} onDeduct={id => show('salaryDeduct', id)} onReverseDeduction={id => show('salaryDeductReverse', id)} />}
     </>}
 
+    {current === 'advisor' && admin && <AdvisorCenter state={state} marks={insightMarks} onMark={markInsight} onGo={go} onOrder={id => setSelectedOrder(id)}
+      onChat={async (orderId, text) => { await orderChatSend(actor, orderId, text); }} onNotice={(message, error) => setNotice({ message, error: Boolean(error) })} />}
     {current === 'logistics' && <>
       <Title eyebrow="LOGISTIKA / YUBORISH" title="Tayyor — yetkazilgan degani emas." description="Qismlarga bo‘lib yuboring, mas’ulni tayinlang va yetkazishni tasdiqlang." action={<button className="primary" onClick={() => show('shipment')}><Plus size={16} />Yuborish</button>} />
       <div className="metrics three"><Metric label="Yuborishga tayyor" value={state.orders.filter(o => o.kind !== 'series' && ['ready', 'shipped'].includes(o.status) && shippedQty(state, o.id) < o.qty).length} detail="Faqat qabul qilingan mahsulot va xizmatlar" icon={Package} /><Metric label="Yo‘lda" value={state.shipments.filter(s => s.status === 'shipped').length} detail="Yetkazish tasdiqlanishini kutmoqda" icon={Truck} accent /><Metric label="Yetkazilgan" value={state.shipments.filter(s => s.status === 'delivered').length} detail="Tushum yuborishda tan olinadi" icon={Check} /></div>

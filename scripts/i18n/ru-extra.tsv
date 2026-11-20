@@ -177,3 +177,114 @@ Bildirishnomalar serverda hali sozlanmagan.	Уведомления на серв
 Server kaliti hali tayyor emas — nazoratchi birinchi marta ishga tushgach (15 daqiqa ichida) qayta urinib ko‘ring.	Ключ сервера ещё не готов — повторите после первого запуска наблюдателя (в течение 15 минут).
 Bildirishnomalarga ruxsat berilmadi. Brauzer sozlamalarida sayt uchun ruxsatni yoqing.	Разрешение на уведомления не выдано. Включите его для сайта в настройках браузера.
 Qurilmani serverda saqlab bo‘lmadi. Qayta urinib ko‘ring.	Не удалось сохранить устройство на сервере. Попробуйте ещё раз.
+Muzlagan pul	Замороженные деньги
+Xavf ostida	Под риском
+Xarid summasi	Сумма закупки
+Navbatdagi buyurtmalar	Заказы в очереди
+Ortiqcha xarajat	Лишние расходы
+Undirish mumkin	Можно взыскать
+Kutilayotgan savdo	Ожидаемые продажи
+Harakatsiz zaxira: {0} ta pozitsiya	Неликвид на складе: {0} поз.
+{0} kundan ortiq sarf yo‘q va buyurtmalarga band qilinmagan. Jami {1} muzlab turibdi.	Нет расхода более {0} дн. и нет резерва под заказы. Всего заморожено {1}.
+{0}% chegirma bilan sotilsa {1} qaytadi. Yoki shu materialni joriy buyurtmalarda ishlating, yoki yetkazib beruvchiga qaytaring.	При продаже со скидкой {0}% вернётся {1}. Либо используйте этот материал в текущих заказах, либо верните поставщику.
+{0} {1} · {2} · {3} kun	{0} {1} · {2} · {3} дн.
+{0} yetishmaydi	Не хватает: {0}
+Sexdagi {0} ta buyurtmaga {1} yetishmaydi. Eng yaqin muddat: {2}.	Заказам в цехе ({0} шт) не хватает {1}. Ближайший срок: {2}.
+Bugun xarid qiling: taxminan {0}. Aks holda bu buyurtmalar to‘xtab qoladi.	Закупите сегодня: примерно {0}. Иначе эти заказы остановятся.
+{0} — zaxira {1} kunga yetadi	{0} — запаса хватит на {1} дн.
+Oxirgi 30 kunda kuniga o‘rtacha {0} sarflangan, bo‘sh qoldiq {1}.	За последние 30 дней расход в среднем {0} в день, свободный остаток {1}.
+{0} kunlik zaxira uchun {1} xarid qiling: taxminan {2}.	Для запаса на {0} дн. закупите {1}: примерно {2}.
+{0} — muddati {1} kun o‘tgan	{0} — срок прошёл {1} дн. назад
+Mijoz: {0}. To‘xtagan joyi: «{1}», {2}. Buyurtma summasi {3}.	Клиент: {0}. Где стоит: «{1}», {2}. Сумма заказа {3}.
+Mijoz: {0}. Barcha bosqichlar tugagan, yuborish qolgan. Buyurtma summasi {1}.	Клиент: {0}. Все этапы завершены, осталась отправка. Сумма заказа {1}.
+Bugun «{0}» bosqichini birinchi navbatga qo‘ying va mijozga yangi sanani ayting.	Сегодня поставьте этап «{0}» первым в очередь и сообщите клиенту новую дату.
+Bugun yuboring va mijozga xabar bering.	Отправьте сегодня и сообщите клиенту.
+{0} — muddatga ulgurmaslik xavfi	{0} — риск не успеть к сроку
+Muddatgacha {0} kun, qolgan ish taxminan {1} soat ({2} ta bosqich). Hozir: «{3}», {4}.	До срока {0} дн., осталось работы примерно {1} ч (этапов: {2}). Сейчас: «{3}», {4}.
+Muddatgacha {0} kun, {1} ta bosqich qolgan. Hozir: «{2}», {3}.	До срока {0} дн., осталось этапов: {1}. Сейчас: «{2}», {3}.
+Muddatgacha {0} kun, buyurtma hali sexga tushirilmagan ({1} ta bosqich).	До срока {0} дн., заказ ещё не запущен в цех (этапов: {1}).
+«{0}» bosqichini birinchi navbatga qo‘ying yoki ishni ikki kishiga bo‘ling.	Поставьте этап «{0}» первым в очередь или разделите работу на двоих.
+Bugun sexga tushiring yoki mijoz bilan muddatni qayta kelishing.	Запустите в цех сегодня или пересогласуйте срок с клиентом.
+«{0}» bosqichida navbat: {1} ta topshiriq	Очередь на этапе «{0}»: заданий — {1}
+Ijrochilar: {0}. Eng yaqin muddat: {1}.	Исполнители: {0}. Ближайший срок: {1}.
+Ijrochilar: {0}. Taxminan {1} soat ish. Eng yaqin muddat: {2}.	Исполнители: {0}. Примерно {1} ч работы. Ближайший срок: {2}.
+Shu bosqichga yordamchi qo‘ying yoki muddati yaqin buyurtmalarni oldinga o‘tkazing.	Поставьте на этот этап помощника или передвиньте вперёд заказы с ближайшим сроком.
+{0} ortiqcha yuklangan: {1} ta ochiq topshiriq	{0} перегружен: открытых заданий — {1}
+{0} bo‘sh va «{1}» ishini bajara oladi.	{0} свободен и допущен к работе «{1}».
+{0} ta topshiriqni {1}ga o‘tkazing.	Передайте заданий: {0} — сотруднику {1}.
+«{0}» ishini bajara oladigan bo‘sh xodim yo‘q.	Нет свободного сотрудника с допуском к работе «{0}».
+Sozlamalarda «{0}» operatsiyasiga yana bir xodimga ruxsat bering.	В настройках дайте допуск к операции «{0}» ещё одному сотруднику.
+{0}: qabul qilingan ish {1}% kamaydi	{0}: принятая работа упала на {1}%
+Oxirgi 14 kunda {0}, undan oldingi 14 kunda {1}.	За последние 14 дней {0}, за предыдущие 14 дней {1}.
+Sababini aniqlang: material kutilyaptimi, dastgoh nosozmi yoki topshiriq yetishmayaptimi.	Выясните причину: ждёт материал, неисправен станок или не хватает заданий.
+{0}: 30 kunda {1} marta brak	{0}: брак {1} раз за 30 дней
+Yo‘qotilgan material: {0}. Eng ko‘p sabab: {1}.	Потерянный материал: {0}. Чаще всего причина: {1}.
+Sababni ish joyida tekshiring; chizma va o‘lchovni ishni boshlashdan oldin nazorat qiling.	Проверьте причину на рабочем месте; контролируйте чертёж и размеры до начала работы.
+{0} — zarar bilan ketmoqda	{0} — идёт в убыток
+Narx {0}, xarajat {1}. Zarar: {2}.	Цена {0}, затраты {1}. Убыток: {2}.
+Narxni mijoz bilan qayta kelishing yoki ortiqcha xarajat sababini toping.	Пересогласуйте цену с клиентом или найдите причину лишних затрат.
+{0} — marja {1}%	{0} — маржа {1}%
+Narx {0}, xarajat {1}. Foyda atigi {2}.	Цена {0}, затраты {1}. Прибыль всего {2}.
+Keyingi shunday buyurtmada narxni kamida {0} qiling ({1}% marja).	В следующем таком заказе ставьте цену не ниже {0} (маржа {1}%).
+{0} — xarajat rejadan {1} oshdi	{0} — затраты превысили план на {1}
+Reja {0}, fakt {1}.	План {0}, факт {1}.
+Material sarfi va brakni tekshiring; narxni keyingi buyurtmalar uchun yangilang.	Проверьте расход материала и брак; обновите цену для следующих заказов.
+{0} narxi {1}% oshdi	{0}: цена выросла на {1}%
+Oldin {0}, hozir {1}.	Было {0}, стало {1}.
+Oldin {0}, hozir {1}. Qoralamadagi {2} ta buyurtma eski narxda hisoblangan: farq {3}.	Было {0}, стало {1}. Черновиков, посчитанных по старой цене: {2}; разница {3}.
+Shu material ishlatiladigan mahsulot va xizmatlar narxini qayta hisoblang.	Пересчитайте цены изделий и услуг, где используется этот материал.
+{0} — qarz {1}	{0} — долг {1}
+Eng eski qarz {0} kundan beri to‘lanmagan.	Самый старый долг не оплачен уже {0} дн.
+Qarz hujjatini yuboring va to‘lov sanasini kelishing; to‘lamaguncha yangi buyurtmani avans bilan oling.	Отправьте документ о долге и согласуйте дату оплаты; до оплаты новые заказы берите с авансом.
+{0} ta buyurtma ishga tushmagan	Не запущено заказов: {0}
+{0} kundan ortiq qoralamada turibdi. Jami summa: {1}.	В черновиках более {0} дн. Общая сумма: {1}.
+Mijozlar bilan bog‘laning: tasdiqlasa ishga tushiring, voz kechgan bo‘lsa bekor qiling.	Свяжитесь с клиентами: подтвердят — запускайте, отказались — отмените.
+{0} ta buyurtma tayyor, yuborilmagan	Готово и не отправлено заказов: {0}
+Yuborilsa {0} tushum tan olinadi; mijozlardan {1} olinadi.	При отправке признаётся выручка {0}; с клиентов поступит {1}.
+Bugun yetkazib berishni rejalang va mijozlarga xabar bering.	Запланируйте доставку на сегодня и сообщите клиентам.
+Kassada pul yetmaydi: {0} kam	В кассе не хватает денег: {0}
+Kassa va bankda {0}. Majburiyatlar: yetkazib beruvchilar {1}, ish haqi {2}, oylik xarajatlar {3}.	В кассе и банке {0}. Обязательства: поставщики {1}, зарплата {2}, ежемесячные расходы {3}.
+Mijozlardan {0} qarzni undiring va to‘lovlarni muddati bo‘yicha navbatga qo‘ying.	Взыщите с клиентов долг {0} и расставьте платежи по срокам.
+{0} kun harakatsiz	{0} дн. без движения
+ish ketmoqda	работа идёт
+ijrochi tayinlanmagan	исполнитель не назначен
+Zarar	Убыток
+Tavsiyalar	Советы
+Tavsiyalar markazi	Центр рекомендаций
+BOSHQARUV / TAVSIYALAR	УПРАВЛЕНИЕ / РЕКОМЕНДАЦИИ
+Bugun nimaga e’tibor berish kerak.	На что сегодня обратить внимание.
+Tizim hisobdagi yozuvlarni tekshiradi: muzlagan pul, kechikayotgan buyurtma, ortiqcha yuklangan xodim, qarzdor mijoz. Har bir raqam — yozuvlardan, taxmin emas.	Система проверяет записи учёта: замороженные деньги, опаздывающий заказ, перегруженный сотрудник, клиент-должник. Каждая цифра — из записей, не догадка.
+Muhim	Критично
+Daromad nuqtasi	Точка роста
+E’tibor	Внимание
+Xavf ostida:	Под риском:
+Ishga solish mumkin:	Можно пустить в дело:
+Shoshilinch holat yo‘q	Срочных ситуаций нет
+Hozircha imkoniyat topilmadi	Возможностей пока не найдено
+Kuzatib turish kerak	Нужно держать под наблюдением
+Bo‘lim bo‘yicha filtr	Фильтр по разделу
+Faol tavsiyalar	Активные рекомендации
+Yashirilganlar ·	Скрытые ·
+Yashirilgan tavsiyalar yo‘q	Скрытых рекомендаций нет
+Bu bo‘limda tavsiya yo‘q	В этом разделе рекомендаций нет
+Hozircha tavsiya yo‘q — hammasi rejada. Ma’lumot ko‘paygan sari tizim o‘zi xabar beradi.	Рекомендаций пока нет — всё по плану. По мере накопления данных система сообщит сама.
+Tafsilotlar ·	Подробности ·
+Buyurtmani ochish	Открыть заказ
+Bo‘limga o‘tish	Перейти в раздел
+Chatga yuborish	Отправить в чат
+Sotuv ro‘yxati	Список на распродажу
+Bajarilgan — qaytarish	Выполнено — вернуть
+Kechiktirilgan — qaytarish	Отложено — вернуть
+Keyinroq	Позже
+«Bajarildi» kartani 7 kunga, «Keyinroq» 2 kunga yashiradi. Muammo saqlanib qolsa, karta o‘zi qaytadi.	«Выполнено» скрывает карточку на 7 дней, «Позже» — на 2 дня. Если проблема останется, карточка вернётся сама.
+Tavsiya matni nusxalandi.	Текст рекомендации скопирован.
+Nusxalab bo‘lmadi. Matnni qo‘lda belgilang.	Не удалось скопировать. Выделите текст вручную.
+Buyurtma chatiga yuborildi — ijrochilar ko‘radi.	Отправлено в чат заказа — исполнители увидят.
+Chatga yuborib bo‘lmadi. Qayta urinib ko‘ring.	Не удалось отправить в чат. Попробуйте ещё раз.
+Miqdor	Количество
+Qiymat	Стоимость
+Chegirma bilan narx	Цена со скидкой
+Harakatsiz kun	Дней без движения
+Tavsiyalar:	Рекомендации:
+ta muhim holat	критичных
+ta	шт

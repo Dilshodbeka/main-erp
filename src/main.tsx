@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { installDiagnostics } from './diagnostics';
 import { setDateLocale } from './i18n';
-import { createTranslator, readLang, translateDocument } from './translate';
+import { createTranslator, readLang, setActiveTranslator, translateDocument } from './translate';
 import './styles.css';
 import './native.css';
 
@@ -18,6 +18,7 @@ async function applyLanguage(): Promise<void> {
     const dictionary = (await import('./locales/ru.json')).default as Record<string, string>;
     const translate = createTranslator(dictionary);
     setDateLocale('ru-RU');
+    setActiveTranslator(translate);
     translateDocument(document.body, translate);
     for (const name of ['confirm', 'alert'] as const) {
       const native = window[name].bind(window) as (message?: string) => unknown;

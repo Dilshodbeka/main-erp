@@ -123,3 +123,11 @@ export function translateDocument(root: HTMLElement, translate: (text: string) =
   observer.observe(root, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ATTRIBUTES });
   return () => observer.disconnect();
 }
+
+let active: ((text: string) => string | null) | null = null;
+export function setActiveTranslator(translate: ((text: string) => string | null) | null): void { active = translate; }
+
+/** For text the page translator cannot reach: the clipboard, chat messages, downloaded files. */
+export function tr(text: string): string {
+  return active?.(text) ?? text;
+}
