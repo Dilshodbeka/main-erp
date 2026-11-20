@@ -1,5 +1,24 @@
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+
+export function assertDeployableBuild(env: Record<string, string | undefined>, allowDemo: string | undefined) {
+  if (allowDemo === '1') return;
+  if (env.VITE_SUPABASE_URL && env.VITE_SUPABASE_ANON_KEY) return;
+  throw new Error(
+    'Bulut manzili topilmadi: .env.local ichida VITE_SUPABASE_URL va VITE_SUPABASE_ANON_KEY bo‘lishi kerak. ' +
+      'Namoyish yig‘masi tuzilmaydi (saytda demo rejim ochiladi). Faqat lokal demo uchun: ALLOW_DEMO_BUILD=1 npm run build.',
+  );
+}
+
+function cloudGate(): Plugin {
+  return {
+    name: 'erp-cloud-build-gate',
+    apply: 'build',
+    configResolved(config) {
+      assertDeployableBuild({ ...loadEnv(config.mode, config.envDir, 'VITE_'), ...process.env }, process.env.ALLOW_DEMO_BUILD);
+    },
+  };
+}
 
 function offlineShell(): Plugin {
   return {
@@ -38,7 +57,7 @@ function chunkOf(id: string): string | undefined {
 }
 
 export default defineConfig({
-  plugins: [react(), offlineShell()],
+  plugins: [react(), cloudGate(), offlineShell()],
   define: { __BUILD_ID__: JSON.stringify(new Date().toISOString()) },
   build: { rollupOptions: { output: { manualChunks: chunkOf } } },
   server: { port: 5173, strictPort: true },
