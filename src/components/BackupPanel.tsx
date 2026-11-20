@@ -142,7 +142,7 @@ export function BackupPanel({ state, cloud, onRestored }: { state: State; cloud:
   return <>
     <Section title="Bulut zaxira nusxasi" hint="Butun korxona fayli alohida yopiq saqlagichda turadi. Har kuni bitta nusxa: 30 kun davomida kunlik, keyin 12 oy davomida oyiga bittadan.">
       {!cloud
-        ? <div className="info-note"><ShieldCheck size={18} />Demo rejimda bulutga chiqilmaydi: ma’lumotlar faqat shu brauzerda. Umumiy baza ulangach, bu bo‘lim avtomatik kunlik nusxa, tekshiruv va qaytarishni ko‘rsatadi.</div>
+        ? <div className="info-note has-icon"><ShieldCheck size={18} />Demo rejimda bulutga chiqilmaydi: ma’lumotlar faqat shu brauzerda. Umumiy baza ulangach, bu bo‘lim avtomatik kunlik nusxa, tekshiruv va qaytarishni ko‘rsatadi.</div>
         : <>
           <div className={banner.tone === 'ok' ? 'info-note' : 'warning'}>
             {banner.tone === 'ok' ? <ShieldCheck size={18} /> : <ShieldAlert size={18} />}{banner.text}
@@ -156,7 +156,7 @@ export function BackupPanel({ state, cloud, onRestored }: { state: State; cloud:
           </div>
           {loading && <p className="subtle-note">Bulut nusxalari yuklanmoqda…</p>}
           {error && <div className="warning">{error}</div>}
-          {notice && <div className="info-note"><ShieldCheck size={18} />{notice}</div>}
+          {notice && <div className="info-note has-icon"><ShieldCheck size={18} />{notice}</div>}
           {!loading && status && !status.copies.length && <Empty text="Bulutda hali nusxa yo‘q. Yuqoridagi tugma bilan birinchi nusxani oling." />}
           {status && status.copies.length > 0 && <div className="table-scroll cardable"><table>
             <thead><tr><th>Sana</th><th className="right">Versiya</th><th className="right">Hajm</th><th className="right">Amallar</th></tr></thead>
@@ -185,7 +185,7 @@ export function BackupPanel({ state, cloud, onRestored }: { state: State; cloud:
             </td></tr> : null; })()}
             </tbody>
           </table></div>}
-          {preview && <div className="info-note">
+          {preview && <div className={preview.ok ? 'info-note has-icon' : 'warning has-icon'}>
             {preview.ok ? <ShieldCheck size={18} /> : <ShieldAlert size={18} />}
             {preview.ok
               ? <span>Sandbox tekshiruvi o‘tdi: {preview.rows.length} ta jadval, {preview.rows.reduce((sum, row) => sum + row.rows, 0)} ta satr qaytariladi ({preview.rows.map(row => `${row.table.replace('erp_', '')} ${row.rows}`).join(', ')}).</span>
@@ -201,7 +201,7 @@ export function BackupPanel({ state, cloud, onRestored }: { state: State; cloud:
         <small>Versiya {state.revision} · {snapshots.length} ta saqlangan nusxa</small>
       </div>
       {note && <p className="subtle-note">{note}</p>}
-      <div className="data-actions"><div className="info-note"><ShieldCheck size={17} />{cloud ? 'Bulut nusxasi yuqoridagi bo‘limda. Brauzerdagi nusxalar faqat shu qurilma uchun tezkor chora — telefon almashtirsangiz yo‘qoladi.' : 'Demo rejimda ma’lumotlar faqat shu brauzerda. Muhim ishni JSON faylga yuklab, xavfsiz joyda saqlang.'}</div></div>
+      <div className="data-actions"><div className="info-note has-icon"><ShieldCheck size={17} />{cloud ? 'Bulut nusxasi yuqoridagi bo‘limda. Brauzerdagi nusxalar faqat shu qurilma uchun tezkor chora — telefon almashtirsangiz yo‘qoladi.' : 'Demo rejimda ma’lumotlar faqat shu brauzerda. Muhim ishni JSON faylga yuklab, xavfsiz joyda saqlang.'}</div></div>
       <div className="table-scroll cardable"><table>
         <thead><tr><th>Sana</th><th className="right">Versiya</th><th className="right">Hajm</th><th /></tr></thead>
         <tbody>{snapshots.map(meta => <tr key={meta.key}>

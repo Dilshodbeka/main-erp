@@ -4,6 +4,7 @@ import { Dialog, Empty, Field, Section, money, num } from '../ui';
 import { operationUnits, unitLabel } from '../work-view';
 import { MAIN_WORKSHOP_ID } from '../workshop-default';
 import { activeWorkshops, workshopName } from '../workshop-view';
+import { operationGroups } from '../operation-groups';
 import type { Command, Machine, Operation, OperationUnit, State } from '../types';
 
 interface MachineDraft {
@@ -79,16 +80,19 @@ export function CatalogSettings({ state, busy, run, onAddEmployee, onEditEmploye
         <button className="text-button" onClick={() => setMachine(machineDraft(row))}><Pencil size={14} />Tahrirlash</button>
       </article>)}</div>
       {!state.machines.length && <Empty text="Mashina-soat normasi va tushum maqsadini hisobga olish uchun dastgoh qo‘shing." />}
-      <div className="operation-list">{state.operations.map((row, index) => <article key={row.id}>
-        <span>{String(index + 1).padStart(2, '0')}</span>
-        <div className="catalog-op">
-          <b>{row.name}</b>
-          <small>{unitLabel(row.unit)} · norma {num(row.standardMinutes)} daq. · {machineName(row.machineId)}{multiWorkshop ? ` · ${workshopName(state.workshops, row.workshopId)}` : ''} · ruxsat {row.employeeIds.length}</small>
-        </div>
-        <div className="catalog-price"><b>{money(row.salePrice)}</b><small>mijozga · tannarx {money(row.workerRate)}</small></div>
-        <span className={`task-status ${row.active ? 'completed' : 'rejected'}`}>{row.active ? 'Faol' : 'O‘chirilgan'}</span>
-        <button className="icon-button" aria-label={`Operatsiyani tahrirlash ${row.name}`} onClick={() => setOperation(operationDraft(row))}><Pencil size={16} /></button>
-      </article>)}</div>
+      <div className="operation-list">{operationGroups(state.operations, state.machines).map(group => <div className="operation-group" key={group.id}>
+        <div className="operation-group-head"><b>{group.label}</b><span>{group.operations.length} ta</span></div>
+        {group.operations.map((row, index) => <article key={row.id}>
+          <span>{String(index + 1).padStart(2, '0')}</span>
+          <div className="catalog-op">
+            <b>{row.name}</b>
+            <small>{unitLabel(row.unit)} · norma {num(row.standardMinutes)} daq. · {machineName(row.machineId)}{multiWorkshop ? ` · ${workshopName(state.workshops, row.workshopId)}` : ''} · ruxsat {row.employeeIds.length}</small>
+          </div>
+          <div className="catalog-price"><b>{money(row.salePrice)}</b><small>mijozga · tannarx {money(row.workerRate)}</small></div>
+          <span className={`task-status ${row.active ? 'completed' : 'rejected'}`}>{row.active ? 'Faol' : 'O‘chirilgan'}</span>
+          <button className="icon-button" aria-label={`Operatsiyani tahrirlash ${row.name}`} onClick={() => setOperation(operationDraft(row))}><Pencil size={16} /></button>
+        </article>)}
+      </div>)}</div>
       {!state.operations.length && <Empty text="Buyurtma marshrutlarini tuzish uchun kamida bitta operatsiya qo‘shing." />}
       <p className="panel-footnote">Ma’lumotnomani o‘zgartirish allaqachon yaratilgan buyurtmalardagi tannarxni va qabul qilingan natijalarni qayta yozmaydi.</p>
     </Section>

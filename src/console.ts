@@ -1,7 +1,7 @@
 import { cashBalance, payrollDebt, supplierDebt } from './domain';
 import { expenseLedger, expensesDebt } from './expenses';
 import { loanLedger, loansDebt, loansAvailable } from './loans';
-import { customerLedger } from './receivables';
+import { customerBalance } from './receivables';
 import { salaryLedger } from './salary';
 import type { State } from './types';
 
@@ -42,9 +42,9 @@ export function directorConsole(state: State, asOf?: string): ConsoleReport {
   const cash = round(cashBalance(state, 'cash'));
   const bank = round(cashBalance(state, 'bank'));
   const customers = round(state.customers.filter(row => row.kind !== 'shop')
-    .reduce((sum, row) => sum + customerLedger(state, row.id).debt, 0));
+    .reduce((sum, row) => sum + customerBalance(state, row.id).debt, 0));
   const shops = round(state.customers.filter(row => row.kind === 'shop')
-    .reduce((sum, row) => sum + customerLedger(state, row.id).debt, 0));
+    .reduce((sum, row) => sum + customerBalance(state, row.id).debt, 0));
   const payroll = round(state.employees.reduce((sum, row) => sum + payrollDebt(state, row.id), 0));
   const suppliers = round(state.suppliers.reduce((sum, row) => sum + Math.max(0, supplierDebt(state, row.id)), 0));
   const expenses = round(expensesDebt(state));
@@ -85,7 +85,7 @@ export function directorConsole(state: State, asOf?: string): ConsoleReport {
   }
   for (const row of state.customers) {
     if (!row.employeeId) continue;
-    const debt = round(customerLedger(state, row.id).debt);
+    const debt = round(customerBalance(state, row.id).debt);
     if (debt <= 0.005) continue;
     const owner = state.employees.find(entry => entry.id === row.employeeId);
     attention.push({
@@ -115,5 +115,5 @@ export function directorConsole(state: State, asOf?: string): ConsoleReport {
 export function workerCustomerDebt(state: State, employeeId: string): number {
   const customer = state.customers.find(row => row.employeeId === employeeId);
   if (!customer) return 0;
-  return round(customerLedger(state, customer.id).debt);
+  return round(customerBalance(state, customer.id).debt);
 }

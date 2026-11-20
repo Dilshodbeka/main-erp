@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ArrowUpRight, Banknote, MessageCircle, Package, ShoppingCart, Truck } from 'lucide-react';
 import { cashBalance, payrollDebt, reservedQty, stockQty, supplierDebt } from '../domain';
-import { customerLedger } from '../receivables';
+import { customerBalance } from '../receivables';
 import { Badge, date, money, num, statuses } from '../ui';
 import { ChatBadge } from './TelegramChat';
 import type { ChatOverview } from '../chat';
@@ -31,7 +31,7 @@ export function WidgetBoard({ state, chat, onStage, onGo, onOrder, onChat }: Wid
   const readyOrders = orders.filter(order => order.status === 'ready').length;
   const low = state.items.filter(item => !item.customerId && stockQty(state, item.id) - reservedQty(state, item.id) < item.minQty);
   const stockValue = state.items.filter(item => !item.customerId).reduce((sum, item) => sum + stockQty(state, item.id) * item.cost, 0);
-  const receivable = state.customers.reduce((sum, customer) => sum + customerLedger(state, customer.id).debt, 0);
+  const receivable = state.customers.reduce((sum, customer) => sum + customerBalance(state, customer.id).debt, 0);
   const payrollTotal = state.employees.reduce((sum, employee) => sum + payrollDebt(state, employee.id), 0);
   const supplierTotal = state.suppliers.reduce((sum, supplier) => sum + Math.max(0, supplierDebt(state, supplier.id)), 0);
   const unread = Object.entries(chat.unread)

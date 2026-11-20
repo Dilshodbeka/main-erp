@@ -205,7 +205,7 @@ const errorMessages: [RegExp, string][] = [
   [/report exceeds|remaining.*quantity/i, 'Miqdor bosqichning qabul qilinmagan qoldig‘idan oshadi.'],
   [/previous.*(route|stage)|task is not available/i, 'Avval materiallarni bering va oldingi bosqichni yakunlang.'],
   [/already (issued|reviewed|reversed|delivered|recorded)|all materials already issued/i, 'Bu amal allaqachon bajarilgan. Qayta o‘tkazish taqiqlangan.'],
-  [/reverse.*reversal|cannot reverse a reversal/i, 'Stornoni storno qilish mumkin emas. Asl yozuv allaqachon qoplangan.'],
+  [/reverse.*reversal|cannot reverse a reversal/i, 'Bekor qilingan yozuvni qayta bekor qilish mumkin emas. Asl yozuv allaqachon qoplangan.'],
   [/name already exists|duplicate.*name|unique.*name/i, 'Bu nomdagi yozuv allaqachon mavjud.'],
   [/ticket text is required/i, 'Murojaat matnini kiriting.'],
   [/ticket text is too long/i, 'Murojaat matni 2000 belgidan oshmasligi kerak.'],

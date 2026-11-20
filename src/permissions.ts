@@ -99,7 +99,7 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   'payments.customer': 'Mijoz to‘lovini qabul qilish',
   'cash.view': 'Kassani ko‘rish',
   'cash.post': 'Kassa operatsiyalari',
-  'cash.reverse': 'Kassa storno',
+  'cash.reverse': 'Kassa bekor qilish',
   'purchases.view': 'Xaridlarni ko‘rish',
   'purchases.create': 'Xarid yaratish',
   'purchases.receive': 'Xaridni qabul qilish',

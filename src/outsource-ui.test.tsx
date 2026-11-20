@@ -114,6 +114,33 @@ function renderStageActions(props: Partial<StageActionsProps> & { task: RouteLin
 
 const button = (html: string, label: string) => html.match(new RegExp(`<button[^>]*>${label}</button>`))![0];
 
+describe('route editor wording', () => {
+  it('keeps the per-unit price and sum, dropping the tannarx label', () => {
+    const state = createDemo(admin);
+    const html = editorHtml(state, state.orders[0].id);
+    expect(html).toContain('1 birlik');
+    expect(html).toContain('<small>summa</small>');
+    expect(html).not.toContain('tannarx ');
+  });
+});
+
+describe('markup and discount fields', () => {
+  it('splits markup and discount into separate mode-aware fields', () => {
+    const state = createDemo(admin);
+    const html = editorHtml(state, state.orders[0].id);
+    expect(html).toContain('aria-label="Natsenka miqdori"');
+    expect(html).toContain('aria-label="Natsenka turi"');
+    expect(html).toContain('aria-label="Chegirma miqdori"');
+    expect(html).toContain('aria-label="Chegirma turi"');
+    expect(html).toContain('value="percent"');
+    expect(html).toContain('value="sum"');
+    expect(html).toContain('>%</option>');
+    expect(html).toContain('>UZS</option>');
+    expect(html).toContain('Natsenka − chegirma');
+    expect(html).not.toContain('Natsenka / chegirma, UZS');
+  });
+});
+
 describe('outsourced stage actions', () => {
   it('offers acceptance before the stage is completed', () => {
     const state = createDemo(admin);

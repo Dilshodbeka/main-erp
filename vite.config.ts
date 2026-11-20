@@ -24,9 +24,23 @@ self.addEventListener('fetch', event => {
     },
   };
 }
+function chunkOf(id: string): string | undefined {
+  const path = id.split('\\').join('/');
+  if (!path.includes('/node_modules/')) {
+    if (path.includes('/src/components/')) return 'screens';
+    if (/(^|\/)src\/(App|main)\.tsx$/.test(path)) return 'app';
+    return path.includes('/src/') ? 'core' : undefined;
+  }
+  if (path.includes('/@supabase/')) return 'supabase';
+  if (path.includes('/react-dom/') || path.includes('/react/') || path.includes('/scheduler/')) return 'react';
+  if (path.includes('/lucide-react/')) return 'icons';
+  return 'vendor';
+}
+
 export default defineConfig({
   plugins: [react(), offlineShell()],
   define: { __BUILD_ID__: JSON.stringify(new Date().toISOString()) },
+  build: { rollupOptions: { output: { manualChunks: chunkOf } } },
   server: { port: 5173, strictPort: true },
   test: { exclude: ['**/node_modules/**', '**/dist/**', '**/.parked-*/**', '**/.superpowers/**'] },
 });

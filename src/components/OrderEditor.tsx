@@ -11,6 +11,7 @@ import {
   blankPosition,
   duplicatePosition,
   materialGroups,
+  netMarkup,
   orderTotals,
   positionIssue,
   positionLines,
@@ -18,6 +19,7 @@ import {
   positionsFromOrder,
   stageAmounts,
   stageNormEstimate,
+  type AdjustmentMode,
   type PositionDraft,
   type PositionMaterial,
   type PositionStage,
@@ -25,6 +27,7 @@ import {
 import type { CustomerDraft } from '../customers';
 import { CustomerPicker } from './CustomerPicker';
 import { MaterialPicker } from './MaterialPicker';
+import { OperationSelect } from './OperationSelect';
 import { WarehouseSelect, WarehouseTransfer } from './WarehousePicker';
 import { MAIN_WAREHOUSE_ID } from '../warehouse-default';
 import { AccountField, Badge, Dialog, Empty, Field, money, num, statuses } from '../ui';
@@ -32,6 +35,21 @@ import type { Command, Order, OrderLineKind, State } from '../types';
 
 const text = (form: FormData, name: string) => String(form.get(name) || '').trim();
 const number = (form: FormData, name: string) => Number(form.get(name) || 0);
+
+function AdjustmentField({ label, value, mode, onValue, onMode }: {
+  label: string; value: number; mode: AdjustmentMode;
+  onValue: (v: number) => void; onMode: (m: AdjustmentMode) => void;
+}) {
+  return <Field label={label}>
+    <div className="adjustment-row">
+      <input type="number" min="0" step="0.01" value={value} onChange={event => onValue(Number(event.target.value))} aria-label={`${label} miqdori`} />
+      <select value={mode} onChange={event => onMode(event.target.value as AdjustmentMode)} aria-label={`${label} turi`}>
+        <option value="percent">%</option>
+        <option value="sum">UZS</option>
+      </select>
+    </div>
+  </Field>;
+}
 
 export function OrderEditor({ state, order, close, save, busy, createCustomer, onGo }: {
   state: State;
@@ -47,13 +65,18 @@ export function OrderEditor({ state, order, close, save, busy, createCustomer, o
   const [activeIndex, setActiveIndex] = useState(0);
   const [customerId, setCustomerId] = useState(order?.customerId ?? state.customers[0]?.id ?? '');
   const [overhead, setOverhead] = useState(order?.overhead ?? 0);
-  const [markup, setMarkup] = useState(order?.markup ?? 0);
+  const [markupValue, setMarkupValue] = useState((order?.markup ?? 0) > 0 ? order!.markup! : 0);
+  const [markupMode, setMarkupMode] = useState<AdjustmentMode>('sum');
+  const [discountValue, setDiscountValue] = useState((order?.markup ?? 0) < 0 ? -(order!.markup!) : 0);
+  const [discountMode, setDiscountMode] = useState<AdjustmentMode>('sum');
   const [error, setError] = useState('');
   const lockedWarehouse = !!order?.materials.some(line => line.issuedQty > 0);
   const [warehouseId, setWarehouseId] = useState(order?.warehouseId ?? MAIN_WAREHOUSE_ID);
   const [transfer, setTransfer] = useState<ShortageRow | null>(null);
   const active = Math.min(activeIndex, positions.length - 1);
   const current = positions[active];
+  const positionsBase = positions.reduce((total, position) => total + positionTotal(position), 0);
+  const markup = netMarkup(positionsBase, markupValue, markupMode, discountValue, discountMode);
   const totals = orderTotals(state, positions, overhead, markup);
   const shortage = draftShortage(state, positions, order?.id ?? null, warehouseId);
   const kinds = new Set(positions.map(position => position.kind));
@@ -110,15 +133,16 @@ export function OrderEditor({ state, order, close, save, busy, createCustomer, o
         </div>
         <div className="form-grid">
           <Field label="Boshqa reja xarajatlari, UZS"><input type="number" min="0" step="0.01" value={overhead} onChange={event => setOverhead(Number(event.target.value))} /></Field>
-          <Field label="Natsenka / chegirma, UZS"><input type="number" step="0.01" value={markup} onChange={event => setMarkup(Number(event.target.value))} /></Field>
+          <AdjustmentField label="Natsenka" value={markupValue} mode={markupMode} onValue={setMarkupValue} onMode={setMarkupMode} />
+          <AdjustmentField label="Chegirma" value={discountValue} mode={discountMode} onValue={setDiscountValue} onMode={setDiscountMode} />
           {!editing && <><Field label="Hozirgi avans, UZS"><input name="advance" type="number" min="0" max={totals.price} step="0.01" defaultValue={0} required /></Field><AccountField /></>}
         </div>
-        <p className="subtle-note">Natsenka — pozitsiyalar summasiga qo‘shiladi, manfiy qiymat chegirma beradi. 0 qoldirsangiz narx pozitsiyalar bo‘yicha qoladi.</p>
+        <p className="subtle-note">Natsenka pozitsiyalar summasiga qo‘shiladi, chegirma ayiriladi — % yoki so‘m bilan kiriting.</p>
         {editing && <div className="info-note">Mahsulot miqdori va bosqich hajmlari alohida: qabul qilingan bosqichni kamaytirib, mahsulot miqdorini esa o‘zgartirsa bo‘ladi. Yuborilgan pozitsiya miqdori va bajarilgan bosqich hajmi pastga tushirilmaydi. Narxni pasaytirsangiz, ortiqcha to‘lov mijoz avansiga o‘tadi.</div>}
         <div className="estimate-bar">
           <div><small>Pozitsiyalar / birliklar</small><b>{positions.length} / {num(totals.qty)}</b></div>
           <div><small>Pozitsiyalar summasi</small><b>{money(totals.positions)}</b></div>
-          <div><small>Natsenka / chegirma</small><b className={totals.markup < 0 ? 'debt' : ''}>{money(totals.markup)}</b></div>
+          <div><small>Natsenka − chegirma</small><b className={totals.markup < 0 ? 'debt' : ''}>{money(totals.markup)}</b></div>
           <div><small>Buyurtma summasi</small><b>{money(totals.price)}</b></div>
           <div><small>Reja tannarxi</small><b>{money(totals.cost)}</b></div>
           <div><small>Reja marjasi</small><b className={totals.margin < 0 ? 'debt' : 'positive'}>{money(totals.margin)}</b></div>
@@ -153,8 +177,10 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
     return row ? <small className="shortage-chip">yetishmaydi {num(row.short)} {unitText(row.unit)}</small> : null;
   };
   const setMaterial = (index: number, changes: Partial<PositionMaterial>) => onChange({ materials: position.materials.map((row, i) => i === index ? { ...row, ...changes } : row) });
+  const multiWarehouse = state.warehouses.filter(row => row.active).length > 1;
+  const sourceWarehouse = multiWarehouse ? state.warehouses.find(row => row.id === warehouseId)?.name : null;
   const describeMaterial = (item: { id: string; unit: string; kind: string; customerId: string | null }) =>
-    `erkin ${num(stockQty(state, item.id, warehouseId) - reservedExcept(state, item.id, orderId, warehouseId))} ${item.unit}${item.kind === 'blank' ? ' · zagotovka' : ''}${item.customerId ? ' · mijozniki' : ''}`;
+    `erkin ${num(stockQty(state, item.id, warehouseId) - reservedExcept(state, item.id, orderId, warehouseId))} ${item.unit}${item.kind === 'blank' ? ' · zagotovka' : ''}${item.customerId ? ' · mijozniki' : ''}${sourceWarehouse ? ` · ${sourceWarehouse}` : ''}`;
   const setStage = (index: number, changes: Partial<PositionStage>) => onChange({ route: position.route.map((task, i) => i === index ? { ...task, ...changes } : task) });
   const moveStage = (index: number, offset: number) => {
     const next = [...position.route];
@@ -196,7 +222,7 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
     </div>)}
     {!position.materials.length && <p className="subtle-note">Ombor chiqimini talab qilmaydigan pozitsiya materialsiz ham bo‘lishi mumkin.</p>}
     <div className="form-section-title">
-      <div><h3>Ishlab chiqarish marshrut</h3><small>Har bosqichda hajm alohida. Narx — operatsiya (stanok) bahosi: summa = narx × miqdor. Bosqich tannarxi = tannarx × miqdor va buyurtma tannarxiga tushadi. Pudratchiga qat’iy summani shu yerda kiritasiz — u reja tannarxi va pudratchi qarziga tushadi.</small></div>
+      <div><h3>Ishlab chiqarish marshrut</h3><small>Har bosqichda hajm alohida. Narx — operatsiya (stanok) bahosi, 1 birlik uchun: summa = narx × miqdor. Pudratchiga qat’iy summani shu yerda kiritasiz.</small></div>
       <div className="button-group">
         {applicableTemplates(state, position.kind).length > 0 && <select aria-label="Shablon" value="" onChange={event => { if (event.target.value) applyShablon(event.target.value); }}><option value="">Shablon…</option>{applicableTemplates(state, position.kind).map(template => <option key={template.id} value={template.id}>{template.name}</option>)}</select>}
         <button type="button" className="secondary small" onClick={() => onChange({ route: [...position.route, { operationId: '', executorKind: 'employee', employeeId: state.employees[0]?.id || null, supplierId: null, rate: 0, supplierCost: 0, salePrice: 0, qty: position.qty, locked: false, completed: 0 }] })}><Plus size={14} />Bosqich</button>
@@ -206,15 +232,14 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
       const amounts = stageAmounts(task);
       return <div className={`editor-line route-editor${task.executorKind === 'supplier' ? ' supplier-stage' : ''}`} key={index}>
       <span className="route-index">{index + 1}</span>
-      <select aria-label={`Amal ${index + 1}`} required value={task.operationId} disabled={task.locked}
-        onChange={event => {
-          const operation = state.operations.find(op => op.id === event.target.value);
+      <OperationSelect ariaLabel={`Amal ${index + 1}`} value={task.operationId} disabled={task.locked} withPrice
+        operations={state.operations} machines={state.machines}
+        onChange={operationId => {
+          const operation = state.operations.find(op => op.id === operationId);
           setStage(index, task.executorKind === 'supplier'
-            ? { operationId: event.target.value, rate: 0, supplierCost: task.supplierCost ?? 0, salePrice: operation?.salePrice || 0 }
-            : { operationId: event.target.value, rate: operation?.workerRate || 0, salePrice: operation?.salePrice || 0 });
-        }}>
-        <option value="">Bosqichni tanlang</option>{state.operations.map(op => <option key={op.id} value={op.id}>{op.name}{` · ${money(op.salePrice)}`}</option>)}
-      </select>
+            ? { operationId, rate: 0, supplierCost: task.supplierCost ?? 0, salePrice: operation?.salePrice || 0 }
+            : { operationId, rate: operation?.workerRate || 0, salePrice: operation?.salePrice || 0 });
+        }} />
       <div className="route-executor">
         <select aria-label={`Ijrochi turi ${index + 1}`} value={task.executorKind}
           disabled={task.locked}
@@ -246,13 +271,13 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
               onChange={event => setStage(index, { supplierCost: Number(event.target.value) })} />
           </label>
         : <>
-          <span className="route-rate" title="Narx — operatsiya (stanok) bahosi, mijoz fakturasiga shu tushadi. Tannarx — bosqichning ish xarajati.">
+          <span className="route-rate" title="Operatsiya narxi — 1 birlik uchun, mijoz fakturasiga shu tushadi.">
             {money(task.salePrice ?? 0)}
-            <small>tannarx {money(task.rate)}{task.locked ? ` · bajarilgan ${num(task.completed)}` : ''}</small>
+            <small>1 birlik{task.locked ? ` · bajarilgan ${num(task.completed)}` : ''}</small>
           </span>
-          <b className="route-amount" title="Summa = operatsiya narxi × bosqich miqdori; ostida bosqich tannarxi">
+          <b className="route-amount" title="Summa = operatsiya narxi × bosqich miqdori">
             {money(amounts.price)}
-            <small>tannarx {money(amounts.worker)}</small>
+            <small>summa</small>
           </b>
         </>}
       {(() => {

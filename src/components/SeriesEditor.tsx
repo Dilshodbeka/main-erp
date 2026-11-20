@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { Dialog, Field, money, num } from '../ui';
+import { OperationSelect } from './OperationSelect';
 import { buildSeriesInput, type SeriesDraft } from '../recipes';
 import { dateOffset } from '../seed';
 import type { Command, State } from '../types';
@@ -125,10 +126,9 @@ export function SeriesEditor({ state, busy, close, save }: {
           const employees = state.employees.filter(employee => employee.active && (!operation || operation.employeeIds.includes(employee.id)));
           return <div className="editor-line route-editor" key={index}>
             <span className="route-index">{index + 1}</span>
-            <select aria-label={`Operatsiya ${index + 1}`} required value={line.operationId} onChange={event => pickOperation(index, event.target.value)}>
-              <option value="">Bosqichni tanlang</option>
-              {operations.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}
-            </select>
+            <OperationSelect ariaLabel={`Operatsiya ${index + 1}`} value={line.operationId}
+              operations={operations} machines={state.machines}
+              onChange={operationId => pickOperation(index, operationId)} />
             <select aria-label={`Ijrochi ${index + 1}`} required value={line.employeeId} onChange={event => setRoute(route.map((row, i) => i === index ? { ...row, employeeId: event.target.value } : row))}>
               <option value="">Ijrochi</option>
               {employees.map(employee => <option key={employee.id} value={employee.id}>{employee.name}</option>)}

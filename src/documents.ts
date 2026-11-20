@@ -1,8 +1,10 @@
 import { cashCategoryLabel, unitLabel } from './i18n';
-import { activeLines, lineMaterials, lineRoute, stagePlanCost } from './domain';
-import { customerLedger, orderLedger } from './receivables';
+import { activeLines } from './domain';
+import { customerBalance, orderBalance } from './receivables';
 import { shipmentTotals } from './sales';
+import { MAIN_WAREHOUSE_ID } from './warehouse-default';
 import type { Actor, CashEntry, OrderLine, Shipment, State } from './types';
+import type { CompanyProfile } from './company-profile';
 
 const round = (value: number): number => Math.sign(value) * Math.round((Math.abs(value) + Number.EPSILON) * 100) / 100;
 
@@ -26,21 +28,11 @@ export interface InvoicePosition {
   title: string; kind: OrderLine['kind']; qty: number; unitPrice: number; total: number;
 }
 
-export interface InvoiceCostRow {
-  position: string; material: number; labor: number; total: number; margin: number;
-}
-
-export interface InvoiceCost {
-  material: number; labor: number; overhead: number; total: number; margin: number;
-}
-
 export interface InvoiceModel {
-  number: string; date: string; customer: string; address: string;
+  number: string; date: string; customer: string; address: string; company: CompanyProfile;
   positions: InvoicePosition[];
   lines: InvoiceLine[]; subtotal: number; markup: number;
   total: number; paid: number; debt: number; vat: number | null;
-  costs: InvoiceCostRow[];
-  cost: InvoiceCost;
 }
 
 export interface CashReceiptModel {
@@ -53,6 +45,16 @@ export interface CashReceiptModel {
   amount: number;
   note: string;
   reversed: boolean;
+}
+
+export interface PurchaseReceiptLine {
+  name: string; unit: string; qty: number; received: number; remaining: number; price: number; total: number;
+}
+
+export interface PurchaseReceiptModel {
+  number: string; date: string; supplier: string; phone: string;
+  warehouse: string; orderNumber: string | null;
+  lines: PurchaseReceiptLine[]; receivedTotal: number; total: number;
 }
 
 export function routeSheet(state: State, orderId: string): RouteSheetModel {
@@ -86,57 +88,40 @@ export function routeSheet(state: State, orderId: string): RouteSheetModel {
   };
 }
 
-function orderInvoice(state: State, order: State['orders'][number]): InvoiceModel {
+function orderInvoice(state: State, order: State['orders'][number], company: CompanyProfile): InvoiceModel {
   const customer = state.customers.find(row => row.id === order.customerId);
   const positions: InvoicePosition[] = [];
-  const costs: InvoiceCostRow[] = [];
-  let materialTotal = 0;
-  let laborTotal = 0;
   for (const position of activeLines(order)) {
     positions.push({
       title: position.title, kind: position.kind, qty: round(position.qty),
       unitPrice: round(position.qty > 0 ? position.total / position.qty : position.total), total: round(position.total),
     });
-    const material = round(lineMaterials(order, position.id).reduce((sum, line) => {
-      const item = state.items.find(row => row.id === line.itemId);
-      return sum + (item?.customerId ? 0 : line.qty * line.estimatedCost);
-    }, 0));
-    const labor = round(lineRoute(order, position.id).reduce((sum, task) => sum + stagePlanCost(task), 0));
-    const total = round(material + labor);
-    costs.push({ position: position.title, material, labor, total, margin: round(position.total - total) });
-    materialTotal += material;
-    laborTotal += labor;
   }
   const subtotal = round(positions.reduce((sum, position) => sum + position.total, 0));
   const markup = round(order.markup ?? 0);
-  const overhead = round(order.overhead);
   const total = round(subtotal + markup);
-  const costTotal = round(materialTotal + laborTotal + overhead);
-  const ledger = orderLedger(state, order.id);
+  const row = orderBalance(state, order.id);
   return {
     number: order.number,
     date: order.createdAt,
     customer: customer?.name ?? 'Mijoz topilmadi',
     address: customer?.address ?? '',
+    company,
     positions,
     lines: [],
     subtotal,
     markup,
     total,
-    paid: ledger.paid,
-    debt: ledger.outstanding,
+    paid: row?.paid ?? 0,
+    debt: row?.outstanding ?? 0,
     vat: null,
-    costs,
-    cost: {
-      material: round(materialTotal), labor: round(laborTotal), overhead,
-      total: costTotal, margin: round(total - costTotal),
-    },
   };
 }
 
-function shipmentInvoice(state: State, shipment: Shipment): InvoiceModel {
+function shipmentInvoice(state: State, shipment: Shipment, company: CompanyProfile): InvoiceModel {
   const customer = state.customers.find(row => row.id === shipment.customerId);
-  const ledger = customerLedger(state, shipment.customerId).shipments.find(row => row.shipmentId === shipment.id);
+  const obligations = customerBalance(state, shipment.customerId).obligations;
+  const ledger = obligations.find(entry => entry.id === shipment.id) ?? (shipment.orderId ? obligations.find(entry => entry.orderId === shipment.orderId) : undefined);
   if (!ledger) throw new Error('Hujjat topilmadi');
   const lines: InvoiceLine[] = shipment.lines.map(line => ({
     group: 'other',
@@ -148,12 +133,12 @@ function shipmentInvoice(state: State, shipment: Shipment): InvoiceModel {
     total: round(line.qty * line.salePrice),
   }));
   const total = shipmentTotals(shipment).revenue;
-  const material = round(shipment.lines.reduce((sum, line) => sum + line.qty * line.unitCost, 0));
   return {
     number: `OMB-${shipment.id.replace(/-/g, '').slice(0, 8).toUpperCase()}`,
     date: shipment.createdAt,
     customer: customer?.name ?? 'Mijoz topilmadi',
     address: customer?.address ?? '',
+    company,
     positions: [],
     lines,
     subtotal: total,
@@ -162,21 +147,19 @@ function shipmentInvoice(state: State, shipment: Shipment): InvoiceModel {
     paid: ledger.paid,
     debt: ledger.outstanding,
     vat: null,
-    costs: [],
-    cost: { material, labor: 0, overhead: 0, total: material, margin: round(total - material) },
   };
 }
 
-export function invoice(state: State, sourceId: string, actor: Actor): InvoiceModel {
+export function invoice(state: State, sourceId: string, actor: Actor, company: CompanyProfile): InvoiceModel {
   if (actor.role !== 'admin') throw new Error('Hisob-faktura faqat egasiga ochiq');
   const order = state.orders.find(row => row.id === sourceId);
   if (order) {
     if (order.status === 'cancelled' || order.kind === 'series') throw new Error('Hujjat topilmadi');
-    return orderInvoice(state, order);
+    return orderInvoice(state, order, company);
   }
   const shipment = state.shipments.find(row => row.id === sourceId);
   if (!shipment || shipment.status === 'cancelled') throw new Error('Hujjat topilmadi');
-  return shipmentInvoice(state, shipment);
+  return shipmentInvoice(state, shipment, company);
 }
 
 function cashParty(state: State, entry: CashEntry): string {
@@ -203,5 +186,37 @@ export function cashReceipt(state: State, entryId: string): CashReceiptModel {
     amount: entry.amount,
     note: entry.note,
     reversed: entry.reversalOf !== null,
+  };
+}
+
+export function purchaseReceipt(state: State, purchaseId: string): PurchaseReceiptModel {
+  const purchase = state.purchases.find(row => row.id === purchaseId);
+  if (!purchase) throw new Error('Hujjat topilmadi');
+  const supplier = state.suppliers.find(row => row.id === purchase.supplierId);
+  const warehouse = state.warehouses.find(row => row.id === (purchase.warehouseId || MAIN_WAREHOUSE_ID));
+  const lines = purchase.lines.map(line => {
+    const item = state.items.find(row => row.id === line.itemId);
+    const price = round(line.price);
+    const received = round(line.received);
+    return {
+      name: item?.name ?? 'Material',
+      unit: item?.unit ?? 'dona',
+      qty: round(line.qty),
+      received,
+      remaining: round(line.qty - line.received),
+      price,
+      total: round(line.qty * line.price),
+    };
+  });
+  return {
+    number: purchase.number,
+    date: purchase.createdAt,
+    supplier: supplier?.name ?? 'Yetkazib beruvchi',
+    phone: supplier?.phone ?? '',
+    warehouse: warehouse?.name ?? 'Asosiy ombor',
+    orderNumber: purchase.orderId ? state.orders.find(row => row.id === purchase.orderId)?.number ?? null : null,
+    lines,
+    receivedTotal: round(lines.reduce((sum, line) => sum + line.received * line.price, 0)),
+    total: round(lines.reduce((sum, line) => sum + line.qty * line.price, 0)),
   };
 }

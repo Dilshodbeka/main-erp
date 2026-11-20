@@ -1,4 +1,4 @@
-import { actualCost, orderPaid, supplierDebt } from './domain';
+import { actualCost, orderDebt, orderPaid, supplierDebt } from './domain';
 import type { Order, State } from './types';
 
 const round = (value: number): number => Math.sign(value) * Math.round((Math.abs(value) + Number.EPSILON) * 100) / 100;
@@ -25,7 +25,7 @@ export function orderProfit(state: State, order: Order): OrderProfitRow {
     revenue, cost, overhead: round(order.overhead), profit,
     margin: revenue > 0 ? round(profit / revenue * 100) : 0,
     paid: orderPaid(state, order.id),
-    debt: order.status === 'cancelled' ? 0 : round(order.price - orderPaid(state, order.id)),
+    debt: orderDebt(state, order.id),
   };
 }
 

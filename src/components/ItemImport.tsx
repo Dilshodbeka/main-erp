@@ -128,7 +128,7 @@ export function ItemImport({ state, busy, close, save }: {
         {plan && <span className={`import-chip ${missingPhotos ? 'warn' : ''}`}>{missingPhotos ? `${missingPhotos} rasm topilmadi` : 'Rasmlar to‘liq'}</span>}
       </div>
 
-      {!plan && <div className="info-note"><FileSpreadsheet size={18} />Shablon ustunlari: {itemImportColumns.map(([label]) => label).join(', ')}. Faqat «Nomi» majburiy.</div>}
+      {!plan && <div className="info-note has-icon"><FileSpreadsheet size={18} />Shablon ustunlari: {itemImportColumns.map(([label]) => label).join(', ')}. Faqat «Nomi» majburiy.</div>}
 
       {plan && <>
         <div className="import-summary">

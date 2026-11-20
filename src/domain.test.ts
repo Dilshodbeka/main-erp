@@ -5,7 +5,7 @@ import {
   supplierDebt, supplierStageActual, supplierStagePlan, supplierStagePriced, taskState,
 } from './domain';
 import { DEMO_COMPANY_ID } from './migrations';
-import { customerLedger } from './receivables';
+import { customerBalance } from './receivables';
 import { expenseLedger } from './expenses';
 import { loanLedger } from './loans';
 import { salaryLedger } from './salary';
@@ -555,7 +555,7 @@ describe('integrated production and ledgers', () => {
     const orderId = state.orders[0].id;
     const [first, second] = state.orders[0].route;
     expect(estimatedCost(state, state.orders[0])).toBe(120);
-    expect(orderPaid(state, orderId)).toBe(100);
+    expect(customerBalance(state, f.customerId).advance).toBe(100);
     expect(availableTask(state, orderId, first.id)).toBe(false);
     state = run(state, { type: 'order.launch', orderId });
     expect(reservedQty(state, f.itemId)).toBe(10);
@@ -1239,11 +1239,11 @@ describe('cash, payable caps, transfers and reversals', () => {
     state = run(state, { type: 'order.cancel', orderId });
     expect(reservedQty(state, f.itemId)).toBe(0);
     expect(stockQty(state, f.itemId)).toBe(10);
-    expect(customerLedger(state, customerId).advance).toBe(100);
+    expect(customerBalance(state, customerId).advance).toBe(100);
     state = run(state, { type: 'cash.reverse', entryId: advance.id, note: 'Refund' });
     expect(state.cash[0]).toEqual(advance);
     expect(state.cash[1]).toMatchObject({ direction: 'out', source: 'sale', customerId });
-    expect(customerLedger(state, customerId).advance).toBe(0);
+    expect(customerBalance(state, customerId).advance).toBe(0);
     expect(cashBalance(state, 'cash')).toBe(0);
     atomic(state, { type: 'order.launch', orderId });
   });
@@ -1251,9 +1251,11 @@ describe('cash, payable caps, transfers and reversals', () => {
   it('caps order advances at the order price and keeps extra payments as customer advance', () => {
     const f = fixture();
     atomic(f.state, { type: 'order.create', input: { ...f.input, advance: 1000.01 } });
-    let state = run(f.state, { type: 'order.create', input: { ...f.input, advance: 250 } });
+    let state = receive(f.state, f.supplierId, f.itemId, 10, 5);
+    state = run(state, { type: 'order.create', input: { ...f.input, advance: 250 } });
     const orderId = state.orders[0].id;
     const customerId = state.orders[0].customerId;
+    state = run(state, { type: 'order.launch', orderId });
     state = run(state, { type: 'customer.pay', customerId, amount: 750, account: 'bank' });
     expect(orderPaid(state, orderId)).toBe(1000);
     expect(cashBalance(state, 'bank')).toBe(750);
@@ -1264,7 +1266,7 @@ describe('cash, payable caps, transfers and reversals', () => {
     expect(orderPaid(state, orderId)).toBe(1000);
     state = run(state, { type: 'customer.pay', customerId, amount: 50, account: 'bank' });
     expect(orderPaid(state, orderId)).toBe(1000);
-    expect(customerLedger(state, customerId).advance).toBe(1050);
+    expect(customerBalance(state, customerId).advance).toBe(50);
   });
 });
 
@@ -1730,6 +1732,28 @@ function completeLastTask(state: State, order: State['orders'][number]): State {
 }
 
 describe('series production and stock receipt', () => {
+  it('sums one material chosen for two recipe slots instead of rejecting it', () => {
+    let state = seriesCatalog();
+    state = run(state, { type: 'item.create', kind: 'blank', name: 'Dublex', unit: 'piece', minQty: 0, cost: 0, salePrice: 0, customerId: null });
+    const ldsp = itemId(state, 'LDSP');
+    state = run(state, {
+      type: 'recipe.create', outputItemId: itemId(state, 'Dublex'), name: 'Dublex',
+      components: [
+        { slot: 'Fasad', itemId: ldsp, allowedItemIds: [], qtyPerUnit: 1 },
+        { slot: 'Koprus', itemId: ldsp, allowedItemIds: [], qtyPerUnit: 2 },
+      ],
+    });
+    const recipe = state.recipes.find(row => row.outputItemId === itemId(state, 'Dublex'))!;
+    state = run(state, { type: 'series.create', input: {
+      outputItemId: recipe.outputItemId, recipeVersionId: recipe.versions[0].id, qty: 3,
+      dueDate: '2026-11-20', substitutions: {}, route: seriesRoute(state),
+    } });
+    const materials = state.orders.at(-1)!.materials;
+    expect(materials).toHaveLength(1);
+    expect(materials[0].itemId).toBe(ldsp);
+    expect(materials[0].qty).toBe(9);
+  });
+
   it('receives a blank and carries its cost into the finished product', () => {
     let state = blankSeriesReady();
     const blankOrder = state.orders[0];
@@ -2007,7 +2031,7 @@ describe('composite customer orders', () => {
     expect(order.kind).toBe('composite');
     expect(order.materials.map(line => line.lineId)).toEqual([order.lines[0].id, order.lines[1].id]);
     expect(order.route.map(task => task.lineId)).toEqual([order.lines[0].id, order.lines[1].id]);
-    expect(orderPaid(state, order.id)).toBe(100);
+    expect(customerBalance(state, f.customerId).advance).toBe(100);
   });
 
   it('issues materials for one position without touching the other', () => {
@@ -2043,7 +2067,7 @@ describe('composite customer orders', () => {
     expect(order.status).toBe('production');
     expect(state.shipments[0].lines).toHaveLength(1);
     expect(state.shipments[0].lines[0]).toMatchObject({ lineId: order.lines[0].id, qty: 2, salePrice: 1000 });
-    expect(customerLedger(state, c.customerId)).toMatchObject({ shipped: 2000, debt: 2000 });
+    expect(customerBalance(state, c.customerId)).toMatchObject({ contract: 2300, debt: 2300 });
     atomic(state, { type: 'shipment.create', orderId: c.orderId, lines: [{ lineId: order.lines[1].id, qty: 1 }], allowDebt: true, address: '', dueDate: '2026-11-05' });
   });
 
@@ -2063,7 +2087,7 @@ describe('composite customer orders', () => {
     }
     expect(state.orders[0].lines.map(line => line.status)).toEqual(['delivered', 'delivered']);
     expect(state.orders[0].status).toBe('delivered');
-    expect(customerLedger(state, c.customerId)).toMatchObject({ shipped: 2300, debt: 2300, advance: 0 });
+    expect(customerBalance(state, c.customerId)).toMatchObject({ contract: 2300, debt: 2300, advance: 0 });
   });
 
   it('accepts one position work while another position is still mid-route', () => {
@@ -2499,7 +2523,7 @@ describe('worker as customer', () => {
     state = run(state, { type: 'order.launch', orderId });
     state = report(state, orderId, state.orders[0].route[0].id, 10);
     state = run(state, ship(orderId, 1, true));
-    const debt = customerLedger(state, customerId).debt;
+    const debt = customerBalance(state, customerId).debt;
     const thisMonth = new Date().toISOString().slice(0, 7);
     state.salaryPlans.push({ id: crypto.randomUUID(), employeeId, amount: 2000, fromMonth: thisMonth, createdAt: `${thisMonth}-01T00:00:00.000Z` });
     const owed = payrollDebt(state, employeeId);
@@ -2535,7 +2559,7 @@ describe('worker as customer', () => {
 
   it('salary.deduct offsets both ledgers and enforces both caps', () => {
     const { state: initial, employeeId, customerId, debt, owed } = linkedWorker();
-    expect(debt).toBe(100);
+    expect(debt).toBe(1000);
     expect(owed).toBe(2000);
     const amount = Math.min(debt, owed, 500);
     const state = run(initial, { type: 'salary.deduct', employeeId, amount, note: 'Material uchun' });
@@ -2543,7 +2567,7 @@ describe('worker as customer', () => {
     expect(state.workerDeductions.find(row => row.id === deductionId)).toMatchObject({
       employeeId, customerId, amount, direction: 'deduct', reversalOf: null,
     });
-    expect(customerLedger(state, customerId).debt).toBe(debt - amount);
+    expect(customerBalance(state, customerId).debt).toBe(debt - amount);
     expect(payrollDebt(state, employeeId)).toBe(owed - amount);
     atomic(state, { type: 'salary.deduct', employeeId, amount: 0, note: '' });
     atomic(state, { type: 'salary.deduct', employeeId, amount: debt + 1, note: '' });
@@ -2565,7 +2589,7 @@ describe('worker as customer', () => {
     expect(state.workerDeductions.find(row => row.id === refundId)).toMatchObject({
       employeeId, customerId, amount, direction: 'refund', reversalOf: deductionId,
     });
-    expect(customerLedger(state, customerId).debt).toBe(debt);
+    expect(customerBalance(state, customerId).debt).toBe(debt);
     expect(payrollDebt(state, employeeId)).toBe(owed);
     atomic(state, { type: 'salary.deduct.reverse', deductionId });
     atomic(state, { type: 'salary.deduct.reverse', deductionId: 'missing' });
@@ -2583,7 +2607,7 @@ it('demo seed keeps the worker deduction within salary owed and customer debt', 
   const worker = state.employees.find(row => row.name === 'Yig‘uvchi')!;
   const customer = state.customers.find(row => row.employeeId === worker.id)!;
   const deduction = state.workerDeductions.find(row => row.employeeId === worker.id)!;
-  expect(customerLedger(state, customer.id).debt).toBeGreaterThanOrEqual(deduction.amount);
+  expect(customerBalance(state, customer.id).debt).toBeGreaterThanOrEqual(deduction.amount);
   expect(payrollDebt(state, worker.id)).toBeGreaterThanOrEqual(deduction.amount);
 });
 

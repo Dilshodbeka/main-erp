@@ -34,11 +34,11 @@ export function CustomerCard({ state, customerId, onOpenOrder, sellerName, onCla
   return <div className="form-body">
     <div className="settings-facts">
       <span>Buyurtmalar<b>{detail.stats.orders}</b></span>
-      <span>Shartnoma summasi<b>{money(detail.stats.revenue)}</b></span>
+      <span>Shartnoma summasi<b>{money(detail.balance.contract)}</b></span>
       <span>O‘rtacha chek<b>{money(detail.stats.average)}</b></span>
-      <span>To‘langan<b>{money(detail.stats.paid)}</b></span>
-      <span>Qarz<b>{money(detail.stats.debt)}</b></span>
-      <span>Avans<b>{money(detail.ledger.advance)}</b></span>
+      <span>To‘langan<b>{detail.balance.paid > 0 ? money(detail.balance.paid) : '—'}</b></span>
+      <span>Qarz<b className={detail.balance.debt > 0 ? 'debt' : undefined}>{detail.balance.debt > 0 ? money(detail.balance.debt) : '—'}</b></span>
+      <span>Avans<b>{detail.balance.advance > 0 ? money(detail.balance.advance) : '—'}</b></span>
       <span>Foyda<b>{money(detail.stats.profit)}</b></span>
       <span>Oxirgi buyurtma<b>{detail.stats.lastOrder ? dateTime(detail.stats.lastOrder) : '—'}</b></span>
     </div>
@@ -61,8 +61,8 @@ export function CustomerCard({ state, customerId, onOpenOrder, sellerName, onCla
           <td data-label="Holat"><Badge status={row.order.status} /></td>
           <td data-label="Sana / vaqt">{dateTime(row.date)}</td>
           <td data-label="Summa" className="right">{money(row.revenue)}</td>
-          <td data-label="To‘langan" className="right">{money(row.paid)}</td>
-          <td data-label="Qarz" className="right debt">{money(row.debt)}</td>
+          <td data-label="To‘langan" className="right">{row.paid > 0 ? money(row.paid) : '—'}</td>
+          <td data-label="Qarz" className={row.debt > 0 ? 'right debt' : 'right'}>{row.debt > 0 ? money(row.debt) : '—'}</td>
           <td data-label="Foyda" className={`right ${row.profit < 0 ? 'debt' : 'positive'}`}>{money(row.profit)}</td>
         </tr>)}</tbody>
       </table></div>
@@ -91,7 +91,7 @@ export function CustomerCard({ state, customerId, onOpenOrder, sellerName, onCla
         <tbody>{detail.shipments.map(shipment => <tr key={shipment.id}>
           <td data-label="Sana / vaqt">{dateTime(shipment.deliveredAt ?? shipment.createdAt)}</td>
           <td data-label="Manzil">{shipment.address || '—'}</td>
-          <td data-label="Holat">{shipment.status === 'delivered' ? 'Yetkazilgan' : shipment.status === 'cancelled' ? 'Storno' : 'Yo‘lda'}</td>
+          <td data-label="Holat">{shipment.status === 'delivered' ? 'Yetkazilgan' : shipment.status === 'cancelled' ? 'Bekor qilingan' : 'Yo‘lda'}</td>
           <td data-label="Summa" className="right">{money(shipmentTotals(shipment).revenue)}</td>
         </tr>)}</tbody>
       </table></div>

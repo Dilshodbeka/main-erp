@@ -1,4 +1,4 @@
-import { customerLedger } from './receivables';
+import { customerBalance } from './receivables';
 import { shipmentQty, shipmentTotals } from './sales';
 import type { Item, State } from './types';
 
@@ -88,7 +88,7 @@ export function periodReport(state: State, from: string, to: string): PeriodRepo
   const payrollPaid = round(cash.reduce((sum, row) => row.source === 'payroll'
     ? sum + (row.direction === 'out' ? row.amount : row.direction === 'in' ? -row.amount : 0) : sum, 0));
   const snapshot = snapshotAt(state, to);
-  const ledgers = snapshot.customers.map(customer => customerLedger(snapshot, customer.id));
+  const ledgers = snapshot.customers.map(customer => customerBalance(snapshot, customer.id));
   const debt = round(ledgers.reduce((sum, ledger) => sum + ledger.debt, 0));
   const advances = round(ledgers.reduce((sum, ledger) => sum + ledger.advance, 0));
   const totalRevenue = round(revenue);
@@ -124,7 +124,7 @@ export function shopReport(state: State, shopId: string, from: string, to: strin
     laborCost += totals.laborCost;
     if (shipment.status === 'delivered') deliveredQty += shipmentQty(shipment);
   }
-  const ledger = customerLedger(snapshotAt(state, to), shopId);
+  const ledger = customerBalance(snapshotAt(state, to), shopId);
   return {
     shopId, name: shop?.name ?? 'Do‘kon topilmadi',
     shipments: shipments.length, deliveredQty: roundQty(deliveredQty),

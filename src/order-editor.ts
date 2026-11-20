@@ -122,6 +122,18 @@ export function stageAmounts(stage: PositionStage): { price: number; worker: num
   return { price: round((stage.salePrice ?? 0) * stage.qty), worker: stage.executorKind === 'supplier' ? 0 : round(stage.rate * stage.qty) };
 }
 
+export type AdjustmentMode = 'percent' | 'sum';
+
+export function resolveAdjustment(value: number, mode: AdjustmentMode, base: number): number {
+  const safe = Number.isFinite(value) ? value : 0;
+  return mode === 'percent' ? round(base * safe / 100) : round(safe);
+}
+
+export function netMarkup(base: number, markupValue: number, markupMode: AdjustmentMode, discountValue: number, discountMode: AdjustmentMode): number {
+  return round(resolveAdjustment(markupValue, markupMode, base) - resolveAdjustment(discountValue, discountMode, base));
+}
+
+
 export function stageNormEstimate(state: State, stage: PositionStage): number | null {
   const operation = state.operations.find(row => row.id === stage.operationId);
   if (!operation || operation.unit !== 'squareMeter' || operation.norms.length === 0) return null;

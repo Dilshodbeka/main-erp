@@ -1,6 +1,6 @@
 import { stockQty } from './domain';
 import { customerAnalytics, orderProfit, type CustomerAnalyticsRow, type OrderProfitRow } from './history';
-import { customerLedger, type CustomerLedger } from './receivables';
+import { customerBalance, type CustomerBalance } from './receivables';
 import { shipmentTotals } from './sales';
 import type { CashEntry, Customer, Shipment, State, StockMovement, WorkerDeduction } from './types';
 import { MAIN_WAREHOUSE_ID } from './warehouse-default';
@@ -81,7 +81,7 @@ export interface ItemTurnoverRow {
   itemId: string; item: string; unit: string;
   inQty: number; outQty: number; inValue: number; outValue: number;
   purchasedQty: number; purchasedValue: number; issuedQty: number; issuedValue: number;
-  stock: number;
+  stock: number; unitPrice: number;
 }
 
 export function itemTurnover(state: State, warehouseId?: string): ItemTurnoverRow[] {
@@ -100,6 +100,7 @@ export function itemTurnover(state: State, warehouseId?: string): ItemTurnoverRo
       issuedQty: sum(row => row.direction === 'out' && ['order', 'production'].includes(row.source)),
       issuedValue: value(row => row.direction === 'out' && ['order', 'production'].includes(row.source)),
       stock: stockQty(state, item.id, warehouseId),
+      unitPrice: item.lastPurchasePrice,
     };
   });
 }
@@ -173,7 +174,7 @@ export function salesByPeriod(state: State, kind: PeriodKind): SalesPeriodRow[] 
 
 export interface CustomerDetail {
   customer: Customer; stats: CustomerAnalyticsRow; orders: OrderProfitRow[];
-  payments: CashEntry[]; shipments: Shipment[]; ledger: CustomerLedger;
+  payments: CashEntry[]; shipments: Shipment[]; balance: CustomerBalance;
   deductions: WorkerDeduction[];
 }
 
@@ -191,5 +192,5 @@ export function customerDetail(state: State, customerId: string): CustomerDetail
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   const deductions = state.workerDeductions.filter(row => row.customerId === customerId)
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-  return { customer, stats, orders, payments, shipments, ledger: customerLedger(state, customerId), deductions };
+  return { customer, stats, orders, payments, shipments, balance: customerBalance(state, customerId), deductions };
 }

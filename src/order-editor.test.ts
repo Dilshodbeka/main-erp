@@ -9,12 +9,14 @@ import {
   duplicatePosition,
   groupItems,
   materialGroups,
+  netMarkup,
   orderTotals,
   positionCost,
   positionIssue,
   positionLines,
   positionTotal,
   positionsFromOrder,
+  resolveAdjustment,
   searchMaterialGroups,
   stageAmounts,
   stageNormEstimate,
@@ -493,5 +495,25 @@ describe('route templates in the editor', () => {
     state = run(state, { type: 'routeTemplate.create', name: 'None', kind: 'product', stages: [{ operationId: opId }] });
     const [stage] = applyTemplate(state, state.routeTemplates[0], 3);
     expect(stage.employeeId).toBeNull();
+  });
+});
+
+describe('markup and discount resolution', () => {
+  it('resolves a sum as money and a percent against the base', () => {
+    expect(resolveAdjustment(200, 'sum', 1000)).toBe(200);
+    expect(resolveAdjustment(10, 'percent', 1000)).toBe(100);
+    expect(resolveAdjustment(0, 'percent', 1000)).toBe(0);
+  });
+
+  it('guards a cleared input (NaN) to zero', () => {
+    expect(resolveAdjustment(Number.NaN, 'sum', 1000)).toBe(0);
+    expect(resolveAdjustment(Number.NaN, 'percent', 1000)).toBe(0);
+  });
+
+  it('nets markup minus discount across mixed modes', () => {
+    expect(netMarkup(1000, 100, 'sum', 50, 'sum')).toBe(50);
+    expect(netMarkup(1000, 10, 'percent', 0, 'sum')).toBe(100);
+    expect(netMarkup(1000, 0, 'sum', 20, 'percent')).toBe(-200);
+    expect(netMarkup(1000, 15, 'percent', 10, 'percent')).toBe(50);
   });
 });

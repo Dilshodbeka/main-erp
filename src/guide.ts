@@ -175,13 +175,13 @@ export function pageGuide(state: State, page: string, actor: Actor): PageGuide {
     },
     cash: {
       page: 'cash', title: titles.cash,
-      purpose: 'Kassa va bank harakati tarixni saqlagan holda yuritiladi. Har bir yozuvni storno bilan tuzatish mumkin.',
+      purpose: 'Kassa va bank harakati tarixni saqlagan holda yuritiladi. Har bir yozuvni bekor qilish bilan tuzatish mumkin.',
       steps: build([
         { id: 'opening', title: 'Boshlang‘ich qoldiqni kiriting', detail: 'Naqd va bankdagi haqiqiy pul «Provodka» orqali kiritiladi.', done: manualIn.some(entry => entry.category === 'Boshlang‘ich qoldiq'), action: { kind: 'modal', modal: 'cash', label: 'Qoldiq kiritish' } },
         { id: 'expenses', title: 'Xarajatlarni kiriting', detail: 'Ijara, kommunal, transport va boshqa xarajatlar alohida provodka bo‘ladi.', done: manualOut.length > 0, action: { kind: 'modal', modal: 'cash', label: 'Chiqim kiritish' } },
         { id: 'sales', title: 'Mijoz to‘lovlarini CRM orqali qabul qiling', detail: 'Buyurtma kartasidagi to‘lov kassaga tushadi va qarzni yopadi.', done: sales.length > 0, action: { kind: 'page', page: 'orders', label: 'Buyurtmalarga o‘tish' } },
       ]),
-      outcome: 'Har bir yozuv storno bilan tuzatiladi. «Hisobotlar» tugmasida mijozlar, ta’minotchilar, buyurtmalar va kassa bo‘yicha davr hisoboti bor.',
+      outcome: 'Har bir yozuv bekor qilish bilan tuzatiladi. «Hisobotlar» tugmasida mijozlar, ta’minotchilar, buyurtmalar va kassa bo‘yicha davr hisoboti bor.',
     },
     analytics: {
       page: 'analytics', title: titles.analytics,

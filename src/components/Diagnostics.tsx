@@ -38,7 +38,7 @@ export function DiagnosticsPanel({ state, actor, mode, build, sync, onExported }
       <span>Muammoli tekshiruvlar<b className={failed.length ? 'debt' : 'positive'}>{failed.length}</b></span>
       <span>Rejim<b>{mode === 'cloud' ? 'Umumiy baza' : 'Lokal demo'}</b></span>
     </div>
-    {due && <div className="warning"><CircleAlert size={18} />Haftalik hisobot vaqti keldi: yuklab oling va mutaxassisga yuboring.</div>}
+    {due && <div className="warning has-icon"><CircleAlert size={18} />Haftalik hisobot vaqti keldi: yuklab oling va mutaxassisga yuboring.</div>}
     <div className="data-actions">
       <button className="secondary" onClick={download}><Download size={16} />Diagnostika hisobotini yuklab olish</button>
       <button className="text-button danger-text" onClick={clear} disabled={!entries.length}>Xatolarni tozalash</button>

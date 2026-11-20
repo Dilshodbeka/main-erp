@@ -76,6 +76,12 @@ describe('itemTurnover', () => {
       issuedQty: 4, issuedValue: 400, stock: 7,
     });
   });
+
+  it('carries the last purchase price as the per-unit price', () => {
+    const state = fixture();
+    state.items[0].lastPurchasePrice = 250;
+    expect(itemTurnover(state)[0].unitPrice).toBe(250);
+  });
 });
 
 describe('склад в аналитике', () => {
@@ -157,7 +163,7 @@ describe('customerDetail', () => {
     expect(detail.orders[0].revenue).toBe(1000);
     expect(detail.payments).toHaveLength(1);
     expect(detail.stats.paid).toBe(500);
-    expect(detail.ledger.customerId).toBe('c1');
+    expect(detail.balance.customerId).toBe('c1');
   });
 
   it('fails clearly for an unknown customer', () => {

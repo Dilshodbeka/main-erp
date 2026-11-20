@@ -70,7 +70,7 @@ export default function SalaryPanel({ state, onPay, onPlan, onDeduct, onReverseD
     <Title eyebrow="HR / OYLIK VA QARZLAR" title="Har bir oy alohida ko‘rinadi." description="Oylik, avans va qoldiq — xodimning kassa bilan hisob-kitobi. Faqat belgilangan oylik hisoblanadi; ish hajmi oylikka qo‘shilmaydi." />
     <div className="metrics">
       <Metric label="Oylik hisoblangan" value={money(totals.planned)} detail="Faqat tasdiqlangan oyliklar" icon={Wallet} />
-      <Metric label="To‘langan" value={money(totals.paid)} detail="Naqd va bank, stornolar chegirilgan" icon={Wallet} />
+      <Metric label="To‘langan" value={money(totals.paid)} detail="Naqd va bank, bekor yozuvlar chegirilgan" icon={Wallet} />
       <Metric label="Qoldiq" value={money(totals.owed)} detail="Kompaniya xodimga qarzdor" icon={CircleAlert} accent />
       <Metric label="Oldindan berilgan" value={money(totals.prepaid)} detail="Ochiq majburiyatlardan ortiqcha to‘lov" icon={Wallet} />
     </div>
@@ -120,7 +120,7 @@ export default function SalaryPanel({ state, onPay, onPlan, onDeduct, onReverseD
               <td data-label="Kategoriya">Oylikdan ushlab qolindi</td>
               <td data-label="Izoh">{row.note || '—'}</td>
               <td data-label="Summa" className="right">{money(row.amount)}</td>
-              <td data-label="Amallar"><button className="secondary small" onClick={() => onReverseDeduction(row.id)}>Storno</button></td>
+              <td data-label="Amallar"><button className="secondary small" onClick={() => onReverseDeduction(row.id)}>Bekor qilish</button></td>
             </tr>)}{!payments.length && !deductions.length && <tr><td data-label="Xabar" colSpan={5}>Bu oy uchun to‘lov yozuvi yo‘q</td></tr>}</tbody>
           </table></div>
         </Section>;

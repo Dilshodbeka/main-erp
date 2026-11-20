@@ -121,7 +121,7 @@ export function AccessPanel({ cloud, employees, workshops }: { cloud: boolean; e
   return <Section title="Kirish huquqlari" hint="Xodim va TV hisobini yarating, parolni almashtiring yoki kirishni o‘chiring. Egasi hisobi o‘zgarmaydi."
     action={cloud ? <button type="button" className="secondary small" disabled={loading} onClick={() => void load()}><RefreshCw size={14} />Yangilash</button> : undefined}>
     {!cloud
-      ? <div className="info-note"><ShieldCheck size={18} />Demo rejimda hisoblar yaratilmaydi. Umumiy bazaga ulangach, bu yerda xodim va TV uchun email-parol yaratiladi, parol almashtiriladi va kirish o‘chiriladi.</div>
+      ? <div className="info-note has-icon"><ShieldCheck size={18} />Demo rejimda hisoblar yaratilmaydi. Umumiy bazaga ulangach, bu yerda xodim va TV uchun email-parol yaratiladi, parol almashtiriladi va kirish o‘chiriladi.</div>
       : <>
         {loading && <p className="subtle-note access-note">Ro‘yxat yuklanmoqda…</p>}
         {error && <div className="warning access-note">{error}</div>}
@@ -203,7 +203,7 @@ export function AccessPanel({ cloud, employees, workshops }: { cloud: boolean; e
           </div>}
           {draft.role === 'worker' && !available.length && <p className="subtle-note">Barcha faol xodimlar allaqachon bog‘langan. Avval «Xodimlar» bo‘limida yangi xodim qo‘shing.</p>}
           {formError && <div className="warning">{formError}</div>}
-          {notice && <div className="info-note"><ShieldCheck size={18} />{notice}</div>}
+          {notice && <div className="info-note has-icon"><ShieldCheck size={18} />{notice}</div>}
           <div className="access-create-actions"><button type="button" className="primary" disabled={!!busy} onClick={() => void submit()}><Plus size={15} />{busy === 'create' ? 'Yaratilmoqda…' : 'Hisob yaratish'}</button></div>
         </div>
       </>}

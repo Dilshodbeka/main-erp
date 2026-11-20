@@ -1,12 +1,12 @@
 import { Fragment } from 'react';
 import { Printer } from 'lucide-react';
 import { date, money, num } from '../ui';
-import type { CashReceiptModel, InvoiceModel, RouteSheetModel } from '../documents';
+import type { CashReceiptModel, InvoiceModel, PurchaseReceiptModel, RouteSheetModel } from '../documents';
 
-export type PrintModel = { type: 'route'; data: RouteSheetModel } | { type: 'invoice'; data: InvoiceModel } | { type: 'cash'; data: CashReceiptModel };
+export type PrintModel = { type: 'route'; data: RouteSheetModel } | { type: 'invoice'; data: InvoiceModel } | { type: 'cash'; data: CashReceiptModel } | { type: 'receipt'; data: PurchaseReceiptModel };
 
 export function PrintDocument({ model, close }: { model: PrintModel; close: () => void }) {
-  const title = model.type === 'route' ? 'Marshrut varaqasi' : model.type === 'invoice' ? 'Hisob-faktura' : 'Kassa orderi';
+  const title = model.type === 'route' ? 'Marshrut varaqasi' : model.type === 'invoice' ? 'Hisob-faktura' : model.type === 'cash' ? 'Kassa orderi' : 'Qabul varaqasi';
   return <div className="modal-backdrop print-overlay">
     <div className="dialog wide print-dialog" role="dialog" aria-label={title}>
       <header className="no-print">
@@ -16,7 +16,7 @@ export function PrintDocument({ model, close }: { model: PrintModel; close: () =
           <button className="primary" onClick={() => window.print()}><Printer size={16} />Chop etish</button>
         </div>
       </header>
-      <div className="print-root">{model.type === 'route' ? <RouteSheet data={model.data} /> : model.type === 'invoice' ? <Invoice data={model.data} /> : <CashReceipt data={model.data} />}</div>
+      <div className="print-root">{model.type === 'route' ? <RouteSheet data={model.data} /> : model.type === 'invoice' ? <Invoice data={model.data} /> : model.type === 'cash' ? <CashReceipt data={model.data} /> : <PurchaseReceipt data={model.data} />}</div>
     </div>
   </div>;
 }
@@ -68,7 +68,8 @@ function Invoice({ data }: { data: InvoiceModel }) {
       <div><h1>HISOB-FAKTURA</h1></div>
       <div className="print-head-right"><b>{data.number}</b><span>Sana: {date(data.date)}</span></div>
     </header>
-    <div className="print-parties single">
+    <div className={data.company.name ? 'print-parties' : 'print-parties single'}>
+      {!!data.company.name && <div><small>Sotuvchi</small><b>{data.company.name}</b>{!!data.company.phone && <span>{data.company.phone}</span>}</div>}
       <div><small>Xaridor</small><b>{data.customer}</b><span>{data.address || 'Manzil ko‘rsatilmagan'}</span></div>
     </div>
     {!!data.positions.length && <section className="print-section">
@@ -91,27 +92,6 @@ function Invoice({ data }: { data: InvoiceModel }) {
         </tr>)}</tbody>
       </table>
     </section>}
-    {(data.costs.length > 0 || data.cost.total > 0) && <section className="print-section">
-      <h2>Tannarx (ichki hisob)</h2>
-      <table className="print-table">
-        <thead><tr><th>Pozitsiya</th><th className="right">Material</th><th className="right">Bosqich tannarxi</th><th className="right">Tannarx</th><th className="right">Marja</th></tr></thead>
-        <tbody>
-          {data.costs.map((row, index) => <tr key={`${row.position}:${index}`}>
-            <td>{row.position}</td><td className="right">{money(row.material)}</td><td className="right">{money(row.labor)}</td>
-            <td className="right">{money(row.total)}</td><td className="right">{money(row.margin)}</td>
-          </tr>)}
-          {data.cost.overhead > 0 && <tr>
-            <td>Boshqa xarajatlar</td><td className="right">—</td><td className="right">—</td>
-            <td className="right">{money(data.cost.overhead)}</td><td className="right">—</td>
-          </tr>}
-          <tr className="print-group">
-            <td>Jami tannarx</td><td className="right">{money(data.cost.material)}</td><td className="right">{money(data.cost.labor)}</td>
-            <td className="right">{money(data.cost.total)}</td><td className="right">{money(data.cost.margin)}</td>
-          </tr>
-        </tbody>
-      </table>
-      <p className="print-note">Tannarx mijoz summasiga qo‘shilmaydi — bu ichki hisob.</p>
-    </section>}
     <div className="print-totals">
       {Math.abs(data.markup) >= 0.005 && <span>Pozitsiyalar<b>{money(data.subtotal)}</b></span>}
       {data.markup > 0 && <span>Natsenka<b>{money(data.markup)}</b></span>}
@@ -121,6 +101,40 @@ function Invoice({ data }: { data: InvoiceModel }) {
       <span className="print-debt">Qarz<b>{money(data.debt)}</b></span>
       {data.vat !== null && <span>QQS<b>{money(data.vat)}</b></span>}
     </div>
+  </article>;
+}
+
+function PurchaseReceipt({ data }: { data: PurchaseReceiptModel }) {
+  return <article className="print-page purchase-receipt">
+    <header className="print-head">
+      <div><small>ALIYA ERP · SKLAD</small><h1>QABUL VARAQASI</h1></div>
+      <div className="print-head-right"><b>{data.number}</b><span>Sana: {date(data.date)}</span></div>
+    </header>
+    <div className="print-meta">
+      <div><small>Yetkazib beruvchi</small><b>{data.supplier}</b><span>{data.phone || 'Telefon ko‘rsatilmagan'}</span></div>
+      <div><small>Ombor</small><b>{data.warehouse}</b></div>
+      <div><small>Buyurtma</small><b>{data.orderNumber ?? '—'}</b></div>
+    </div>
+    <section className="print-section">
+      <h2>Materiallar</h2>
+      <table className="print-table">
+        <thead><tr><th>№</th><th>Material</th><th>Birlik</th><th className="right">Buyurilgan</th><th className="right">Qabul qilingan</th><th className="right">Qolgan</th><th className="right">Narx</th><th className="right">Summa</th></tr></thead>
+        <tbody>{data.lines.map((line, index) => <tr key={`${line.name}:${index}`}>
+          <td>{index + 1}</td><td>{line.name}</td><td>{line.unit}</td>
+          <td className="right">{num(line.qty)}</td><td className="right">{num(line.received)}</td><td className="right">{num(line.remaining)}</td>
+          <td className="right">{money(line.price)}</td><td className="right">{money(line.total)}</td>
+        </tr>)}</tbody>
+      </table>
+    </section>
+    <div className="print-totals">
+      <span>Qabul qilingan summa<b>{money(data.receivedTotal)}</b></span>
+      <span>Xarid summasi<b>{money(data.total)}</b></span>
+    </div>
+    <footer className="print-signatures">
+      <div><span>Yetkazib berdi</span><i /></div>
+      <div><span>Omborda qabul qilindi</span><i /></div>
+      <div><span>Hisobchi tekshirdi</span><i /></div>
+    </footer>
   </article>;
 }
 
@@ -138,7 +152,7 @@ function CashReceipt({ data }: { data: CashReceiptModel }) {
       <div><small>Summa</small><b>{money(data.amount)}</b></div>
     </div>
     {data.note && <p className="print-note">{data.note}</p>}
-    {data.reversed && <p className="print-note">Storno yozuvi — asl hujjatni bekor qiladi.</p>}
+    {data.reversed && <p className="print-note">Bekor yozuvi — asl hujjatni bekor qiladi.</p>}
     <footer className="print-signatures">
       <div><span>Bosh buxgalter</span><i /></div>
       <div><span>Kassir</span><i /></div>

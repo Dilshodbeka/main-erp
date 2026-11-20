@@ -1,5 +1,5 @@
-import { acceptedOutsourceCost, orderPaid, supplierDebt } from './domain';
-import { customerLedger } from './receivables';
+import { acceptedOutsourceCost, orderDebt, orderPaid, supplierDebt } from './domain';
+import { customerBalance } from './receivables';
 import { withinPeriod } from './reports';
 import { shipmentTotals } from './sales';
 import type { Account, CashEntry, CashSource, CustomerKind, Order, State } from './types';
@@ -64,7 +64,7 @@ export function customerStatements(state: State, from: string, to: string): Cust
       };
     }).sort(byDateDesc);
     const payments = paymentRows(state, match, true, from, to);
-    const ledger = customerLedger(state, customer.id);
+    const ledger = customerBalance(state, customer.id);
     return {
       customerId: customer.id, name: customer.name, kind: customer.kind, employeeId: customer.employeeId,
       orders: state.orders.filter(order => order.customerId === customer.id && order.kind !== 'series' && withinPeriod(order.createdAt, from, to)).length,
@@ -130,7 +130,7 @@ export function orderStatements(state: State, from: string, to: string): OrderSt
         orderId: order.id, number: order.number, title: order.title,
         customer: state.customers.find(customer => customer.id === order.customerId)?.name ?? 'Mijoz topilmadi',
         kind: order.kind, createdAt: order.createdAt, status: order.status,
-        qty: round(order.qty), price: round(order.price), paid, debt: round(order.price - paid),
+        qty: round(order.qty), price: round(order.price), paid, debt: orderDebt(state, order.id),
       };
     })
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt) || right.number.localeCompare(left.number));

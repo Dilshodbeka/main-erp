@@ -1,6 +1,6 @@
 import { CircleAlert, Clock, Package, TrendingUp, Wallet, Truck } from 'lucide-react';
 import { actualCost, estimatedCost, reservedQty, stockQty } from './domain';
-import { orderLedger } from './receivables';
+import { orderBalance } from './receivables';
 import { shipmentQty } from './sales';
 import type { Order, State } from './types';
 import { date, dateTime, Empty, Metric, money, num, Section } from './ui';
@@ -65,11 +65,11 @@ export function healthMetrics(state: State, now = new Date()) {
   }).sort((a, b) => b.delayDays - a.delayDays || b.amount - a.amount);
 
   const receivableRows = state.orders.filter(order => order.status === 'delivered').flatMap(order => {
-    const ledger = orderLedger(state, order.id);
-    const debt = ledger.outstanding;
+    const ledger = orderBalance(state, order.id);
+    const debt = ledger?.outstanding ?? 0;
     const age = ageDays(order.createdAt, today);
     return debt > 0 ? [{
-      order, paid: ledger.paid, debt, ageDays: age, ageBand: ageBand(age),
+      order, paid: ledger?.paid ?? 0, debt, ageDays: age, ageBand: ageBand(age),
       customerName: state.customers.find(customer => customer.id === order.customerId)?.name ?? 'Buyurtmachi topilmadi',
     }] : [];
   }).sort((a, b) => (b.ageDays ?? -1) - (a.ageDays ?? -1) || b.debt - a.debt);
@@ -174,7 +174,7 @@ export function HealthSection({ state }: { state: State }) {
       </tbody></table></div> : <Empty text="Muddati buzilgan buyurtmalar yo‘q" />}
     </Section>
 
-    <Section title="Qarzdan pulni bo‘shatish" hint="Yetkazilgan buyurtmaning to‘liq narxi qoldig‘i minus stornolarni hisobga olgan to‘lovlar.">
+    <Section title="Qarzdan pulni bo‘shatish" hint="Yetkazilgan buyurtmaning to‘liq narxi qoldig‘i minus bekor yozuvlarni hisobga olgan to‘lovlar.">
       <p className="subtle-note">Yosh buyurtma yaratilgan kundan hisoblanadi, to‘lov muddatidan emas. Ma’lumotlarda shartnomaviy to‘lov muddatlari yo‘q: bu to‘lov kechikishi emas. Amal: buyurtmachi bilan hisob-kitobni solishtiring va to‘lov sanasini kelishib oling.</p>
       {receivables.count ? <>
         <div className="table-scroll cardable"><table><thead><tr><th>Yaratilgandan beri</th><th>Buyurtmalar</th><th>To‘lov qoldig‘i</th></tr></thead><tbody>

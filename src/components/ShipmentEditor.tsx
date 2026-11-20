@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { orderPaid, shippedForLine } from '../domain';
+import { orderDebt, shippedForLine } from '../domain';
 import { dateOffset } from '../seed';
 import { AccountField, Dialog, Empty, Field, money, num } from '../ui';
 import type { Command, Order, OrderLine, State } from '../types';
@@ -35,7 +35,7 @@ export function ShipmentEditor({ state, preset, close, save, busy }: {
   const lines = order ? order.lines.filter(line => lineRemaining(state, order, line) > 0) : [];
   const qtyOf = (line: OrderLine) => qtys[line.id] ?? lineRemaining(state, order!, line);
   const total = order ? round(lines.reduce((sum, line) => sum + line.total * qtyOf(line) / line.qty, 0)) : 0;
-  const debt = order ? round(order.price - orderPaid(state, order.id)) : 0;
+  const debt = order ? orderDebt(state, order.id) : 0;
 
   return <Dialog title="Yuborish / natijani topshirish" subtitle="Har pozitsiyani alohida yuborish mumkin — qolgan qismi keyinroq ham ketadi. To‘lov mijoz hisobidagi eng eski qarzni yopadi." close={() => { if (!busy) close(); }} wide>
     <form onSubmit={event => {
@@ -72,10 +72,10 @@ export function ShipmentEditor({ state, preset, close, save, busy }: {
             <Field label="Yetkazish sanasi"><input name="dueDate" type="date" defaultValue={dateOffset(1)} required /></Field>
           </div>
           <label className="check-field"><input name="allowDebt" type="checkbox" />Qoplanmagan qarz bilan yuborishga ruxsat beraman</label>
-          <p className="subtle-note">Bu yerda pul olinmaydi. Yuborilgan summa mijoz hisobiga qarz bo‘lib yoziladi; keyingi to‘lov avval eng eski qarzni yopadi.</p>
+          <p className="subtle-note">Bu yerda pul olinmaydi. Qarz to‘lov bilan yopiladi: avval eng eski qarz, keyin yangi. To‘langan pul shartnoma summasidan ortiqcha bo‘lsa, avans bo‘lib qoladi.</p>
           <div className="estimate-bar">
             <div><small>Shu yuborish summasi</small><b>{money(total)}</b></div>
-            <div><small>Buyurtma bo‘yicha qolgan qarz</small><b className={debt > 0 ? 'debt' : 'positive'}>{money(debt)}</b></div>
+            <div><small>Buyurtma bo‘yicha qolgan qarz</small><b className={debt > 0 ? 'debt' : 'positive'}>{debt > 0 ? money(debt) : '—'}</b></div>
           </div>
         </>}
         {error && <div className="warning">{error}</div>}

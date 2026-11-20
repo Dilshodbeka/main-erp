@@ -19,8 +19,10 @@ import {
 import { MAX_TELEGRAM_FILE_BYTES, OUTBOUND_ACCEPT, sanitizeFileName, validateOutboundFile } from '../../supabase/functions/_shared/telegram';
 import { mode } from '../repository';
 import { formatMoney } from '../i18n';
-import { debtReminderMessage } from '../serviceNotify';
-import type { Customer } from '../types';
+import { debtDocument, debtFileName } from '../debtDocument';
+import { sendDebtFile } from '../invoiceSend';
+import type { CompanyProfile } from '../company-profile';
+import type { Customer, State } from '../types';
 
 export function ChatBadge({ count, className = '' }: { count: number; className?: string }) {
   if (!Number.isFinite(count) || count <= 0) return null;
@@ -32,6 +34,8 @@ interface TelegramChatProps {
   companyId: string;
   chatId: string | null;
   debt: number;
+  state: State;
+  company: CompanyProfile;
   refreshKey: number;
   onClose: () => void;
   onChanged: () => void;
@@ -58,7 +62,7 @@ const dayLabel = (value: string) => {
   return `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}.${date.getFullYear()}`;
 };
 
-export function TelegramChat({ customer, companyId, chatId, debt, refreshKey, onClose, onChanged, onNotice }: TelegramChatProps) {
+export function TelegramChat({ customer, companyId, chatId, debt, state, company, refreshKey, onClose, onChanged, onNotice }: TelegramChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [problem, setProblem] = useState('');
@@ -134,13 +138,19 @@ export function TelegramChat({ customer, companyId, chatId, debt, refreshKey, on
 
   const remindDebt = async () => {
     if (!chatId || sending || debt <= 0) return;
-    if (!window.confirm(`Qarz eslatmasini yuborish: ${formatMoney(debt)}?`)) return;
+    if (!company.name) {
+      notice('Korxona nomi sozlanmagan: hujjatni imzolab bo‘lmaydi. Sozlamalar → Korxona va kirish.', true);
+      return;
+    }
+    const model = debtDocument(state, customer.id, company);
+    if (!model) return;
+    if (!window.confirm(`Qarz hujjatini yuborish: ${formatMoney(debt)}?`)) return;
     setSending(true);
     try {
-      await chatSendText(customer.id, debtReminderMessage(customer, debt));
+      await sendDebtFile({ companyId, customerId: customer.id, model, fileName: debtFileName(customer.name) });
       await load();
       changed.current();
-      notice('Qarz eslatmasi yuborildi.');
+      notice('Qarz hujjati yuborildi.');
     } catch (error) {
       notice(describe(error), true);
     } finally {
@@ -284,7 +294,7 @@ export function TelegramChat({ customer, companyId, chatId, debt, refreshKey, on
         </div>
         <div className="chat-head-actions">
           {mode === 'demo' && chatId && <button type="button" className="secondary small" onClick={() => void simulateIncoming()}><MessageCircle size={14} />Kiruvchi (demo)</button>}
-          {customer.kind === 'service' && chatId && <button type="button" className="secondary small" disabled={sending || debt <= 0} title={debt > 0 ? `Qarz: ${formatMoney(debt)}` : 'Qarz yo‘q'} onClick={() => void remindDebt()}><Bell size={14} />Qarz eslatmasi</button>}
+          {chatId && debt > 0 && <button type="button" className="secondary small" disabled={sending} title={`Qarz: ${formatMoney(debt)}`} onClick={() => void remindDebt()}><Bell size={14} />Qarz eslatmasi</button>}
           {chatId && <button type="button" className="secondary small" onClick={() => void unlink()}><Unlink size={14} />Uzish</button>}
           <button type="button" className="icon-button" aria-label="Chatni yopish" onClick={onClose}><X size={20} /></button>
         </div>

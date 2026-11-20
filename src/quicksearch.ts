@@ -1,6 +1,6 @@
 import { customerKindLabel } from './customers';
 import { matchesSearch } from './listview';
-import { customerLedger, orderLedger } from './receivables';
+import { customerBalance, orderBalance } from './receivables';
 import type { CustomerKind, State, Status } from './types';
 
 export interface QuickCustomer {
@@ -39,7 +39,7 @@ export function quickMatches(state: State, query: string, limit = 4): QuickSearc
     .map((customer): QuickCustomer => ({
       kind: 'customer', id: customer.id, title: customer.name,
       meta: [customer.phone, customerKindLabel(customer.kind)].filter(Boolean).join(' · '),
-      debt: customerLedger(state, customer.id).debt,
+      debt: customerBalance(state, customer.id).debt,
       customerKind: customer.kind,
     }));
   const orders = state.orders
@@ -49,7 +49,7 @@ export function quickMatches(state: State, query: string, limit = 4): QuickSearc
     .map((order): QuickOrder => ({
       kind: 'order', id: order.id, title: `${order.number} · ${order.title}`,
       meta: name(order.customerId), status: order.status,
-      debt: orderLedger(state, order.id).outstanding,
+      debt: orderBalance(state, order.id)?.outstanding ?? 0,
     }));
   return { customers, orders };
 }

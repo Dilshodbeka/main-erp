@@ -57,7 +57,7 @@ function Payments({ rows, empty }: { rows: PaymentRow[]; empty: string }) {
   return <div className="table-scroll cardable"><table>
     <thead><tr><th>Sana / vaqt</th><th>Hisob</th><th>Izoh</th><th className="right">Summa</th></tr></thead>
     <tbody>{rows.map(row => <tr key={row.id}>
-      <td data-label="Sana / vaqt">{dateTime(row.date)}{row.reversalOf ? <small>storno</small> : row.reversed ? <small>bekor qilingan</small> : null}</td>
+      <td data-label="Sana / vaqt">{dateTime(row.date)}{row.reversalOf ? <small>bekor yozuvi</small> : row.reversed ? <small>bekor qilingan</small> : null}</td>
       <td data-label="Hisob">{row.account === 'cash' ? 'Naqd pul' : 'Bank / karta'}</td>
       <td data-label="Izoh">{row.note || '—'}</td>
       <td data-label="Summa" className={`right ${row.amount < 0 ? 'debt' : 'positive'}`}>{money(row.amount)}</td>

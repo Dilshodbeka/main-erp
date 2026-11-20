@@ -9,6 +9,8 @@ import type { Actor, CashEntry, Customer, Item, Order, Shipment, State } from '.
 const admin: Actor = { id: 'admin', name: 'Egasi', role: 'admin', companyId: emptyState().companyId };
 const worker: Actor = { id: 'worker', name: 'Xodim', role: 'worker', companyId: emptyState().companyId };
 const display: Actor = { id: 'display', name: 'Sex ekrani', role: 'display', companyId: emptyState().companyId };
+const firm = { name: 'Mebel Aliya', phone: '+998 90 123 45 67' };
+const firmBlock = (html: string): string => html.split('Sotuvchi</small>')[1]?.split('</div>')[0] ?? '';
 
 const customer: Customer = { id: 'customer-1', name: 'Aziza Karimova', phone: '', address: 'Toshkent', kind: 'customer', employeeId: null };
 const whiteFacade: Item = {
@@ -128,111 +130,100 @@ describe('route sheet', () => {
 });
 
 describe('invoice', () => {
-  it('settles the order, exposes paid, debt and the internal cost', () => {
-    const model = invoice(fixture(), 'order-1', admin);
+  it('settles the order and exposes paid, debt and the customer sums', () => {
+    const model = invoice(fixture(), 'order-1', admin, firm);
     expect(model).toMatchObject({ total: 250000, paid: 100000, debt: 150000, subtotal: 250000, markup: 0 });
     expect(model.lines).toEqual([]);
-    expect(model.costs).toEqual([{ position: 'Oshxona shkafi', material: 20000, labor: 25000, total: 45000, margin: 205000 }]);
-    expect(model.cost).toEqual({ material: 20000, labor: 25000, overhead: 0, total: 45000, margin: 205000 });
   });
 
-  it('costs every position separately without touching the customer sums', () => {
-    const model = invoice(composite(), 'order-1', admin);
+  it('prices every position of a composite order without touching the customer sums', () => {
+    const model = invoice(composite(), 'order-1', admin, firm);
     expect(model.positions).toEqual([
       { title: 'Oshxona', kind: 'product', qty: 5, unitPrice: 50000, total: 250000 },
       { title: '45 gradus kesish', kind: 'service', qty: 1, unitPrice: 50000, total: 50000 },
     ]);
-    expect(model.costs).toEqual([
-      { position: 'Oshxona', material: 20000, labor: 25000, total: 45000, margin: 205000 },
-      { position: '45 gradus kesish', material: 6000, labor: 5000, total: 11000, margin: 39000 },
-    ]);
-    expect(model.cost).toEqual({ material: 26000, labor: 30000, overhead: 10000, total: 66000, margin: 234000 });
     expect(model).toMatchObject({ subtotal: 300000, markup: 0, total: 300000 });
   });
 
-  it('keeps a single-position order on one position summary and one cost row', () => {
-    const model = invoice(fixture(), 'order-1', admin);
+  it('keeps a single-position order on one position summary', () => {
+    const model = invoice(fixture(), 'order-1', admin, firm);
     expect(model.positions).toEqual([{ title: 'Oshxona shkafi', kind: 'product', qty: 5, unitPrice: 50000, total: 250000 }]);
-    expect(model.costs.map(row => row.position)).toEqual(['Oshxona shkafi']);
-  });
-
-  it('costs a fixed-sum supplier stage without using a worker rate', () => {
-    const state = fixture();
-    state.suppliers = [{ id: 'supplier-1', name: 'Metall usta', phone: '' }];
-    state.orders[0].route = [{
-      id: 'task-1', lineId: 'order-line-1', operationId: 'operation-1', name: 'Metall ish',
-      executorKind: 'supplier', employeeId: null, supplierId: 'supplier-1',
-      rate: 0, supplierCost: 30000, standardMinutes: 15, planned: 5, completed: 5, status: 'completed',
-    }];
-    const model = invoice(state, 'order-1', admin);
-    expect(model.cost.labor).toBe(30000);
-    expect(model.costs[0]).toMatchObject({ labor: 30000, total: 50000, margin: 200000 });
   });
 
   it('hides VAT while the company setting is off', () => {
-    expect(invoice(fixture(), 'order-1', admin).vat).toBeNull();
+    expect(invoice(fixture(), 'order-1', admin, firm).vat).toBeNull();
   });
 
   it('shows the owner markup on top of the agreed positions', () => {
     const state = fixture();
     state.orders[0].markup = 30000;
     state.orders[0].price = 280000;
-    expect(invoice(state, 'order-1', admin)).toMatchObject({ subtotal: 250000, markup: 30000, total: 280000, debt: 180000 });
+    expect(invoice(state, 'order-1', admin, firm)).toMatchObject({ subtotal: 250000, markup: 30000, total: 280000, debt: 180000 });
   });
 
   it('shows a discount as a negative markup', () => {
     const state = fixture();
     state.orders[0].markup = -20000;
     state.orders[0].price = 230000;
-    const model = invoice(state, 'order-1', admin);
+    const model = invoice(state, 'order-1', admin, firm);
     expect(model).toMatchObject({ subtotal: 250000, markup: -20000, total: 230000 });
     const html = renderToStaticMarkup(createElement(PrintDocument, { model: { type: 'invoice', data: model }, close: () => {} }));
     expect(html).toContain('Chegirma');
     expect(html).not.toContain('Natsenka');
   });
 
-  it('prints the internal tannarx and keeps it out of the customer sum', () => {
+  it('keeps internal cost off the printed customer invoice', () => {
     const html = renderToStaticMarkup(createElement(PrintDocument, {
-      model: { type: 'invoice', data: invoice(fixture(), 'order-1', admin) },
+      model: { type: 'invoice', data: invoice(fixture(), 'order-1', admin, firm) },
       close: () => {},
     }));
-    expect(html).toContain('Tannarx (ichki hisob)');
-    expect(html).toContain('Tannarx mijoz summasiga qo‘shilmaydi');
     expect(html).toContain('HISOB-FAKTURA');
+    expect(html).not.toMatch(/Tannarx|Marja/);
   });
 
-  it('prints no enterprise name on a customer invoice', () => {
-    const model = invoice(fixture(), 'order-1', admin);
-    expect(model).not.toHaveProperty('seller');
-    expect(JSON.stringify(model)).not.toContain('Korxona');
+  it('carries the firm name and phone a customer document must show', () => {
+    const model = invoice(fixture(), 'order-1', admin, firm);
+    expect(model.company).toEqual(firm);
+    const block = firmBlock(renderToStaticMarkup(createElement(PrintDocument, { model: { type: 'invoice', data: model }, close: () => {} })));
+    expect(block).toContain('Mebel Aliya');
+    expect(block).toContain('+998 90 123 45 67');
   });
 
-  it('prints a stock sale invoice from its shipment lines and costs it from unit cost', () => {
+  it('prints no empty phone line when the owner has not stored one', () => {
+    const model = invoice(fixture(), 'order-1', admin, { name: 'Mebel Aliya', phone: '' });
+    const block = firmBlock(renderToStaticMarkup(createElement(PrintDocument, { model: { type: 'invoice', data: model }, close: () => {} })));
+    expect(block).toContain('Mebel Aliya');
+    expect(block).not.toContain('<span');
+  });
+
+  it('prints a stock sale invoice from its shipment lines', () => {
     const state = fixture();
     state.shipments[0] = {
       ...state.shipments[0], id: 'shipment-2', orderId: null, kind: 'stock',
       lines: [{ ...state.shipments[0].lines[0], itemId: 'cabinet', description: 'Oshxona shkafi', qty: 2, salePrice: 50000 }],
     };
     state.cash = [];
-    const model = invoice(state, 'shipment-2', admin);
+    const model = invoice(state, 'shipment-2', admin, firm);
     expect(model).toMatchObject({ total: 100000, paid: 0, debt: 100000, subtotal: 100000, markup: 0 });
     expect(model.lines[0]).toMatchObject({ qty: 2, price: 50000, total: 100000, unit: 'dona' });
     expect(model.positions).toEqual([]);
-    expect(model.costs).toEqual([]);
-    expect(model.cost).toEqual({ material: 20000, labor: 0, overhead: 0, total: 20000, margin: 80000 });
+    expect(model.company).toEqual(firm);
+    const html = renderToStaticMarkup(createElement(PrintDocument, { model: { type: 'invoice', data: model }, close: () => {} }));
+    expect(html).toContain('OMB-');
+    expect(html).not.toMatch(/Tannarx|Marja/);
   });
 
   it('is available to the owner only', () => {
     for (const actor of [worker, display]) {
-      expect(() => invoice(fixture(), 'order-1', actor)).toThrow('Hisob-faktura faqat egasiga');
+      expect(() => invoice(fixture(), 'order-1', actor, firm)).toThrow('Hisob-faktura faqat egasiga');
     }
   });
 
   it('rejects unknown or cancelled documents', () => {
-    expect(() => invoice(fixture(), 'missing', admin)).toThrow('Hujjat topilmadi');
+    expect(() => invoice(fixture(), 'missing', admin, firm)).toThrow('Hujjat topilmadi');
     const state = fixture();
     state.shipments[0].status = 'cancelled';
-    expect(() => invoice(state, 'shipment-1', admin)).toThrow('Hujjat topilmadi');
+    expect(() => invoice(state, 'shipment-1', admin, firm)).toThrow('Hujjat topilmadi');
   });
 });
 

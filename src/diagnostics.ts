@@ -160,12 +160,12 @@ export function diagnosticChecks(state: State): DiagnosticCheck[] {
     {
       id: 'cash-links', count: cashLinks,
       title: 'Kassa yozuvlari mavjud yozuvga bog‘langan',
-      hint: 'Kassadagi to‘lov bog‘langan mijoz, xodim, ta’minotchi yoki buyurtmani topmadi. Storno bilan tuzatish kerak.',
+      hint: 'Kassadagi to‘lov bog‘langan mijoz, xodim, ta’minotchi yoki buyurtmani topmadi. Bekor qilish bilan tuzatish kerak.',
     },
     {
       id: 'cash-reversal', count: cashReversal,
-      title: 'Storno asl kassa yozuvini topadi',
-      hint: 'Storno qilingan yozuv o‘chirilgan yoki ko‘chirilgan. Asl yozuvni tiklang.',
+      title: 'Bekor qilish asl kassa yozuvini topadi',
+      hint: 'Bekor qilingan yozuv o‘chirilgan yoki ko‘chirilgan. Asl yozuvni tiklang.',
     },
     {
       id: 'payroll-links', count: payrollLinks,

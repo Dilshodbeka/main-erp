@@ -4,6 +4,7 @@ BEGIN;
 CREATE TABLE public.erp_companies (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL CHECK (length(btrim(name)) BETWEEN 2 AND 160),
+  phone text NOT NULL DEFAULT '',
   created_at timestamptz NOT NULL DEFAULT transaction_timestamp()
 );
 CREATE TABLE public.erp_metadata (
@@ -817,68 +818,60 @@ RETURNS numeric LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, p
   SELECT coalesce(sum(CASE direction WHEN 'out' THEN amount ELSE -amount END), 0)
   FROM public.erp_cash WHERE company_id = p_company_id AND source = p_source AND source_id = p_source_id;
 $$;
--- Net customer payments, then FIFO across live shipments; the remainder is free advance.
-CREATE FUNCTION public.erp_customer_advance(p_company_id uuid, p_customer_id uuid)
-RETURNS numeric LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
-DECLARE v_payments numeric; v_allocated numeric;
-BEGIN
-  SELECT round(coalesce(sum(CASE direction WHEN 'in' THEN amount WHEN 'out' THEN -amount ELSE 0 END), 0)
-    + coalesce((SELECT sum(CASE WHEN direction = 'deduct' THEN amount ELSE -amount END)
-      FROM public.erp_worker_deductions WHERE company_id = p_company_id AND customer_id = p_customer_id), 0), 2)
-    INTO v_payments
-    FROM public.erp_cash WHERE company_id = p_company_id AND source = 'sale' AND customer_id = p_customer_id;
-  v_payments := greatest(v_payments, 0);
-  SELECT least(v_payments, coalesce(sum(total), 0)) INTO v_allocated FROM (
-    SELECT round(sum(l.qty * l.sale_price), 2) AS total
-    FROM public.erp_shipments s
-    JOIN public.erp_shipment_lines l ON l.company_id = s.company_id AND l.shipment_id = s.id
-    WHERE s.company_id = p_company_id AND s.customer_id = p_customer_id AND s.status <> 'cancelled'
-    GROUP BY s.id) rows;
-  RETURN round(greatest(v_payments - v_allocated, 0), 2);
-END;
+-- Money the customer actually handed over: cash-in minus reversals, plus salary deductions.
+CREATE FUNCTION public.erp_customer_paid(p_company_id uuid, p_customer_id uuid)
+RETURNS numeric LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT round(greatest(
+      coalesce((SELECT sum(CASE c.direction WHEN 'in' THEN c.amount WHEN 'out' THEN -c.amount ELSE 0 END)
+        FROM public.erp_cash c WHERE c.company_id = p_company_id AND c.source = 'sale' AND c.customer_id = p_customer_id), 0)
+    + coalesce((SELECT sum(CASE d.direction WHEN 'deduct' THEN d.amount ELSE -d.amount END)
+        FROM public.erp_worker_deductions d WHERE d.company_id = p_company_id AND d.customer_id = p_customer_id), 0), 0), 2);
 $$;
--- Mirrors the frontend order ledger: shipment FIFO first, then free advance in order sequence.
+-- What the customer owes for: agreed orders at their contract price, plus stock sales with no order.
+CREATE FUNCTION public.erp_customer_obligations(p_company_id uuid, p_customer_id uuid)
+RETURNS TABLE(id uuid, kind text, total numeric, created_at timestamptz)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT o.id, 'order'::text, round(o.price, 2), o.created_at
+  FROM public.erp_orders o
+  WHERE o.company_id = p_company_id AND o.customer_id = p_customer_id
+    AND o.kind <> 'series' AND o.status NOT IN ('draft', 'cancelled')
+  UNION ALL
+  SELECT s.id, 'stock'::text, round(sum(l.qty * l.sale_price), 2), s.created_at
+  FROM public.erp_shipments s
+  JOIN public.erp_shipment_lines l ON l.company_id = s.company_id AND l.shipment_id = s.id
+  WHERE s.company_id = p_company_id AND s.customer_id = p_customer_id
+    AND s.order_id IS NULL AND s.status <> 'cancelled'
+  GROUP BY s.id, s.created_at;
+$$;
+-- Unpaid part of the obligations; never positive together with the advance.
+CREATE FUNCTION public.erp_customer_debt(p_company_id uuid, p_customer_id uuid)
+RETURNS numeric LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT round(greatest(coalesce(sum(o.total), 0) - public.erp_customer_paid(p_company_id, p_customer_id), 0), 2)
+  FROM public.erp_customer_obligations(p_company_id, p_customer_id) o;
+$$;
+-- Anything paid above the agreed contract is advance; there is no other way to get advance.
+CREATE FUNCTION public.erp_customer_advance(p_company_id uuid, p_customer_id uuid)
+RETURNS numeric LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT round(greatest(public.erp_customer_paid(p_company_id, p_customer_id)
+    - coalesce((SELECT sum(o.total) FROM public.erp_customer_obligations(p_company_id, p_customer_id) o), 0), 0), 2);
+$$;
+-- Payment in contract order: oldest obligation first, so one order can never spend the same money twice.
 CREATE FUNCTION public.erp_order_paid(p_company_id uuid, p_order_id uuid)
 RETURNS numeric LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
-DECLARE v_customer uuid; v_price numeric; v_payments numeric; v_free numeric; v_paid numeric;
+DECLARE v_customer uuid; v_pool numeric; v_result numeric;
 BEGIN
-  SELECT customer_id, price INTO v_customer, v_price FROM public.erp_orders
-    WHERE company_id = p_company_id AND id = p_order_id;
+  SELECT customer_id INTO v_customer FROM public.erp_orders WHERE company_id = p_company_id AND id = p_order_id;
   IF NOT FOUND OR v_customer IS NULL THEN RETURN 0; END IF;
-  SELECT round(coalesce(sum(CASE direction WHEN 'in' THEN amount WHEN 'out' THEN -amount ELSE 0 END), 0)
-    + coalesce((SELECT sum(CASE WHEN direction = 'deduct' THEN amount ELSE -amount END)
-      FROM public.erp_worker_deductions WHERE company_id = p_company_id AND customer_id = v_customer), 0), 2)
-    INTO v_payments
-    FROM public.erp_cash WHERE company_id = p_company_id AND source = 'sale' AND customer_id = v_customer;
-  v_payments := greatest(v_payments, 0);
-  v_free := public.erp_customer_advance(p_company_id, v_customer);
-  WITH shipments AS (
-    SELECT s.id, s.order_id, round(sum(l.qty * l.sale_price), 2) AS total, s.created_at
-    FROM public.erp_shipments s
-    JOIN public.erp_shipment_lines l ON l.company_id = s.company_id AND l.shipment_id = s.id
-    WHERE s.company_id = p_company_id AND s.customer_id = v_customer AND s.status <> 'cancelled'
-    GROUP BY s.id, s.order_id, s.created_at
-  ), ordered AS (
-    SELECT *, coalesce(sum(total) OVER (ORDER BY created_at, id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS prior
-    FROM shipments
-  ), alloc AS (
-    SELECT order_id, greatest(0, least(total, v_payments - prior)) AS paid FROM ordered
-  ), settled AS (
-    SELECT order_id, sum(paid) AS paid FROM alloc GROUP BY order_id
-  ), ranked AS (
-    SELECT o.id, o.price, coalesce(st.paid, 0) AS settled,
-      greatest(0, o.price - coalesce(st.paid, 0)) AS remaining,
-      coalesce(sum(greatest(0, o.price - coalesce(st.paid, 0)))
-        OVER (ORDER BY o.created_at, o.id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS prior
-    FROM public.erp_orders o
-    LEFT JOIN settled st ON st.order_id = o.id
-    WHERE o.company_id = p_company_id AND o.customer_id = v_customer AND o.status <> 'cancelled'
-  ), target AS (
-    SELECT settled, remaining, prior FROM ranked WHERE id = p_order_id
-  )
-  SELECT least(v_price, t.settled + greatest(0, least(v_free - t.prior, t.remaining))) INTO v_paid
-    FROM target t;
-  RETURN coalesce(v_paid, 0);
+  v_pool := public.erp_customer_paid(p_company_id, v_customer);
+  SELECT coalesce(round(greatest(0, least(seq.total, v_pool - seq.prior)), 2), 0) INTO v_result
+  FROM (
+    SELECT o.id, o.total,
+      coalesce(sum(o.total) OVER (ORDER BY o.created_at, o.id
+        ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS prior
+    FROM public.erp_customer_obligations(p_company_id, v_customer) o
+  ) seq
+  WHERE seq.id = p_order_id;
+  RETURN coalesce(v_result, 0);
 END;
 $$;
 CREATE FUNCTION public.erp_supplier_cost(p_company_id uuid, p_supplier_id uuid)
@@ -2032,6 +2025,18 @@ BEGIN
   RETURN v_profile;
 END;
 $$;
+
+-- The firm block printed on customer documents stays outside the replicated state, so the owner edits it directly.
+CREATE FUNCTION public.erp_company_profile_set(p_phone text)
+RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE v_phone text := btrim(coalesce(p_phone, ''));
+BEGIN
+  IF NOT public.erp_is_admin() THEN RAISE EXCEPTION 'Administrator required' USING ERRCODE = '42501'; END IF;
+  IF length(v_phone) > 40 THEN RAISE EXCEPTION 'Phone is too long' USING ERRCODE = '22023'; END IF;
+  UPDATE public.erp_companies SET phone = v_phone WHERE id = public.erp_current_company_id();
+  RETURN v_phone;
+END;
+$$;
 CREATE FUNCTION public.erp_execute(p_request_id uuid, p_expected_revision bigint, p_command jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
@@ -2128,9 +2133,6 @@ DECLARE
   v_context jsonb;
   v_author uuid;
   v_text text;
-  v_shipped numeric := 0;
-  v_paid_by_cash numeric := 0;
-  v_paid_by_deduct numeric := 0;
   v_customer_seller_id uuid;
   v_workshop_scope uuid[];
 BEGIN
@@ -2727,12 +2729,15 @@ BEGIN
         SELECT * INTO v_item FROM public.erp_items WHERE company_id = v_company AND id = v_chosen;
         IF NOT FOUND THEN RAISE EXCEPTION 'Recipe item not found' USING ERRCODE = '22023'; END IF;
         IF v_item.customer_id IS NOT NULL THEN RAISE EXCEPTION 'Customer materials cannot be used in recipes' USING ERRCODE = '23514'; END IF;
-        IF EXISTS (SELECT 1 FROM public.erp_order_materials WHERE company_id = v_company AND order_id = v_entity AND item_id = v_chosen) THEN
-          RAISE EXCEPTION 'Duplicate recipe component' USING ERRCODE = '23514';
+        IF EXISTS (SELECT 1 FROM public.erp_order_materials
+          WHERE company_id = v_company AND line_id = v_line_id AND item_id = v_chosen) THEN
+          UPDATE public.erp_order_materials SET qty = qty + v_qty * v_component.qty_per_unit
+            WHERE company_id = v_company AND line_id = v_line_id AND item_id = v_chosen;
+        ELSE
+          INSERT INTO public.erp_order_materials(company_id, order_id, line_id, item_id, position, qty, estimated_cost)
+            VALUES (v_company, v_entity, v_line_id, v_chosen, v_pos, v_qty * v_component.qty_per_unit, v_item.cost);
+          v_pos := v_pos + 1;
         END IF;
-        INSERT INTO public.erp_order_materials(company_id, order_id, line_id, item_id, position, qty, estimated_cost)
-          VALUES (v_company, v_entity, v_line_id, v_chosen, v_pos, v_qty * v_component.qty_per_unit, v_item.cost);
-        v_pos := v_pos + 1;
       END LOOP;
       PERFORM public.erp_insert_route(v_company, v_entity, v_line_id, v_qty, v_input -> 'route');
     WHEN 'order.launch' THEN
@@ -3342,15 +3347,7 @@ BEGIN
       v_amount := public.erp_money(p_command -> 'amount', 'amount');
       IF v_amount <= 0 THEN RAISE EXCEPTION 'Amount must be positive' USING ERRCODE = '22023'; END IF;
       IF char_length(coalesce(p_command ->> 'note', '')) > 200 THEN RAISE EXCEPTION 'Note is too long' USING ERRCODE = '22023'; END IF;
-      SELECT coalesce(sum(round(l.qty * l.sale_price, 2)), 0) INTO v_shipped
-        FROM public.erp_shipments s
-        JOIN public.erp_shipment_lines l ON l.company_id = s.company_id AND l.shipment_id = s.id
-       WHERE s.company_id = v_company AND s.customer_id = v_customer AND s.status <> 'cancelled';
-      SELECT coalesce(sum(CASE direction WHEN 'in' THEN amount WHEN 'out' THEN -amount ELSE 0 END), 0) INTO v_paid_by_cash
-        FROM public.erp_cash WHERE company_id = v_company AND source = 'sale' AND customer_id = v_customer;
-      SELECT coalesce(sum(CASE WHEN direction = 'deduct' THEN amount ELSE -amount END), 0) INTO v_paid_by_deduct
-        FROM public.erp_worker_deductions WHERE company_id = v_company AND customer_id = v_customer;
-      IF v_amount > greatest(0, round(v_shipped - v_paid_by_cash - v_paid_by_deduct, 2)) THEN
+      IF v_amount > public.erp_customer_debt(v_company, v_customer) + 0.004 THEN
         RAISE EXCEPTION 'Amount exceeds customer debt' USING ERRCODE = '22023';
       END IF;
       IF v_amount > (public.erp_salary_ledger(v_company, v_entity) ->> 'owed')::numeric THEN
@@ -3585,7 +3582,8 @@ BEGIN
         v_total := round(v_total + round(v_qty * v_item.sale_price, 2), 2);
         v_pos := v_pos + 1;
       END LOOP;
-      IF NOT v_accept AND v_total > public.erp_customer_advance(v_company, v_customer) THEN
+      IF NOT v_accept AND v_total > greatest(public.erp_customer_paid(v_company, v_customer)
+        - coalesce((SELECT sum(o.total) FROM public.erp_customer_obligations(v_company, v_customer) o WHERE o.id <> v_entity), 0), 0) THEN
         RAISE EXCEPTION 'Unpaid stock shipment' USING ERRCODE = '23514';
       END IF;
     WHEN 'shipment.reverse' THEN
@@ -3636,7 +3634,7 @@ REVOKE ALL ON FUNCTION
   public.erp_bool(jsonb, text), public.erp_account(jsonb), public.erp_date(jsonb), public.erp_array(jsonb, text, boolean), public.erp_unit(jsonb), public.erp_ticket_context(jsonb),
   public.erp_current_profile(), public.erp_current_company_id(), public.erp_is_admin(),
   public.erp_stock_qty(uuid, uuid, uuid), public.erp_reserved_qty(uuid, uuid, uuid, uuid), public.erp_balance(uuid, text), public.erp_paid(uuid, text, uuid),
-  public.erp_salary_ledger(uuid, uuid, date), public.erp_expense_ledger(uuid, uuid, date), public.erp_loan_ledger(uuid, uuid), public.erp_customer_advance(uuid, uuid), public.erp_order_paid(uuid, uuid),
+  public.erp_salary_ledger(uuid, uuid, date), public.erp_expense_ledger(uuid, uuid, date), public.erp_loan_ledger(uuid, uuid), public.erp_customer_paid(uuid, uuid), public.erp_customer_obligations(uuid, uuid), public.erp_customer_debt(uuid, uuid), public.erp_customer_advance(uuid, uuid), public.erp_order_paid(uuid, uuid),
   public.erp_supplier_cost(uuid, uuid), public.erp_ready(uuid, uuid), public.erp_work_task(uuid, public.erp_profiles, uuid, uuid),
   public.erp_insert_components(uuid, uuid, jsonb), public.erp_assert_recipes(uuid), public.erp_insert_route(uuid, uuid, uuid, numeric, jsonb),
   public.erp_insert_materials(uuid, uuid, uuid, uuid, jsonb), public.erp_revise_materials(uuid, uuid, uuid, uuid, jsonb, integer),
@@ -3650,5 +3648,8 @@ FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.erp_current_company_id(), public.erp_is_admin(), public.erp_snapshot(), public.erp_bootstrap_company(text),
   public.erp_link_worker(uuid, uuid), public.erp_link_display(uuid, text), public.erp_execute(uuid, bigint, jsonb),
   public.erp_salary_ledger(uuid, uuid, date), public.erp_expense_ledger(uuid, uuid, date), public.erp_loan_ledger(uuid, uuid) TO authenticated;
+
+REVOKE ALL ON FUNCTION public.erp_company_profile_set(text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.erp_company_profile_set(text) TO authenticated;
 
 COMMIT;

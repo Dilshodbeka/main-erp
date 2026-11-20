@@ -90,6 +90,16 @@ describe('точки применения', () => {
     expect(html.match(/erkin -\d/g)).toBeNull();
   });
 
+  it('при нескольких складах подсказка erkin называет склад-источник', () => {
+    const state = baseState();
+    state.warehouses = [...state.warehouses, { id: '00000000-0000-4000-8000-00000000a002', name: 'Sex ombori', active: true }];
+    const html = renderToStaticMarkup(createElement(OrderEditor, {
+      state, order: state.orders[0], busy: false, close: () => {}, save: async () => {},
+      createCustomer: async () => null, onGo: () => {},
+    }));
+    expect(html).toContain('erkin 8 l · Asosiy ombor');
+  });
+
   it('список серий показывает дефицит в полосе material-warning', () => {
     const html = renderToStaticMarkup(createElement(SeriesList, { state: baseState(), busy: false, run: noop, onGo: () => {} }));
     expect(html).toContain('material-warning');

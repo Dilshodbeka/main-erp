@@ -52,7 +52,7 @@ export default function ExpensePanel({ state, onPlan, onPay }: { state: State; o
     <Title eyebrow="MOLIYA / OYLIK XARAJATLAR" title="Har oy takrorlanadigan xarajatlar." description="Ijara, kommunal, oshxona va boshqa oylik to‘lovlar — muddati, qarzi va tarixi bilan. Oldindan to‘langan summa keyingi oyni yopadi." />
     <div className="metrics">
       <Metric label="Oylik reja" value={money(totals.planned)} detail="Davr boshidan hisoblangan" icon={Wallet} />
-      <Metric label="To‘langan" value={money(totals.paid)} detail="Naqd va bank, stornolar chegirilgan" icon={Wallet} />
+      <Metric label="To‘langan" value={money(totals.paid)} detail="Naqd va bank, bekor yozuvlar chegirilgan" icon={Wallet} />
       <Metric label="Qarzdorlik" value={money(totals.owed)} detail="Muddati kelgan oylik majburiyatlar" icon={CircleAlert} accent />
       <Metric label="Oldindan to‘langan" value={money(totals.prepaid)} detail="Kelgusi oylar hisobiga" icon={Wallet} />
     </div>

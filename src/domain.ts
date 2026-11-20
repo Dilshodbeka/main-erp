@@ -1,5 +1,5 @@
 import { DEMO_COMPANY_ID } from './migrations';
-import { customerLedger, orderLedger } from './receivables';
+import { customerBalance, orderBalance } from './receivables';
 import { validateRecipeGraph } from './recipes';
 import { expenseLedger } from './expenses';
 import { loanLedger } from './loans';
@@ -604,7 +604,12 @@ function sourceNet(state: State, source: CashSource, sourceId: string, incoming:
 }
 
 export function orderPaid(state: State, orderId: string): number {
-  return state.orders.some(row => row.id === orderId) ? orderLedger(state, orderId).paid : 0;
+  return orderBalance(state, orderId)?.paid ?? 0;
+}
+
+/** Черновик, отменённый или серийный заказ клиенту не выставляется: долга у него нет. */
+export function orderDebt(state: State, orderId: string): number {
+  return orderBalance(state, orderId)?.outstanding ?? 0;
 }
 
 export function supplierStagePlan(task: RouteLine): number {
@@ -668,7 +673,7 @@ export function shippedQty(state: State, orderId: string): number {
 }
 
 function customerAdvance(state: State, customerId: string): number {
-  return customerLedger(state, customerId).advance;
+  return customerBalance(state, customerId).advance;
 }
 
 function countsLine(order: Order, entry: ShipmentLine, line: OrderLine): boolean {
@@ -1189,7 +1194,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
         id: uuid(), kind: 'product', title: `${recipe.name} · v${version.version}`,
         qty: input.qty, total: 0, status: 'draft',
       };
-      const materials = version.components.map(component => {
+      const componentLines = version.components.map(component => {
         const chosen = substitutions[component.slot] ?? component.itemId;
         check(chosen, `Slot ${component.slot} requires a selected item`);
         check(chosen === component.itemId || component.allowedItemIds.includes(chosen), 'Substitution is not allowed for this slot');
@@ -1199,7 +1204,8 @@ function mutate(state: State, command: Command, actor: Actor): string {
         round(qty * item.cost);
         return { id: uuid(), lineId: line.id, itemId: item.id, qty, estimatedCost: item.cost, issuedQty: 0, actualCost: 0 };
       });
-      unique(materials.map(row => row.itemId), 'material');
+      // A material line is keyed by item, so two slots of the same recipe that pick one material add up.
+      const materials = mergeNormMaterials([], componentLines);
       check(!input.route.some(row => row.executorKind === 'supplier'), 'Series production uses employees only');
       const route = routeValues(state, input.route, input.qty, line.id);
       const order: Order = {
@@ -1666,7 +1672,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
       check(command.amount > 0, 'Amount must be positive');
       money(command.amount);
       check(command.note.length <= 200, 'Note is too long');
-      check(command.amount <= customerLedger(state, customer.id).debt + 0.004, 'Amount exceeds customer debt');
+      check(command.amount <= customerBalance(state, customer.id).debt + 0.004, 'Amount exceeds customer debt');
       check(command.amount <= salaryLedger(state, employee.id).owed + 0.004, 'Amount exceeds salary debt');
       const row: WorkerDeduction = {
         id: uuid(), employeeId: employee.id, customerId: customer.id, amount: command.amount,
@@ -1827,7 +1833,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
       check(shipment.kind === 'stock', 'Only stock sales can be reversed');
       for (const line of shipment.lines) movement(state, {
         itemId: line.itemId!, direction: 'in', qty: line.qty, unitCost: line.unitCost,
-        source: 'sale', sourceId: shipment.id, note: 'Yuborish stornosi bo‘yicha qaytarish',
+        source: 'sale', sourceId: shipment.id, note: 'Yuborish bekor qilingani bo‘yicha qaytarish',
         warehouseId: MAIN_WAREHOUSE_ID,
       });
       shipment.status = 'cancelled';

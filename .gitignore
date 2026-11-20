@@ -4,7 +4,7 @@ dist.zip
 .wrangler/
 .artifacts/
 .superpowers/
-.parked-20261103/
+.parked-*/
 .validation-pglite-20261029/
 *.tsbuildinfo
 

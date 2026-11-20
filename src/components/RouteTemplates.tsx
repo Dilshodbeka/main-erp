@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pencil, Plus, X } from 'lucide-react';
 import { Dialog, Empty, Field, Section } from '../ui';
+import { OperationSelect } from './OperationSelect';
 import type { Command, ExecutorKind, OrderLineKind, RouteTemplate, RouteTemplateStage, State } from '../types';
 
 interface StageDraft {
@@ -85,9 +86,9 @@ export function RouteTemplates({ state, busy, run }: {
           <Field label="Shablon turi"><select value={draft.kind} onChange={event => setDraft({ ...draft, kind: event.target.value as OrderLineKind })}><option value="service">Xizmat</option><option value="product">Mahsulot</option></select></Field>
           {draft.stages.map((stage, index) => <div className="editor-line route-editor" key={index}>
             <span className="route-index">{index + 1}</span>
-            <select aria-label={`Shablon bosqich operatsiyasi ${index + 1}`} required value={stage.operationId} onChange={event => setStage(index, { operationId: event.target.value })}>
-              <option value="">Bosqichni tanlang</option>{state.operations.map(op => <option key={op.id} value={op.id}>{op.name}</option>)}
-            </select>
+            <OperationSelect ariaLabel={`Shablon bosqich operatsiyasi ${index + 1}`} value={stage.operationId}
+              operations={state.operations} machines={state.machines}
+              onChange={operationId => setStage(index, { operationId })} />
             <div className="route-executor">
               <select aria-label={`Shablon bosqich ijrochi turi ${index + 1}`} value={stage.executorKind} onChange={event => setStage(index, event.target.value === 'supplier'
                 ? { executorKind: 'supplier', employeeId: '', supplierId: state.suppliers[0]?.id ?? '' }
