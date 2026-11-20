@@ -3,16 +3,18 @@
 // scripts/watch-cron.sql). Deploy without platform JWT verification:
 //   supabase functions deploy erp-watch --no-verify-jwt
 // Secrets: WATCH_SECRET (shared with the cron job), OWNER_TELEGRAM_IDS, TELEGRAM_BOT_TOKEN.
+// Optional: TIMEPAY_TOKEN adds attendance control (late, absent, left early) from Timepay.
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { constantTimeEqual } from '../_shared/telegram.ts';
-import { parseOwnerIds, watchRun } from '../_shared/owner-bot.generated.js';
+import { clockMinutes, fetchAttendance, parseOwnerIds, watchRun } from '../_shared/owner-bot.generated.js';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';
 const watchSecret = Deno.env.get('WATCH_SECRET') ?? '';
+const timepayToken = Deno.env.get('TIMEPAY_TOKEN') ?? '';
 const ownerIds = parseOwnerIds(Deno.env.get('OWNER_TELEGRAM_IDS'));
 const apiBase = (Deno.env.get('TELEGRAM_API_BASE') ?? 'https://api.telegram.org').replace(/\/+$/, '');
 const timeZone = Deno.env.get('WATCH_TIME_ZONE') ?? 'Asia/Tashkent';
@@ -68,10 +70,21 @@ async function send(chatId: string, text: string): Promise<boolean> {
   return delivered;
 }
 
-function localClock(now: Date): { today: string; hour: number } {
+function localClock(now: Date): { today: string; hour: number; minutes: number } {
   const today = new Intl.DateTimeFormat('en-CA', { timeZone }).format(now);
-  const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', hour12: false }).format(now)) % 24;
-  return { today, hour };
+  const minutes = clockMinutes(new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hour12: false }).format(now));
+  return { today, hour: Math.floor(minutes / 60), minutes };
+}
+
+/** Timepay being down or misconfigured must never stop the ERP checks. */
+async function attendance(today: string, nowMinutes: number) {
+  if (!timepayToken) return null;
+  try {
+    return { data: await fetchAttendance(timepayToken, today, fetch), nowMinutes };
+  } catch (error) {
+    console.error('Timepay failed', error instanceof Error ? error.message : 'unknown');
+    return null;
+  }
 }
 
 serve(async request => {
@@ -85,13 +98,13 @@ serve(async request => {
     const companyId = snapshot?.state?.companyId;
     if (!companyId) throw new Error('company_missing');
     const now = new Date();
-    const { today, hour } = localClock(now);
+    const { today, hour, minutes } = localClock(now);
 
     const stored = await client().from('erp_watch_sent').select('key, sent_at').eq('company_id', companyId);
     if (stored.error) throw new Error('watch_table_missing');
     const sent = Object.fromEntries((stored.data ?? []).map(row => [row.key, row.sent_at]));
 
-    const result = watchRun(snapshot, sent, now.toISOString(), today, hour);
+    const result = watchRun(snapshot, sent, now.toISOString(), today, hour, await attendance(today, minutes));
     if (dry) return json({ ok: true, dry: true, active: result.activeKeys.length, due: result.sentKeys.length, text: result.text });
 
     // Situations that no longer exist are forgotten, so they are announced again if they come back.

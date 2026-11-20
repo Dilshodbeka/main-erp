@@ -5,7 +5,7 @@ import { stockQty } from './domain';
 import { customerBalance } from './receivables';
 import type { Order, State } from './types';
 
-export type WatchGroup = 'orders' | 'production' | 'delivery' | 'money' | 'stock';
+export type WatchGroup = 'staff' | 'orders' | 'production' | 'delivery' | 'money' | 'stock';
 
 export interface Finding {
   /** Stable id of the situation: the same problem keeps the same key between runs. */
@@ -164,12 +164,12 @@ export function watchFindings(state: State, nowIso: string, today: string, confi
     found.push({ key: `stock:${item.id}`, group: 'stock', repeatHours: 72, text: `📉 ${esc(item.name)} — ${qty} ${esc(item.unit)} qoldi (me’yor ${item.minQty})` });
   }
 
-  const order: WatchGroup[] = ['orders', 'production', 'delivery', 'money', 'stock'];
+  const order: WatchGroup[] = ['staff', 'orders', 'production', 'delivery', 'money', 'stock'];
   return found.sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group));
 }
 
 const GROUP_TITLE: Record<WatchGroup, string> = {
-  orders: 'Buyurtmalar', production: 'Sex', delivery: 'Yetkazish', money: 'Pul', stock: 'Ombor va ta’minot',
+  staff: 'Xodimlar davomati', orders: 'Buyurtmalar', production: 'Sex', delivery: 'Yetkazish', money: 'Pul', stock: 'Ombor va ta’minot',
 };
 
 /** Telegram message for a set of findings; an empty set yields the "all clear" text. */

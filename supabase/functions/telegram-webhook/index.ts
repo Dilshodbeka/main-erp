@@ -3,6 +3,7 @@
 // Secrets: TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET.
 // Optional: OWNER_TELEGRAM_IDS (comma-separated Telegram user ids) turns on the owner report bot;
 // OWNER_BOT_ACTIONS=1 additionally allows order actions from the bot (off = reports only).
+// TIMEPAY_TOKEN enables the attendance report (/davomat).
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import {
@@ -14,7 +15,7 @@ import {
   type IncomingMessage,
   type TelegramFileRef,
 } from '../_shared/telegram.ts';
-import { ownerErrorText, ownerNeedsState, ownerReply, parseOwnerIds } from '../_shared/owner-bot.generated.js';
+import { clockMinutes, fetchAttendance, ownerErrorText, ownerNeedsAttendance, ownerNeedsState, ownerReply, parseOwnerIds } from '../_shared/owner-bot.generated.js';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -23,6 +24,7 @@ const webhookSecret = Deno.env.get('TELEGRAM_WEBHOOK_SECRET') ?? '';
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 const ownerIds = parseOwnerIds(Deno.env.get('OWNER_TELEGRAM_IDS'));
 const ownerActions = Deno.env.get('OWNER_BOT_ACTIONS') === '1';
+const timepayToken = Deno.env.get('TIMEPAY_TOKEN') ?? '';
 const apiBase = (Deno.env.get('TELEGRAM_API_BASE') ?? 'https://api.telegram.org').replace(/\/+$/, '');
 
 let admin: SupabaseClient | null = null;
@@ -121,6 +123,16 @@ async function ownerAnswer(incoming: IncomingMessage): Promise<{ text: string; k
   const input = incoming.startPayload !== null ? '/start' : incoming.text;
   if (!ownerNeedsState(input)) return ownerReply(input, null);
   const today = tashkentToday();
+  if (timepayToken && ownerNeedsAttendance(input)) {
+    const clock = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
+    try {
+      const data = await fetchAttendance(timepayToken, today, fetch);
+      return ownerReply(input, null, today, ownerActions, { data, nowMinutes: clockMinutes(clock) });
+    } catch (error) {
+      console.error('Timepay failed', error instanceof Error ? error.message : 'unknown');
+      return { text: '🕘 Timepay javob bermadi. Token va ruxsatlarni tekshiring (xodimlar, kelish/ketish, grafiklar).', keyboard: [] };
+    }
+  }
   let snapshot = await adminSnapshot();
   const answer = ownerReply(input, snapshot, today, ownerActions);
   if (!answer.commands?.length) return answer;

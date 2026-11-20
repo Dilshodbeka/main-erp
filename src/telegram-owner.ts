@@ -5,7 +5,8 @@ import { translateError } from './i18n';
 import { migrateState } from './migrations';
 import { planOwnerAction } from './telegram-actions';
 import type { Actor, Command } from './types';
-import { dueFindings, isQuietHour, watchDigest, watchFindings } from './watch';
+import { attendanceFindings, attendanceReport, type AttendanceData } from './attendance';
+import { dueFindings, isQuietHour, watchDigest, watchFindings, type Finding } from './watch';
 import { esc, OWNER_COMMANDS, ownerMenuText, ownerReport, parseOwnerCommand, type ReportKey } from './telegram-reports';
 
 export interface OwnerReply {
@@ -35,6 +36,11 @@ export function resolveOwnerInput(input: string): ReportKey | 'menu' | null {
   return parseOwnerCommand(text);
 }
 
+/** True when the reply is the attendance report, which needs Timepay data instead of the ERP snapshot. */
+export function ownerNeedsAttendance(input: string): boolean {
+  return resolveOwnerInput(input) === 'davomat';
+}
+
 /** Only the menu is answered without ERP data. */
 export function ownerNeedsState(input: string): boolean {
   return resolveOwnerInput(input) !== 'menu';
@@ -45,10 +51,12 @@ export function ownerNeedsState(input: string): boolean {
  * `today` is the local date (YYYY-MM-DD) stamped on shipments created from the bot.
  * `allowActions` turns on order cards and actions (launch, ship, payment); off = reports only.
  */
-export function ownerReply(input: string, rawSnapshot: unknown, today = new Date().toISOString().slice(0, 10), allowActions = false): OwnerReply {
+export function ownerReply(input: string, rawSnapshot: unknown, today = new Date().toISOString().slice(0, 10), allowActions = false,
+  attendance: { data: AttendanceData; nowMinutes: number } | null = null): OwnerReply {
   const keyboard = ownerKeyboard();
   const target = resolveOwnerInput(input);
   if (target === 'menu') return { text: ownerMenuText(), keyboard };
+  if (target === 'davomat' && attendance) return { text: attendanceReport(attendance.data, today, attendance.nowMinutes), keyboard };
   const snapshot = rawSnapshot as { actor?: Actor; state?: unknown } | null;
   const state = migrateState(snapshot?.state);
   const actor = snapshot?.actor;
@@ -84,13 +92,24 @@ export interface WatchRun {
 /**
  * One scheduled watcher pass. `sent` maps finding key → ISO time it was last announced.
  * `localHour` is the hour in the company's time zone; at night nothing is sent and nothing is marked.
+ * `attendance` is today's Timepay data (when the integration is configured): late, absent, left early.
  */
-export function watchRun(rawSnapshot: unknown, sent: Record<string, string>, nowIso: string, today: string, localHour: number): WatchRun {
+export function watchRun(rawSnapshot: unknown, sent: Record<string, string>, nowIso: string, today: string, localHour: number,
+  attendance: { data: AttendanceData; nowMinutes: number } | null = null): WatchRun {
   const snapshot = rawSnapshot as { state?: unknown } | null;
-  const findings = watchFindings(migrateState(snapshot?.state), nowIso, today);
+  const staff: Finding[] = attendance ? attendanceFindings(attendance.data, today, attendance.nowMinutes) : [];
+  const findings = [...staff, ...watchFindings(migrateState(snapshot?.state), nowIso, today)];
   const activeKeys = findings.map(row => row.key);
   if (isQuietHour(localHour)) return { text: null, sentKeys: [], activeKeys };
   const due = dueFindings(findings, sent, nowIso);
   if (!due.length) return { text: null, sentKeys: [], activeKeys };
   return { text: watchDigest(due, '🔔 <b>Nazorat: e’tibor bering</b>'), sentKeys: due.map(row => row.key), activeKeys };
+}
+
+export { fetchAttendance } from './timepay';
+
+/** "HH:MM" local clock → minutes from midnight (for the attendance rules). */
+export function clockMinutes(hhmm: string): number {
+  const [hours, minutes] = hhmm.split(':').map(Number);
+  return (hours % 24) * 60 + (minutes || 0);
 }

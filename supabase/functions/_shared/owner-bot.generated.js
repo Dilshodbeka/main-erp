@@ -3021,10 +3021,11 @@ function watchFindings(state, nowIso, today, config = WATCH_DEFAULTS) {
     if (qty >= item.minQty) continue;
     found.push({ key: `stock:${item.id}`, group: "stock", repeatHours: 72, text: `📉 ${esc(item.name)} — ${qty} ${esc(item.unit)} qoldi (me’yor ${item.minQty})` });
   }
-  const order = ["orders", "production", "delivery", "money", "stock"];
+  const order = ["staff", "orders", "production", "delivery", "money", "stock"];
   return found.sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group));
 }
 var GROUP_TITLE = {
+  staff: "Xodimlar davomati",
   orders: "Buyurtmalar",
   production: "Sex",
   delivery: "Yetkazish",
@@ -3067,6 +3068,7 @@ function uzs(value) {
 var OWNER_COMMANDS = [
   { key: "hisobot", label: "📊 Umumiy hisobot", command: "/hisobot" },
   { key: "nazorat", label: "🔔 Nazorat", command: "/nazorat" },
+  { key: "davomat", label: "🕘 Davomat", command: "/davomat" },
   { key: "kassa", label: "💵 Kassa", command: "/kassa" },
   { key: "mijoz_qarz", label: "👤 Mijozlar qarzi", command: "/mijoz_qarz" },
   { key: "taminot_qarz", label: "🚚 Taʼminot qarzi", command: "/taminot_qarz" },
@@ -3158,6 +3160,9 @@ function ownerReport(state, key, today = (/* @__PURE__ */ new Date()).toISOStrin
   switch (key) {
     case "nazorat":
       return watchDigest(watchFindings(state, nowIso, today));
+    // Attendance needs Timepay data; the owner handler answers it before reaching here.
+    case "davomat":
+      return "🕘 <b>Davomat</b>\n\nTimepay ulanmagan. Supabase sirlariga TIMEPAY_TOKEN qo‘shing.";
     case "kassa":
       return kassaReport(state);
     case "mijoz_qarz":
@@ -3377,6 +3382,137 @@ function planOwnerAction(input, state, actor, today) {
   return preview(state, actor, summaryFor(state, order, action), commands, `/ok_${action}_${orderCode(order.number)}`);
 }
 
+// src/attendance.ts
+var ATTENDANCE_DEFAULTS = { absentAfterMinutes: 30, earlyLeaveMinutes: 30, earlyLeaveGraceMinutes: 60 };
+var esc3 = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+var fullName = (row) => esc3(`${row.first_name} ${row.last_name}`.trim());
+function minutesOf(value) {
+  if (!value) return null;
+  const clock = value.length > 8 ? value.slice(11, 16) : value.slice(0, 5);
+  const match = /^(\d{2}):(\d{2})$/.exec(clock);
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+}
+var hhmm = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+function shiftOn(schedule, today) {
+  if (schedule.schedule_type !== "FIXED" && schedule.schedule_type !== "FLEXIBLE") return null;
+  const cycle = schedule.schedule_cycle > 0 ? schedule.schedule_cycle : 7;
+  const date = (/* @__PURE__ */ new Date(`${today}T00:00:00Z`)).getTime();
+  const index = schedule.start_date ? (Math.round((date - (/* @__PURE__ */ new Date(`${schedule.start_date}T00:00:00Z`)).getTime()) / 864e5) % cycle + cycle) % cycle : (new Date(date).getUTCDay() + 6) % 7;
+  const day = schedule.work_days.find((row) => row.day === index);
+  const start = minutesOf(day?.start_time);
+  if (!day?.is_working || start === null) return null;
+  return { start, end: minutesOf(day.end_time) };
+}
+function attendanceRows(data, today, nowMinutes, config = ATTENDANCE_DEFAULTS) {
+  const rows = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const schedule of data.schedules) {
+    const shift = shiftOn(schedule, today);
+    if (!shift) continue;
+    for (const employeeId of schedule.employee_ids) {
+      const employee = data.employees.find((row) => row.id === employeeId);
+      if (!employee?.is_active || seen.has(employeeId)) continue;
+      seen.add(employeeId);
+      const events = data.checks.filter((row) => row.employee.id === employeeId && row.action && minutesOf(row.created_at) !== null).sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""));
+      const firstIn = events.find((row) => row.action === "IN");
+      const last = events.at(-1);
+      const firstInAt = firstIn ? minutesOf(firstIn.created_at) : null;
+      const lastAt = last ? minutesOf(last.created_at) : null;
+      const lateMinutes = firstIn?.status === "LATE" ? Math.max(firstIn.late_minutes, 1) : 0;
+      let state;
+      if (!firstIn) state = nowMinutes >= shift.start + config.absentAfterMinutes ? "absent" : "waiting";
+      else if (last?.action === "OUT" && shift.end !== null && lastAt !== null && lastAt <= shift.end - config.earlyLeaveMinutes && nowMinutes >= lastAt + config.earlyLeaveGraceMinutes && nowMinutes < shift.end) state = "left_early";
+      else state = lateMinutes > 0 ? "late" : "on_time";
+      rows.push({ employeeId, name: fullName(employee), shiftStart: shift.start, shiftEnd: shift.end, firstIn: firstInAt, lateMinutes, lastAction: last?.action ?? null, lastAt, state });
+    }
+  }
+  return rows.sort((a, b) => a.name.localeCompare(b.name));
+}
+function attendanceFindings(data, today, nowMinutes, config = ATTENDANCE_DEFAULTS) {
+  const found = [];
+  for (const row of attendanceRows(data, today, nowMinutes, config)) {
+    if (row.state === "absent") {
+      found.push({
+        key: `absent:${row.employeeId}:${today}`,
+        group: "staff",
+        repeatHours: 24,
+        text: `🚫 <b>${row.name}</b> — ishga kelmagan, smena ${hhmm(row.shiftStart)} da boshlangan (${nowMinutes - row.shiftStart} daqiqa o‘tdi)`
+      });
+    }
+    if (row.lateMinutes > 0 && row.firstIn !== null) {
+      found.push({
+        key: `late:${row.employeeId}:${today}`,
+        group: "staff",
+        repeatHours: 24,
+        text: `⏱ <b>${row.name}</b> — ${row.lateMinutes} daqiqa kechikdi (keldi ${hhmm(row.firstIn)}, smena ${hhmm(row.shiftStart)})`
+      });
+    }
+    if (row.state === "left_early" && row.lastAt !== null && row.shiftEnd !== null) {
+      found.push({
+        key: `left:${row.employeeId}:${today}`,
+        group: "staff",
+        repeatHours: 24,
+        text: `🚪 <b>${row.name}</b> — ${hhmm(row.lastAt)} da chiqib ketgan, qaytmagan (smena ${hhmm(row.shiftEnd)} gacha)`
+      });
+    }
+  }
+  return found;
+}
+function attendanceReport(data, today, nowMinutes) {
+  const rows = attendanceRows(data, today, nowMinutes);
+  if (!rows.length) return "🕘 <b>Davomat</b>\n\nBugun smenasi bor xodim yo‘q.";
+  const list2 = (state, render) => rows.filter((row) => row.state === state).map(render);
+  const onTime = list2("on_time", (row) => `• ${row.name} — ${row.firstIn !== null ? hhmm(row.firstIn) : ""}`);
+  const late = list2("late", (row) => `• ${row.name} — ${row.firstIn !== null ? hhmm(row.firstIn) : ""}, ${row.lateMinutes} daqiqa kechikdi`);
+  const absent = list2("absent", (row) => `• ${row.name} — smena ${hhmm(row.shiftStart)}`);
+  const waiting = list2("waiting", (row) => `• ${row.name} — smena ${hhmm(row.shiftStart)}`);
+  const left = list2("left_early", (row) => `• ${row.name} — ${row.lastAt !== null ? hhmm(row.lastAt) : ""} da chiqqan`);
+  const block = (title, lines) => lines.length ? ["", `<b>${title} — ${lines.length}</b>`, ...lines] : [];
+  return [
+    `🕘 <b>Davomat · ${today}</b>`,
+    `Smenada: ${rows.length} · keldi: ${onTime.length + late.length + left.length} · kelmadi: ${absent.length}`,
+    ...block("Kelmagan", absent),
+    ...block("Kechikkan", late),
+    ...block("Erta ketgan", left),
+    ...block("Vaqtida kelgan", onTime),
+    ...block("Hali smena boshlanmagan", waiting)
+  ].join("\n");
+}
+
+// src/timepay.ts
+var TIMEPAY_BASE = "https://api.app.time-pay.uz/api/v1/integration";
+var PAGE_LIMIT = 100;
+var MAX_PAGES = 30;
+var TimepayError = class extends Error {
+  constructor(status, code) {
+    super(`Timepay ${status} ${code}`);
+    this.status = status;
+    this.code = code;
+    this.name = "TimepayError";
+  }
+};
+async function list(path, token, fetcher) {
+  const rows = [];
+  let url = `${TIMEPAY_BASE}${path}${path.includes("?") ? "&" : "?"}limit=${PAGE_LIMIT}`;
+  for (let page = 0; url && page < MAX_PAGES; page += 1) {
+    const response = await fetcher(url, { headers: { Authorization: `Bearer ${token}` } });
+    const body = await response.json().catch(() => null);
+    if (!response.ok) throw new TimepayError(response.status, body?.error_code ?? "request_failed");
+    rows.push(...body?.results ?? []);
+    const next = typeof body?.next === "string" ? body.next.replace(/^http:/, "https:") : null;
+    url = next && next.startsWith(`${TIMEPAY_BASE}/`) ? next : null;
+  }
+  return rows;
+}
+async function fetchAttendance(token, today, fetcher) {
+  const [employees, schedules, checks] = await Promise.all([
+    list("/employees/", token, fetcher),
+    list("/schedules/", token, fetcher),
+    list(`/checkinouts/?date=${encodeURIComponent(today)}`, token, fetcher)
+  ]);
+  return { employees, schedules, checks };
+}
+
 // src/telegram-owner.ts
 function ownerKeyboard() {
   const rows = [];
@@ -3391,13 +3527,17 @@ function resolveOwnerInput(input) {
   if (byLabel) return byLabel.key;
   return parseOwnerCommand(text2);
 }
+function ownerNeedsAttendance(input) {
+  return resolveOwnerInput(input) === "davomat";
+}
 function ownerNeedsState(input) {
   return resolveOwnerInput(input) !== "menu";
 }
-function ownerReply(input, rawSnapshot, today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10), allowActions = false) {
+function ownerReply(input, rawSnapshot, today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10), allowActions = false, attendance = null) {
   const keyboard = ownerKeyboard();
   const target = resolveOwnerInput(input);
   if (target === "menu") return { text: ownerMenuText(), keyboard };
+  if (target === "davomat" && attendance) return { text: attendanceReport(attendance.data, today, attendance.nowMinutes), keyboard };
   const snapshot = rawSnapshot;
   const state = migrateState(snapshot?.state);
   const actor = snapshot?.actor;
@@ -3417,18 +3557,26 @@ function parseOwnerIds(value) {
 function ownerErrorText(message) {
   return `⚠️ Bajarilmadi: ${esc2(translateError(message))}`;
 }
-function watchRun(rawSnapshot, sent, nowIso, today, localHour) {
+function watchRun(rawSnapshot, sent, nowIso, today, localHour, attendance = null) {
   const snapshot = rawSnapshot;
-  const findings = watchFindings(migrateState(snapshot?.state), nowIso, today);
+  const staff = attendance ? attendanceFindings(attendance.data, today, attendance.nowMinutes) : [];
+  const findings = [...staff, ...watchFindings(migrateState(snapshot?.state), nowIso, today)];
   const activeKeys = findings.map((row) => row.key);
   if (isQuietHour(localHour)) return { text: null, sentKeys: [], activeKeys };
   const due = dueFindings(findings, sent, nowIso);
   if (!due.length) return { text: null, sentKeys: [], activeKeys };
   return { text: watchDigest(due, "🔔 <b>Nazorat: e’tibor bering</b>"), sentKeys: due.map((row) => row.key), activeKeys };
 }
+function clockMinutes(hhmm2) {
+  const [hours, minutes] = hhmm2.split(":").map(Number);
+  return hours % 24 * 60 + (minutes || 0);
+}
 export {
+  clockMinutes,
+  fetchAttendance,
   ownerErrorText,
   ownerKeyboard,
+  ownerNeedsAttendance,
   ownerNeedsState,
   ownerReply,
   parseOwnerIds,

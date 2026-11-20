@@ -22,7 +22,7 @@ export function uzs(value: number): string {
 }
 
 export type ReportKey =
-  | 'kassa' | 'mijoz_qarz' | 'taminot_qarz' | 'buyurtmalar' | 'ombor' | 'hisobot' | 'nazorat';
+  | 'kassa' | 'mijoz_qarz' | 'taminot_qarz' | 'buyurtmalar' | 'ombor' | 'hisobot' | 'nazorat' | 'davomat';
 
 export interface OwnerCommand { key: ReportKey; label: string; command: string }
 
@@ -30,6 +30,7 @@ export interface OwnerCommand { key: ReportKey; label: string; command: string }
 export const OWNER_COMMANDS: OwnerCommand[] = [
   { key: 'hisobot', label: '📊 Umumiy hisobot', command: '/hisobot' },
   { key: 'nazorat', label: '🔔 Nazorat', command: '/nazorat' },
+  { key: 'davomat', label: '🕘 Davomat', command: '/davomat' },
   { key: 'kassa', label: '💵 Kassa', command: '/kassa' },
   { key: 'mijoz_qarz', label: '👤 Mijozlar qarzi', command: '/mijoz_qarz' },
   { key: 'taminot_qarz', label: '🚚 Taʼminot qarzi', command: '/taminot_qarz' },
@@ -143,6 +144,8 @@ export function hisobotReport(state: State): string {
 export function ownerReport(state: State, key: ReportKey, today = new Date().toISOString().slice(0, 10), nowIso = new Date().toISOString()): string {
   switch (key) {
     case 'nazorat': return watchDigest(watchFindings(state, nowIso, today));
+    // Attendance needs Timepay data; the owner handler answers it before reaching here.
+    case 'davomat': return '🕘 <b>Davomat</b>\n\nTimepay ulanmagan. Supabase sirlariga TIMEPAY_TOKEN qo‘shing.';
     case 'kassa': return kassaReport(state);
     case 'mijoz_qarz': return mijozQarzReport(state);
     case 'taminot_qarz': return taminotQarzReport(state);
