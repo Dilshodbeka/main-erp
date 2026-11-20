@@ -13,7 +13,7 @@ import {
   type IncomingMessage,
   type TelegramFileRef,
 } from '../_shared/telegram.ts';
-import { ownerNeedsState, ownerReply, parseOwnerIds } from '../_shared/owner-bot.generated.js';
+import { ownerErrorText, ownerNeedsState, ownerReply, parseOwnerIds } from '../_shared/owner-bot.generated.js';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -84,25 +84,66 @@ async function adminToken(): Promise<string> {
   return ownerSession.token;
 }
 
-async function adminState(): Promise<unknown> {
+type OwnerSnapshot = { actor?: unknown; state?: { revision?: number } } | null;
+
+async function adminClient(): Promise<SupabaseClient> {
   const token = await adminToken();
-  const scoped = createClient(supabaseUrl, anonKey || serviceKey, {
+  return createClient(supabaseUrl, anonKey || serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { Authorization: `Bearer ${token}` } },
   });
-  const snapshot = await scoped.rpc('erp_snapshot');
+}
+
+async function adminSnapshot(): Promise<OwnerSnapshot> {
+  const snapshot = await (await adminClient()).rpc('erp_snapshot');
   if (snapshot.error) {
     ownerSession = null;
     throw new Error('owner_snapshot_failed');
   }
-  return (snapshot.data as { state?: unknown } | null)?.state;
+  return snapshot.data as OwnerSnapshot;
+}
+
+/** Stable per update and step, so a Telegram redelivery replays the same erp_execute request. */
+async function requestIdFor(incoming: IncomingMessage, step: number): Promise<string> {
+  const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256',
+    new TextEncoder().encode(`owner-bot:${incoming.chatId}:${incoming.updateId}:${step}`))).slice(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+const tashkentToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tashkent' }).format(new Date());
+
+async function ownerAnswer(incoming: IncomingMessage): Promise<{ text: string; keyboard: string[][] }> {
+  const input = incoming.startPayload !== null ? '/start' : incoming.text;
+  if (!ownerNeedsState(input)) return ownerReply(input, null);
+  const today = tashkentToday();
+  let snapshot = await adminSnapshot();
+  const answer = ownerReply(input, snapshot, today);
+  if (!answer.commands?.length) return answer;
+  // A confirmed action: run its commands in order, each against the revision the previous one returned.
+  const scoped = await adminClient();
+  for (let step = 0; step < answer.commands.length; step += 1) {
+    const executed = await scoped.rpc('erp_execute', {
+      p_request_id: await requestIdFor(incoming, step),
+      p_expected_revision: snapshot?.state?.revision ?? -1,
+      p_command: answer.commands[step],
+    });
+    if (executed.error) {
+      console.error('Owner bot command failed', executed.error.code);
+      return { text: ownerErrorText(executed.error.message ?? ''), keyboard: answer.keyboard };
+    }
+    snapshot = executed.data as OwnerSnapshot;
+  }
+  const followUp = answer.followUp ? `\n\n${ownerReply(answer.followUp, snapshot, today).text}` : '';
+  return { text: `${answer.text}${followUp}`, keyboard: answer.keyboard };
 }
 
 async function handleOwner(incoming: IncomingMessage) {
-  const input = incoming.startPayload !== null ? '/start' : incoming.text;
   let answer: { text: string; keyboard: string[][] };
   try {
-    answer = ownerReply(input, ownerNeedsState(input) ? await adminState() : null);
+    answer = await ownerAnswer(incoming);
   } catch (error) {
     console.error('Owner bot failed', error instanceof Error ? error.message : 'unknown');
     answer = { text: 'Hisobotni olishda xatolik. Birozdan keyin qayta urinib ko‘ring.', keyboard: [] };
@@ -121,7 +162,6 @@ async function handleOwner(incoming: IncomingMessage) {
     console.error('Owner bot reply failed', error instanceof Error ? error.name : 'unknown');
   }
 }
-
 
 async function handleStart(incoming: IncomingMessage) {
   const payload = incoming.startPayload ?? '';

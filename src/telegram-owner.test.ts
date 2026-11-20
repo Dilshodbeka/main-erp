@@ -22,14 +22,15 @@ describe('owner bot', () => {
 
   it('answers the menu without ERP data', () => {
     expect(ownerNeedsState('/start')).toBe(false);
-    expect(ownerNeedsState('nima gap')).toBe(false);
+    expect(ownerNeedsState('nima gap')).toBe(true);
     expect(ownerReply('/start', null).text).toContain('/kassa');
-    expect(ownerReply('nima gap', null).text).toContain('tanilmadi');
   });
 
   it('builds a report from a raw admin snapshot', () => {
-    const raw = JSON.parse(JSON.stringify(emptyState()));
+    const state = JSON.parse(JSON.stringify(emptyState()));
+    const raw = { actor: { id: 'a', name: 'Egasi', role: 'admin', companyId: state.companyId }, state };
     expect(ownerNeedsState('/kassa')).toBe(true);
+    expect(ownerReply('nima gap', raw).text).toContain('tanilmadi');
     const answer = ownerReply('/kassa', raw);
     expect(answer.text).toContain('Kassa holati');
     expect(answer.keyboard).toEqual(ownerKeyboard());

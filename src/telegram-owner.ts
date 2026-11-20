@@ -1,13 +1,20 @@
 // Owner branch of the Telegram bot: turns one incoming text into one reply.
 // Pure (no Deno, Supabase or DOM): the Edge Function loads the bundled copy
 // (supabase/functions/_shared/owner-bot.generated.js, built by `npm run build:bot`).
+import { translateError } from './i18n';
 import { migrateState } from './migrations';
-import { OWNER_COMMANDS, ownerMenuText, ownerReport, parseOwnerCommand, type ReportKey } from './telegram-reports';
+import { planOwnerAction } from './telegram-actions';
+import type { Actor, Command } from './types';
+import { esc, OWNER_COMMANDS, ownerMenuText, ownerReport, parseOwnerCommand, type ReportKey } from './telegram-reports';
 
 export interface OwnerReply {
   text: string;
   /** Telegram reply keyboard rows; taps arrive as plain text equal to the label. */
   keyboard: string[][];
+  /** ERP commands to run through erp_execute before answering (confirmed actions only). */
+  commands?: Command[];
+  /** Input to render with the fresh snapshot after the commands succeed. */
+  followUp?: string;
 }
 
 /** Two buttons per row; a tap sends the label back as a normal message. */
@@ -27,24 +34,36 @@ export function resolveOwnerInput(input: string): ReportKey | 'menu' | null {
   return parseOwnerCommand(text);
 }
 
-/** True when the reply needs ERP data; lets the caller skip the snapshot for the menu. */
+/** Only the menu is answered without ERP data. */
 export function ownerNeedsState(input: string): boolean {
-  const target = resolveOwnerInput(input);
-  return target !== null && target !== 'menu';
+  return resolveOwnerInput(input) !== 'menu';
 }
 
-/** rawState is the `state` object returned by the erp_snapshot RPC for an admin profile. */
-export function ownerReply(input: string, rawState: unknown): OwnerReply {
+/**
+ * rawSnapshot is the erp_snapshot RPC result for an admin profile: { actor, state }.
+ * `today` is the local date (YYYY-MM-DD) stamped on shipments created from the bot.
+ */
+export function ownerReply(input: string, rawSnapshot: unknown, today = new Date().toISOString().slice(0, 10)): OwnerReply {
   const keyboard = ownerKeyboard();
   const target = resolveOwnerInput(input);
   if (target === 'menu') return { text: ownerMenuText(), keyboard };
-  if (target === null) {
-    return { text: `Bu buyruq tanilmadi.\n\n${ownerMenuText()}`, keyboard };
-  }
-  return { text: ownerReport(migrateState(rawState), target), keyboard };
+  const snapshot = rawSnapshot as { actor?: Actor; state?: unknown } | null;
+  const state = migrateState(snapshot?.state);
+  const actor = snapshot?.actor;
+  if (!actor) throw new Error('owner_actor_missing');
+  // "/buyurtmalar" and its button show the actionable list instead of the plain totals.
+  const action = planOwnerAction(target === 'buyurtmalar' ? '/buyurtmalar' : input, state, actor, today);
+  if (action) return { ...action, keyboard };
+  if (target === null) return { text: `Bu buyruq tanilmadi.\n\n${ownerMenuText()}`, keyboard };
+  return { text: ownerReport(state, target), keyboard };
 }
 
 /** "7135485514, 123" → ['7135485514', '123']; anything non-numeric is dropped. */
 export function parseOwnerIds(value: string | undefined): string[] {
   return (value ?? '').split(/[\s,;]+/).map(part => part.trim()).filter(part => /^-?\d{3,20}$/.test(part));
+}
+
+/** Server-side refusal (erp_execute) as an Uzbek line for the owner. */
+export function ownerErrorText(message: string): string {
+  return `⚠️ Bajarilmadi: ${esc(translateError(message))}`;
 }
