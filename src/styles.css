@@ -257,6 +257,22 @@
 .td .chat-count.inline{margin-left:6px}
 @media(max-width:700px){.chat-drawer{width:100%}.chat-drawer>header{padding:16px}.chat-body{padding:14px}.chat-bubble{max-width:92%}.chat-link-panel{margin:14px}.chat-composer{padding-inline:14px}.chat-file{min-width:0;width:100%}}
 
+/* Order chat */
+.order-chat{margin:18px 0 4px;padding-top:16px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:10px}
+.order-chat-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.order-chat-head h3{font-size:14px;margin:3px 0 2px}
+.order-chat-head small{font-size:10.5px;color:var(--muted);line-height:1.6}
+.order-chat-problem{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:10px;background:#fbeeee;color:#8f473e;font-size:12px;line-height:1.6}
+.order-chat-problem svg{flex-shrink:0;margin-top:1px}
+.order-chat-body{max-height:340px;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:12px;background:#f6f7f3;border:1px solid var(--border);border-radius:12px;-webkit-overflow-scrolling:touch}
+.order-chat .chat-bubble{max-width:92%}
+.order-chat .chat-meta{font-size:10px}
+.order-chat-composer{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}
+.order-chat-composer textarea{resize:none;max-height:110px;min-height:42px;font-size:13px;line-height:1.6;padding:10px 12px}
+.order-chat-composer .primary{height:42px;padding-inline:15px;display:grid;place-items:center}
+.order-chat-hint{font-size:10px;color:var(--muted);line-height:1.6}
+@media(max-width:700px){.order-chat-body{max-height:52dvh}}
+
 /* Modular widget dashboard */
 .widget-board{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px;margin-bottom:20px;align-items:stretch}
 .widget{grid-column:span 4;display:flex;flex-direction:column;min-width:0;background:#fff;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
@@ -690,8 +706,8 @@
 @media(max-width:700px){
   html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   .brand small,.app-footer{font-size:10px}
-  .system-state small,.live-indicator,.demo-banner,.demo-banner button,.eyebrow,.metric-top,.metric small,.panel-header p,.step-number,.pipeline small,thead,td small,.badge,.attention small,.workflow-note p,.mini-cards article small,.review-list small,.task-info small,.task .secondary,.material-warning,.purchase-list small,.employee-card footer small,.delivery-info span,.debt-list small,.period-bar button,.operation-list article>span,.settings-facts b,.setup-steps>article>span,.form-section-title small,.estimate-bar>span,.order-money small,.detail-line small,.story-stages,.panel-header .text-button,th,.review-list .primary,.review-list .secondary,.kanban-card>small,.stage-chip,.kanban-empty,.work-card>header small,.work-numbers small,.work-history-list small,.task-status,.catalog-machine strong small,.catalog-op small,.catalog-price small,.recipe-card>header small,.recipe-component>span,.recipe-component>small,.inline-field,.component-allowed>small,.series-facts,.series-material-view>span,.series-material-view small,.series-material small,.price-history-head small,.price-pair small,.price-history-qty,.ledger-head small,.ledger-figures small,.ledger-row small,.mobile-nav-item,.mobile-nav-item>b,.chat-head-actions .secondary.small,.chat-day span,.chat-meta,.chat-link-panel>small,.chat-composer .chat-hint,.chat-count,.widget-title small,.widget-row .grow small,.widget-stat small,.widget-subtitle,.widget-tag,.tree-code,.tree-leaf,.warehouse-tabs>button,.route-rate small,.route-amount small,.import-drop small,.import-chip,.import-summary span,.import-table td small,.import-state,.photo-state,.import-help dl>div,.import-help p,.customer-picker-list h4,.customer-option small,.material-picker-button small,.material-picker-static small,.quick-results h4,.quick-body small,.quick-row em{font-size:11px}
-  input,select,textarea,.search input,.panel-header select,.editor-line select,.editor-line input,.route-supplier-cost input,.chat-composer textarea,.sort-select select,.customer-picker-search input,.customer-create input,.customer-create select,.access-inline input,.material-picker-search input{font-size:16px}
+  .system-state small,.live-indicator,.demo-banner,.demo-banner button,.eyebrow,.metric-top,.metric small,.panel-header p,.step-number,.pipeline small,thead,td small,.badge,.attention small,.workflow-note p,.mini-cards article small,.review-list small,.task-info small,.task .secondary,.material-warning,.purchase-list small,.employee-card footer small,.delivery-info span,.debt-list small,.period-bar button,.operation-list article>span,.settings-facts b,.setup-steps>article>span,.form-section-title small,.estimate-bar>span,.order-money small,.detail-line small,.story-stages,.panel-header .text-button,th,.review-list .primary,.review-list .secondary,.kanban-card>small,.stage-chip,.kanban-empty,.work-card>header small,.work-numbers small,.work-history-list small,.task-status,.catalog-machine strong small,.catalog-op small,.catalog-price small,.recipe-card>header small,.recipe-component>span,.recipe-component>small,.inline-field,.component-allowed>small,.series-facts,.series-material-view>span,.series-material-view small,.series-material small,.price-history-head small,.price-pair small,.price-history-qty,.ledger-head small,.ledger-figures small,.ledger-row small,.mobile-nav-item,.mobile-nav-item>b,.chat-head-actions .secondary.small,.chat-day span,.chat-meta,.chat-link-panel>small,.chat-composer .chat-hint,.chat-count,.widget-title small,.widget-row .grow small,.widget-stat small,.widget-subtitle,.widget-tag,.tree-code,.tree-leaf,.warehouse-tabs>button,.route-rate small,.route-amount small,.import-drop small,.import-chip,.import-summary span,.import-table td small,.import-state,.photo-state,.import-help dl>div,.import-help p,.customer-picker-list h4,.customer-option small,.material-picker-button small,.material-picker-static small,.quick-results h4,.quick-body small,.quick-row em,.order-chat-head small,.order-chat .chat-meta,.order-chat-hint{font-size:11px}
+  input,select,textarea,.search input,.panel-header select,.editor-line select,.editor-line input,.route-supplier-cost input,.chat-composer textarea,.sort-select select,.customer-picker-search input,.customer-create input,.customer-create select,.access-inline input,.material-picker-search input,.order-chat-composer textarea{font-size:16px}
   .dialog-positions .editor-line select,.dialog-positions .editor-line input{font-size:16px}
   input:not([type=checkbox]):not([type=radio]),select{min-height:46px}
   textarea{min-height:80px}

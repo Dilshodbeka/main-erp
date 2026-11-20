@@ -42,11 +42,12 @@ class ApiError extends Error {
   }
 }
 
-interface Profile { company_id: string; role: string }
+interface Profile { id: string; company_id: string; role: string; name: string }
 interface Customer { id: string; name: string; telegram_chat_id: string | null }
 interface Body {
   action?: string;
   customerId?: string;
+  orderId?: string;
   text?: string;
   chatId?: string;
   storagePath?: string;
@@ -100,6 +101,22 @@ function databaseError(code?: string): ApiError {
 async function insertMessage(admin: SupabaseClient, row: Record<string, unknown>) {
   const { data, error } = await admin.from('erp_messages').insert(row).select('*').single();
   if (error) throw databaseError(error.code);
+  return data;
+}
+
+async function loadOrder(admin: SupabaseClient, companyId: string, orderId: string, customerId: string) {
+  if (!uuidPattern.test(orderId)) throw new ApiError('order_not_found', 404);
+  const { data, error } = await admin.from('erp_orders')
+    .select('id, number, customer_id')
+    .eq('company_id', companyId).eq('id', orderId).maybeSingle();
+  if (error) throw databaseError(error.code);
+  if (!data || data.customer_id !== customerId) throw new ApiError('order_not_found', 404);
+  return data as { id: string; number: string; customer_id: string };
+}
+
+async function insertOrderMessage(admin: SupabaseClient, row: Record<string, unknown>) {
+  const { data, error } = await admin.from('erp_order_messages').insert(row).select('*').single();
+  if (error) throw new ApiError('order_chat_failed', 500, error.message);
   return data;
 }
 
@@ -183,16 +200,24 @@ async function handle(body: Body, profile: Profile, admin: SupabaseClient): Prom
     const text = String(body.text ?? '').trim();
     if (!text) throw new ApiError('empty_message', 400);
     if (text.length > 4096) throw new ApiError('message_too_long', 400);
+    const order = body.orderId ? await loadOrder(admin, profile.company_id, body.orderId, customer.id) : null;
     const sent = await telegram<{ message_id: number; date: number }>('sendMessage', {
-      chat_id: chatId, text, link_preview_options: { is_disabled: true },
+      chat_id: chatId, text: order ? `${order.number}: ${text}`.slice(0, 4096) : text,
+      link_preview_options: { is_disabled: true },
     });
+    const createdAt = new Date(sent.date * 1000).toISOString();
     const row = await insertMessage(admin, {
       company_id: profile.company_id, client_id: customer.id, telegram_chat_id: chatId,
       sender: 'operator', text, file_url: null, file_type: 'text', file_name: null, file_size: null,
       storage_path: null, is_read: true, telegram_message_id: sent.message_id,
-      created_at: new Date(sent.date * 1000).toISOString(),
+      created_at: createdAt,
     });
-    return { ok: true, message: row };
+    const orderMessage = order ? await insertOrderMessage(admin, {
+      company_id: profile.company_id, order_id: order.id, author_kind: profile.role,
+      author_profile_id: profile.id, author_name: profile.name, text, channel: 'telegram',
+      telegram_message_id: sent.message_id, created_at: createdAt,
+    }) : null;
+    return { ok: true, message: row, orderMessage };
   }
 
   if (action === 'send-file') {
@@ -243,7 +268,7 @@ serve(async request => {
     const userId = auth.user?.id || sessionUserId(token);
     if (!uuidPattern.test(userId)) throw new ApiError('auth_invalid', 401, 'Session subject is missing');
     const profileResult = await admin.from('erp_profiles')
-      .select('company_id, role').eq('id', userId).maybeSingle();
+      .select('id, company_id, role, name').eq('id', userId).maybeSingle();
     if (profileResult.error) throw databaseError(profileResult.error.code);
     const profile = profileResult.data as Profile | null;
     if (!profile) throw new ApiError('profile_missing', 403);

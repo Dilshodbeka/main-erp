@@ -18,7 +18,7 @@ describe('support tickets SQL contract', () => {
   });
 
   it('lets workers create and reply but not close', () => {
-    expect(schema).toContain("IF v_type IN ('work.accept', 'work.start', 'work.submit', 'ticket.create', 'ticket.reply') THEN");
+    expect(schema).toContain("IF v_type IN ('work.accept', 'work.start', 'work.submit', 'assembly.complete', 'ticket.create', 'ticket.reply') THEN");
     expect(schema).toContain("WHEN 'ticket.close' THEN");
     expect(schema).toContain("IF v_actor.role <> 'admin' THEN RAISE EXCEPTION 'Administrator action required'");
   });

@@ -43,7 +43,7 @@ describe('access permissions SQL contract', () => {
 
   it('gates worker commands by permission with an ownership branch for orders', () => {
     const gate = execute.slice(execute.indexOf("IF v_actor.role = 'worker' THEN"), execute.indexOf("WHEN 'order.create' THEN"));
-    expect(gate).toContain("'work.accept', 'work.start', 'work.submit', 'ticket.create', 'ticket.reply'");
+    expect(gate).toContain("'work.accept', 'work.start', 'work.submit', 'assembly.complete', 'ticket.create', 'ticket.reply'");
     expect(gate).toContain("'order.update', 'orderLine.cancel', 'order.cancel', 'order.launch'");
     expect(gate).toContain("IF NOT public.erp_can_touch_order(v_actor, v_customer_seller_id) THEN");
     expect(gate).toContain("RAISE EXCEPTION 'You may only manage orders of your own customers' USING ERRCODE = '42501';");

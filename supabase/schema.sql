@@ -176,8 +176,8 @@ CREATE TABLE public.erp_orders (
   FOREIGN KEY (company_id, warehouse_id) REFERENCES public.erp_warehouses(company_id, id),
   FOREIGN KEY (company_id, output_item_id) REFERENCES public.erp_items(company_id, id),
   FOREIGN KEY (company_id, recipe_version_id) REFERENCES public.erp_recipe_versions(company_id, id),
-  CHECK ((kind = 'series' AND customer_id IS NULL AND output_item_id IS NOT NULL AND recipe_version_id IS NOT NULL AND price = 0 AND overhead = 0 AND markup = 0)
-    OR (kind <> 'series' AND customer_id IS NOT NULL AND output_item_id IS NULL AND recipe_version_id IS NULL AND substitutions = '{}'::jsonb))
+  CONSTRAINT erp_orders_series_check CHECK ((kind = 'series' AND customer_id IS NULL AND output_item_id IS NOT NULL AND recipe_version_id IS NOT NULL AND price = 0 AND overhead = 0 AND markup = 0)
+    OR (kind <> 'series' AND customer_id IS NOT NULL AND recipe_version_id IS NULL AND substitutions = '{}'::jsonb))
 );
 CREATE TABLE public.erp_order_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -204,11 +204,14 @@ CREATE TABLE public.erp_order_materials (
   issued_qty numeric NOT NULL DEFAULT 0,
   estimated_cost numeric NOT NULL CHECK (estimated_cost BETWEEN 0 AND 1000000000000 AND estimated_cost = round(estimated_cost, 2)),
   actual_cost numeric NOT NULL DEFAULT 0 CHECK (actual_cost BETWEEN 0 AND 1000000000000 AND actual_cost = round(actual_cost, 2)),
+  actual_qty numeric NOT NULL DEFAULT 0 CHECK (actual_qty >= 0 AND actual_qty <= 1000000000 AND actual_qty = round(actual_qty, 3)),
+  actual_item_id uuid,
   UNIQUE (company_id, line_id, item_id),
   UNIQUE (company_id, order_id, position),
   FOREIGN KEY (company_id, order_id) REFERENCES public.erp_orders(company_id, id),
   FOREIGN KEY (company_id, line_id) REFERENCES public.erp_order_items(company_id, id),
   FOREIGN KEY (company_id, item_id) REFERENCES public.erp_items(company_id, id),
+  CONSTRAINT erp_order_materials_actual_item_fkey FOREIGN KEY (company_id, actual_item_id) REFERENCES public.erp_items(company_id, id),
   CONSTRAINT erp_order_materials_issued_qty_check CHECK (issued_qty >= 0 AND issued_qty <= qty AND issued_qty = round(issued_qty, 3)),
   CONSTRAINT erp_order_materials_issued_actual_check CHECK (issued_qty > 0 OR actual_cost = 0),
   CHECK (round(qty * estimated_cost, 2) <= 1000000000000),
@@ -233,6 +236,9 @@ CREATE TABLE public.erp_tasks (
   completed numeric NOT NULL DEFAULT 0 CHECK (completed >= 0 AND completed <= planned),
   status text NOT NULL DEFAULT 'assigned' CHECK (status IN ('assigned', 'accepted', 'in_progress', 'submitted', 'completed')),
   workshop_id uuid NOT NULL DEFAULT '00000000-0000-4000-8000-00000000b001',
+  assembly boolean NOT NULL DEFAULT false,
+  crew jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(crew) = 'array'),
+  assembly_output text CHECK (assembly_output IN ('client', 'stock')),
   UNIQUE (company_id, id),
   UNIQUE (company_id, id, order_id),
   UNIQUE (company_id, id, order_id, employee_id),
@@ -246,7 +252,9 @@ CREATE TABLE public.erp_tasks (
   CHECK (executor_kind IN ('employee', 'supplier')),
   CHECK ((executor_kind = 'employee' AND employee_id IS NOT NULL AND supplier_id IS NULL)
     OR (executor_kind = 'supplier' AND employee_id IS NULL AND supplier_id IS NOT NULL)),
-  CHECK (round(planned * rate, 2) <= 1000000000000)
+  CHECK (round(planned * rate, 2) <= 1000000000000),
+  CONSTRAINT erp_tasks_assembly_employee_check CHECK (NOT assembly OR executor_kind = 'employee'),
+  CONSTRAINT erp_tasks_assembly_state_check CHECK (assembly OR (crew = '[]'::jsonb AND assembly_output IS NULL))
 );
 CREATE TABLE public.erp_purchases (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -342,7 +350,7 @@ CREATE TABLE public.erp_payroll (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.erp_companies(id),
   employee_id uuid NOT NULL,
-  report_id uuid NOT NULL,
+  report_id uuid,
   order_id uuid NOT NULL,
   task_id uuid NOT NULL,
   amount numeric NOT NULL CHECK (amount BETWEEN 0 AND 1000000000000 AND amount = round(amount, 2)),
@@ -442,6 +450,33 @@ CREATE TABLE public.erp_support_tickets (
 );
 CREATE INDEX erp_support_tickets_company_idx ON public.erp_support_tickets(company_id);
 CREATE INDEX erp_support_tickets_author_idx ON public.erp_support_tickets(company_id, author_id);
+-- Order chat lives outside erp_execute: one room per order, read and written directly through
+-- RLS and Realtime so a long thread never inflates the offline snapshot or the command queue.
+CREATE TABLE public.erp_order_messages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id uuid NOT NULL REFERENCES public.erp_companies(id),
+  order_id uuid NOT NULL,
+  author_kind text NOT NULL CHECK (author_kind IN ('admin', 'worker', 'client')),
+  author_profile_id uuid,
+  author_name text NOT NULL CHECK (btrim(author_name) <> ''),
+  text text NOT NULL CHECK (length(btrim(text)) BETWEEN 1 AND 4096),
+  channel text NOT NULL DEFAULT 'app' CHECK (channel IN ('app', 'telegram')),
+  telegram_message_id bigint,
+  created_at timestamptz NOT NULL DEFAULT transaction_timestamp(),
+  UNIQUE (company_id, id),
+  CHECK (author_kind = 'client' OR author_profile_id IS NOT NULL),
+  FOREIGN KEY (company_id, order_id) REFERENCES public.erp_orders(company_id, id),
+  FOREIGN KEY (author_profile_id) REFERENCES public.erp_profiles(id)
+);
+CREATE INDEX erp_order_messages_order_idx ON public.erp_order_messages(company_id, order_id, created_at);
+CREATE TABLE public.erp_order_chat_reads (
+  company_id uuid NOT NULL REFERENCES public.erp_companies(id),
+  order_id uuid NOT NULL,
+  profile_id uuid NOT NULL REFERENCES public.erp_profiles(id),
+  last_read_at timestamptz NOT NULL DEFAULT transaction_timestamp(),
+  PRIMARY KEY (company_id, order_id, profile_id),
+  FOREIGN KEY (company_id, order_id) REFERENCES public.erp_orders(company_id, id)
+);
 CREATE TABLE public.erp_worker_deductions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.erp_companies(id),
@@ -785,6 +820,62 @@ GRANT SELECT ON TABLE public.erp_companies TO authenticated;
 CREATE POLICY erp_company_read ON public.erp_companies FOR SELECT TO authenticated USING (id = public.erp_current_company_id());
 CREATE POLICY erp_profile_self_read ON public.erp_profiles FOR SELECT TO authenticated USING (id = auth.uid());
 
+-- Order chat membership: owner, or a worker picked for any stage of this order (lead or crew).
+CREATE FUNCTION public.erp_order_chat_member(p_order_id uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.erp_profiles p
+    JOIN public.erp_orders o ON o.company_id = p.company_id AND o.id = p_order_id
+    WHERE p.id = auth.uid()
+      AND (p.role = 'admin' OR (p.employee_id IS NOT NULL AND EXISTS (
+        SELECT 1 FROM public.erp_tasks t
+        WHERE t.company_id = o.company_id AND t.order_id = o.id
+          AND (t.employee_id = p.employee_id
+            OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(t.crew) c WHERE c = p.employee_id::text))))))
+$$;
+CREATE FUNCTION public.erp_order_chat_overview()
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT coalesce(jsonb_object_agg(u.order_id, u.unread), '{}'::jsonb) FROM (
+    SELECT m.order_id, count(*)::int AS unread
+    FROM public.erp_order_messages m
+    LEFT JOIN public.erp_order_chat_reads r
+      ON r.company_id = m.company_id AND r.order_id = m.order_id AND r.profile_id = auth.uid()
+    WHERE m.company_id = public.erp_current_company_id()
+      AND public.erp_order_chat_member(m.order_id)
+      AND m.author_profile_id IS DISTINCT FROM auth.uid()
+      AND (r.last_read_at IS NULL OR m.created_at > r.last_read_at)
+    GROUP BY m.order_id
+  ) u;
+$$;
+ALTER TABLE public.erp_order_messages ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.erp_order_messages FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT ON TABLE public.erp_order_messages TO authenticated;
+CREATE POLICY erp_order_messages_read ON public.erp_order_messages FOR SELECT TO authenticated
+  USING (company_id = public.erp_current_company_id() AND public.erp_order_chat_member(order_id));
+CREATE POLICY erp_order_messages_write ON public.erp_order_messages FOR INSERT TO authenticated
+  WITH CHECK (
+    company_id = public.erp_current_company_id()
+    AND public.erp_order_chat_member(order_id)
+    AND channel = 'app'
+    AND author_profile_id = auth.uid()
+    AND author_kind = (SELECT role FROM public.erp_profiles WHERE id = auth.uid())
+    AND author_name = (SELECT name FROM public.erp_profiles WHERE id = auth.uid())
+  );
+ALTER TABLE public.erp_order_chat_reads ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.erp_order_chat_reads FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.erp_order_chat_reads TO authenticated;
+CREATE POLICY erp_order_chat_reads_own ON public.erp_order_chat_reads FOR ALL TO authenticated
+  USING (company_id = public.erp_current_company_id() AND profile_id = auth.uid() AND public.erp_order_chat_member(order_id))
+  WITH CHECK (company_id = public.erp_current_company_id() AND profile_id = auth.uid() AND public.erp_order_chat_member(order_id));
+ALTER TABLE public.erp_order_messages REPLICA IDENTITY FULL;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime')
+    AND NOT EXISTS (SELECT 1 FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'erp_order_messages') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.erp_order_messages;
+  END IF;
+END $$;
+
 CREATE FUNCTION public.erp_stock_qty(p_company_id uuid, p_item_id uuid, p_warehouse_id uuid DEFAULT NULL)
 RETURNS numeric LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
   SELECT coalesce(sum(CASE direction WHEN 'in' THEN qty ELSE -qty END), 0)
@@ -957,10 +1048,48 @@ BEGIN
   END IF;
 END;
 $$;
+-- Brigada: faol, operatsiyaga ruxsat etilgan xodimlar, ijobiy vaznlar; mas’ul yig‘uvchi brigadada bo‘ladi.
+CREATE FUNCTION public.erp_crew(p_company_id uuid, p_employee_ids uuid[], p_lead uuid, p_crew jsonb)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE v_member jsonb; v_id uuid; v_weight numeric; v_result jsonb := '[]'::jsonb; v_ids uuid[] := ARRAY[]::uuid[];
+BEGIN
+  IF p_crew IS NULL OR jsonb_typeof(p_crew) = 'null' THEN RETURN '[]'::jsonb; END IF;
+  IF jsonb_typeof(p_crew) <> 'array' THEN
+    RAISE EXCEPTION 'crew must be an array' USING ERRCODE = '22023';
+  END IF;
+  IF jsonb_array_length(p_crew) = 0 THEN RETURN '[]'::jsonb; END IF;
+  IF p_lead IS NULL THEN
+    RAISE EXCEPTION 'Yig‘ish bosqichini xodimlar bajaradi' USING ERRCODE = '23514';
+  END IF;
+  FOR v_member IN SELECT value FROM jsonb_array_elements(p_crew) LOOP
+    IF jsonb_typeof(v_member) <> 'object' THEN
+      RAISE EXCEPTION 'crew member must be an object' USING ERRCODE = '22023';
+    END IF;
+    v_id := public.erp_uuid(v_member -> 'employeeId', 'crew employeeId');
+    IF v_id = ANY(v_ids) THEN
+      RAISE EXCEPTION 'Brigada a’zosi ikki marta kiritilgan' USING ERRCODE = '23514';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.erp_employees WHERE company_id = p_company_id AND id = v_id AND active) THEN
+      RAISE EXCEPTION 'Active employee not found' USING ERRCODE = '22023';
+    END IF;
+    IF NOT (v_id = ANY(p_employee_ids)) THEN
+      RAISE EXCEPTION 'Employee is not authorized for this operation' USING ERRCODE = '23514';
+    END IF;
+    v_weight := public.erp_num(v_member -> 'weight', 'crew weight');
+    v_ids := v_ids || v_id;
+    v_result := v_result || jsonb_build_array(jsonb_build_object(
+      'employeeId', v_id, 'weight', round(v_weight, 3)));
+  END LOOP;
+  IF NOT (p_lead = ANY(v_ids)) THEN
+    RAISE EXCEPTION 'Mas’ul yig‘uvchi brigadada bo‘lishi kerak' USING ERRCODE = '23514';
+  END IF;
+  RETURN v_result;
+END;
+$$;
 CREATE FUNCTION public.erp_insert_route(p_company_id uuid, p_order_id uuid, p_line_id uuid, p_qty numeric, p_lines jsonb)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE v_line jsonb; v_pos integer; v_stage numeric; v_operation public.erp_operations%ROWTYPE;
-  v_kind text; v_employee uuid; v_supplier uuid;
+  v_kind text; v_employee uuid; v_supplier uuid; v_assembly boolean; v_crew jsonb;
 BEGIN
   SELECT coalesce(max(position), -1) + 1 INTO v_pos FROM public.erp_tasks
     WHERE company_id = p_company_id AND order_id = p_order_id;
@@ -998,15 +1127,30 @@ BEGIN
     ELSE
       RAISE EXCEPTION 'Invalid executor kind' USING ERRCODE = '22023';
     END IF;
+    v_assembly := CASE WHEN v_line -> 'assembly' IS NOT NULL
+      THEN public.erp_bool(v_line -> 'assembly', 'assembly') ELSE false END;
+    IF v_assembly AND v_kind <> 'employee' THEN
+      RAISE EXCEPTION 'Yig‘ish bosqichini xodimlar bajaradi' USING ERRCODE = '23514';
+    END IF;
+    IF v_assembly THEN
+      v_crew := public.erp_crew(p_company_id, v_operation.employee_ids, v_employee, v_line -> 'crew');
+    ELSE
+      IF v_line ? 'crew' AND jsonb_typeof(v_line -> 'crew') = 'array' AND jsonb_array_length(v_line -> 'crew') > 0 THEN
+        RAISE EXCEPTION 'Brigada faqat yig‘ish bosqichida bo‘ladi' USING ERRCODE = '23514';
+      END IF;
+      v_crew := '[]'::jsonb;
+    END IF;
     -- A stage plans its own volume (sheets, metres, holes); older payloads fall back to the position quantity.
     v_stage := CASE WHEN v_line -> 'qty' IS NOT NULL THEN public.erp_num(v_line -> 'qty', 'stage qty') ELSE p_qty END;
     INSERT INTO public.erp_tasks(company_id, order_id, line_id, position, operation_id, name, executor_kind,
-      employee_id, supplier_id, rate, supplier_cost, sale_price, standard_minutes, planned, workshop_id)
+      employee_id, supplier_id, rate, supplier_cost, sale_price, standard_minutes, planned, workshop_id,
+      assembly, crew)
       VALUES (p_company_id, p_order_id, p_line_id, v_pos, v_operation.id, v_operation.name, v_kind, v_employee,
         v_supplier, public.erp_money(v_line -> 'rate', 'route rate', true),
         CASE WHEN v_kind = 'supplier' AND v_line ? 'supplierCost'
           THEN public.erp_money(v_line -> 'supplierCost', 'supplier cost', true) ELSE 0 END,
-        v_operation.sale_price, v_operation.standard_minutes, v_stage, v_operation.workshop_id);
+        v_operation.sale_price, v_operation.standard_minutes, v_stage, v_operation.workshop_id,
+        v_assembly, v_crew);
     v_pos := v_pos + 1;
   END LOOP;
 END;
@@ -1243,7 +1387,7 @@ $$;
 CREATE FUNCTION public.erp_revise_route(p_company_id uuid, p_order_id uuid, p_line_id uuid, p_qty numeric, p_lines jsonb, p_pos integer)
 RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE v_line jsonb; v_pos integer := p_pos; v_id uuid; v_started boolean; v_stage numeric;
-  v_kind text; v_employee uuid; v_supplier uuid;
+  v_kind text; v_employee uuid; v_supplier uuid; v_assembly boolean; v_crew jsonb;
   v_operation public.erp_operations%ROWTYPE; v_task public.erp_tasks%ROWTYPE;
 BEGIN
   v_line := public.erp_array(coalesce(p_lines, '[]'::jsonb), 'route');
@@ -1312,6 +1456,19 @@ BEGIN
     ELSE
       RAISE EXCEPTION 'Invalid executor kind' USING ERRCODE = '22023';
     END IF;
+    v_assembly := CASE WHEN v_line -> 'assembly' IS NOT NULL
+      THEN public.erp_bool(v_line -> 'assembly', 'assembly') ELSE false END;
+    IF v_assembly AND v_kind <> 'employee' THEN
+      RAISE EXCEPTION 'Yig‘ish bosqichini xodimlar bajaradi' USING ERRCODE = '23514';
+    END IF;
+    IF v_assembly THEN
+      v_crew := public.erp_crew(p_company_id, v_operation.employee_ids, v_employee, v_line -> 'crew');
+    ELSE
+      IF v_line ? 'crew' AND jsonb_typeof(v_line -> 'crew') = 'array' AND jsonb_array_length(v_line -> 'crew') > 0 THEN
+        RAISE EXCEPTION 'Brigada faqat yig‘ish bosqichida bo‘ladi' USING ERRCODE = '23514';
+      END IF;
+      v_crew := '[]'::jsonb;
+    END IF;
     v_stage := CASE WHEN v_line -> 'qty' IS NOT NULL THEN public.erp_num(v_line -> 'qty', 'stage qty') ELSE p_qty END;
     IF v_line ? 'taskId' THEN
       SELECT * INTO v_task FROM public.erp_tasks
@@ -1331,17 +1488,20 @@ BEGIN
           supplier_cost = CASE WHEN v_kind = 'supplier' AND v_line ? 'supplierCost'
             THEN public.erp_money(v_line -> 'supplierCost', 'supplier cost', true) ELSE 0 END,
           sale_price = v_operation.sale_price, standard_minutes = v_operation.standard_minutes,
-          planned = v_stage, completed = 0, status = 'assigned', workshop_id = v_operation.workshop_id
+          planned = v_stage, completed = 0, status = 'assigned', workshop_id = v_operation.workshop_id,
+          assembly = v_assembly, crew = v_crew
           WHERE company_id = p_company_id AND id = v_task.id;
       END IF;
     ELSE
       INSERT INTO public.erp_tasks(company_id, order_id, line_id, position, operation_id, name, executor_kind,
-        employee_id, supplier_id, rate, supplier_cost, sale_price, standard_minutes, planned, workshop_id)
+        employee_id, supplier_id, rate, supplier_cost, sale_price, standard_minutes, planned, workshop_id,
+        assembly, crew)
         VALUES (p_company_id, p_order_id, p_line_id, v_pos, v_operation.id, v_operation.name, v_kind, v_employee,
           v_supplier, public.erp_money(v_line -> 'rate', 'route rate', true),
           CASE WHEN v_kind = 'supplier' AND v_line ? 'supplierCost'
             THEN public.erp_money(v_line -> 'supplierCost', 'supplier cost', true) ELSE 0 END,
-          v_operation.sale_price, v_operation.standard_minutes, v_stage, v_operation.workshop_id);
+          v_operation.sale_price, v_operation.standard_minutes, v_stage, v_operation.workshop_id,
+          v_assembly, v_crew);
     END IF;
     v_pos := v_pos + 1;
   END LOOP;
@@ -1428,6 +1588,31 @@ BEGIN
       INSERT INTO public.erp_stock_movements(company_id, item_id, direction, qty, unit_cost, source, source_id, note)
         VALUES (p_company_id, v_item.id, 'in', v_order.qty, round(v_total / v_order.qty, 2), 'production', p_order_id, '');
     END IF;
+    -- Yig‘ish «Omborga»: tayyor mahsulot shu qatorning haqiqiy tannarxi bilan omborga tushadi.
+    IF v_order.kind <> 'series' AND NOT EXISTS (
+      SELECT 1 FROM public.erp_stock_movements WHERE company_id = p_company_id AND source = 'production' AND source_id = p_order_id)
+      AND EXISTS (SELECT 1 FROM public.erp_tasks WHERE company_id = p_company_id AND line_id = v_line.id
+        AND assembly AND assembly_output = 'stock') THEN
+      SELECT * INTO STRICT v_item FROM public.erp_items WHERE company_id = p_company_id AND id = v_order.output_item_id;
+      SELECT round(coalesce(sum(round(m.issued_qty * m.actual_cost, 2)), 0), 2) INTO v_material
+        FROM public.erp_order_materials m WHERE m.company_id = p_company_id AND m.line_id = v_line.id AND m.issued_qty > 0;
+      SELECT round(coalesce(sum(p.amount), 0), 2) INTO v_labor
+        FROM public.erp_payroll p JOIN public.erp_tasks t ON t.company_id = p.company_id AND t.id = p.task_id
+        WHERE p.company_id = p_company_id AND p.order_id = p_order_id AND p.status = 'accepted' AND t.line_id = v_line.id;
+      SELECT round(v_labor + coalesce(sum(CASE WHEN t.supplier_cost > 0 THEN round(t.supplier_cost, 2)
+        ELSE round(t.completed * t.rate, 2) END), 0), 2) INTO v_labor
+        FROM public.erp_tasks t WHERE t.company_id = p_company_id AND t.line_id = v_line.id
+          AND t.executor_kind = 'supplier' AND t.status = 'completed';
+      v_total := round(v_material + v_labor, 2);
+      v_before := public.erp_stock_qty(p_company_id, v_item.id);
+      v_after := v_before + v_line.qty;
+      v_cost := round((v_before * v_item.cost + v_total) / v_after, 2);
+      v_new_labor := least(v_cost, round((v_before * v_item.labor_cost + v_labor) / v_after, 2));
+      UPDATE public.erp_items SET cost = v_cost, labor_cost = v_new_labor,
+        material_cost = round(v_cost - v_new_labor, 2) WHERE company_id = p_company_id AND id = v_item.id;
+      INSERT INTO public.erp_stock_movements(company_id, item_id, direction, qty, unit_cost, source, source_id, note)
+        VALUES (p_company_id, v_item.id, 'in', v_line.qty, round(v_total / v_line.qty, 2), 'production', p_order_id, '');
+    END IF;
   END LOOP;
   PERFORM public.erp_sync_order(p_company_id, p_order_id);
 END;
@@ -1445,7 +1630,9 @@ BEGIN
   IF v_task.executor_kind <> 'employee' OR v_task.employee_id IS NULL THEN
     RAISE EXCEPTION 'Outsourced task is not available to workers' USING ERRCODE = '42501';
   END IF;
-  IF p_actor.role <> 'admin' AND v_task.employee_id <> p_actor.employee_id THEN
+  IF p_actor.role <> 'admin' AND v_task.employee_id <> p_actor.employee_id
+    AND NOT (v_task.assembly AND EXISTS (SELECT 1 FROM jsonb_array_elements(v_task.crew) c
+      WHERE c.value ->> 'employeeId' = p_actor.employee_id::text)) THEN
     RAISE EXCEPTION 'Task is not assigned to this worker' USING ERRCODE = '42501';
   END IF;
   SELECT * INTO v_operation FROM public.erp_operations WHERE company_id = p_company_id AND id = v_task.operation_id;
@@ -1460,7 +1647,9 @@ BEGIN
     WHERE i.company_id = p_company_id AND i.order_id = v_order.id AND i.id = v_task.line_id AND i.status = 'production') THEN
     RAISE EXCEPTION 'Order position is not in production' USING ERRCODE = '23514';
   END IF;
-  IF EXISTS (SELECT 1 FROM public.erp_order_materials WHERE company_id = p_company_id AND line_id = v_task.line_id AND issued_qty < qty) THEN
+  -- Yig‘ish materiallarni «Tayyor»da fakt bo‘yicha yozadi, shuning uchun avvaldan berish shart emas.
+  IF NOT v_task.assembly AND EXISTS (SELECT 1 FROM public.erp_order_materials
+    WHERE company_id = p_company_id AND line_id = v_task.line_id AND issued_qty < qty) THEN
     RAISE EXCEPTION 'Issue all materials before work' USING ERRCODE = '23514';
   END IF;
   IF EXISTS (SELECT 1 FROM public.erp_tasks WHERE company_id = p_company_id AND line_id = v_task.line_id AND position < v_task.position AND completed < planned) THEN
@@ -1837,7 +2026,9 @@ BEGIN
         'materials', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', m.id, 'lineId', m.line_id, 'itemId', m.item_id, 'qty', m.qty,
           'issuedQty', m.issued_qty,
           'estimatedCost', CASE WHEN v_admin OR v_has_cost_view THEN m.estimated_cost ELSE 0 END, 'issued', m.issued_qty >= m.qty,
-          'actualCost', CASE WHEN v_admin OR v_has_cost_view THEN m.actual_cost ELSE 0 END) ORDER BY m.position, m.id), '[]'::jsonb)
+          'actualCost', CASE WHEN v_admin OR v_has_cost_view THEN m.actual_cost ELSE 0 END,
+          'actualQty', m.actual_qty, 'actualItemId', CASE WHEN v_admin THEN m.actual_item_id ELSE NULL END
+          ) ORDER BY m.position, m.id), '[]'::jsonb)
           FROM public.erp_order_materials m WHERE m.company_id = o.company_id AND m.order_id = o.id),
         'route', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', t.id, 'lineId', t.line_id, 'operationId', t.operation_id, 'name', t.name,
           'executorKind', t.executor_kind,
@@ -1847,7 +2038,8 @@ BEGIN
           'supplierCost', CASE WHEN v_admin OR v_has_cost_view THEN t.supplier_cost ELSE 0 END,
           'salePrice', CASE WHEN v_admin OR v_has_cost_view THEN t.sale_price ELSE 0 END,
           'standardMinutes', t.standard_minutes,
-          'planned', t.planned, 'completed', t.completed, 'status', t.status, 'workshopId', t.workshop_id) ORDER BY t.position, t.id), '[]'::jsonb)
+          'planned', t.planned, 'completed', t.completed, 'status', t.status, 'workshopId', t.workshop_id,
+          'assembly', t.assembly, 'crew', t.crew, 'assemblyOutput', t.assembly_output) ORDER BY t.position, t.id), '[]'::jsonb)
           FROM public.erp_tasks t WHERE t.company_id = o.company_id AND t.order_id = o.id
             AND (v_admin
               OR (v_board AND (NOT v_tv_scope OR t.workshop_id = ANY(v_workshop_scope)))
@@ -1858,7 +2050,9 @@ BEGIN
           OR ((v_tv_scope OR v_chief_scope) AND EXISTS (SELECT 1 FROM public.erp_tasks t WHERE t.company_id = o.company_id
             AND t.order_id = o.id AND t.workshop_id = ANY(v_workshop_scope)))
           OR EXISTS (SELECT 1 FROM public.erp_customers oc WHERE oc.company_id = o.company_id AND oc.id = o.customer_id AND oc.seller_id = v_profile.employee_id)
-          OR EXISTS (SELECT 1 FROM public.erp_tasks t WHERE t.company_id = o.company_id AND t.order_id = o.id AND t.employee_id = v_profile.employee_id))),
+          OR EXISTS (SELECT 1 FROM public.erp_tasks t WHERE t.company_id = o.company_id AND t.order_id = o.id AND t.employee_id = v_profile.employee_id)
+          OR EXISTS (SELECT 1 FROM public.erp_tasks t WHERE t.company_id = o.company_id AND t.order_id = o.id
+            AND EXISTS (SELECT 1 FROM jsonb_array_elements(t.crew) c WHERE c.value ->> 'employeeId' = v_profile.employee_id::text)))),
       'purchases', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'number', p.number, 'supplierId', p.supplier_id, 'createdAt', p.created_at,
         'warehouseId', p.warehouse_id, 'orderId', p.order_id,
         'lines', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'itemId', l.item_id, 'qty', l.qty, 'price', l.price, 'received', l.received,
@@ -2135,6 +2329,19 @@ DECLARE
   v_text text;
   v_customer_seller_id uuid;
   v_workshop_scope uuid[];
+  v_output_item uuid;
+  v_crew jsonb;
+  v_crew_member jsonb;
+  v_weight numeric;
+  v_share numeric;
+  v_paid numeric;
+  v_replaced uuid;
+  v_seen uuid[] := ARRAY[]::uuid[];
+  v_planned_item uuid;
+  v_mat_item uuid;
+  v_actual numeric;
+  v_delta numeric;
+  v_len integer;
 BEGIN
   v_actor := public.erp_current_profile();
   v_company := v_actor.company_id;
@@ -2152,7 +2359,7 @@ BEGIN
     RAISE EXCEPTION 'Workshop display accounts are read-only' USING ERRCODE = '42501';
   END IF;
   IF v_actor.role = 'worker' THEN
-    IF v_type IN ('work.accept', 'work.start', 'work.submit', 'ticket.create', 'ticket.reply') THEN
+    IF v_type IN ('work.accept', 'work.start', 'work.submit', 'assembly.complete', 'ticket.create', 'ticket.reply') THEN
       NULL; -- base actions: any worker may act on their own stages / tickets
     ELSIF v_type IN ('order.update', 'orderLine.cancel', 'order.cancel', 'order.launch') THEN
       SELECT cc.seller_id INTO v_customer_seller_id FROM public.erp_orders oo
@@ -2475,6 +2682,12 @@ BEGIN
       IF NOT EXISTS (SELECT 1 FROM public.erp_warehouses WHERE company_id = v_company AND id = v_warehouse AND active) THEN
         RAISE EXCEPTION 'Ombor nofaol' USING ERRCODE = '23514';
       END IF;
+      v_output_item := CASE WHEN v_input ? 'outputItemId' AND v_input -> 'outputItemId' <> 'null'::jsonb
+        THEN public.erp_uuid(v_input -> 'outputItemId', 'outputItemId') ELSE NULL END;
+      IF v_output_item IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.erp_items i
+        WHERE i.company_id = v_company AND i.id = v_output_item AND i.customer_id IS NULL AND i.kind = 'finished') THEN
+        RAISE EXCEPTION 'Tayyor mahsulotni tanlang' USING ERRCODE = '23514';
+      END IF;
       v_lines := v_input -> 'lines';
       IF v_lines IS NOT NULL THEN
         IF jsonb_typeof(v_lines) <> 'array' OR jsonb_array_length(v_lines) = 0 THEN
@@ -2491,10 +2704,10 @@ BEGIN
           FROM jsonb_array_elements(v_lines) WITH ORDINALITY AS l(value, ordinality);
         IF v_line_kind NOT IN ('product', 'service', 'composite') THEN RAISE EXCEPTION 'Invalid position kind' USING ERRCODE = '22023'; END IF;
         IF v_amount + v_markup < 0 THEN RAISE EXCEPTION 'Markup exceeds order total' USING ERRCODE = '23514'; END IF;
-        INSERT INTO public.erp_orders(company_id, number, kind, customer_id, warehouse_id, title, qty, price, overhead, markup, due_date)
+        INSERT INTO public.erp_orders(company_id, number, kind, customer_id, warehouse_id, title, qty, price, overhead, markup, due_date, output_item_id)
           VALUES (v_company, 'ORD-' || (SELECT lpad((count(*) + 1)::text, greatest(4, length((count(*) + 1)::text)), '0') FROM public.erp_orders WHERE company_id = v_company),
             v_line_kind, v_customer, v_warehouse, v_title, v_qty, round(v_amount + v_markup, 2),
-            public.erp_money(v_input -> 'overhead', 'overhead', true), v_markup, public.erp_date(v_input -> 'dueDate')) RETURNING * INTO v_order;
+            public.erp_money(v_input -> 'overhead', 'overhead', true), v_markup, public.erp_date(v_input -> 'dueDate'), v_output_item) RETURNING * INTO v_order;
         v_entity := v_order.id;
         INSERT INTO public.erp_order_items(company_id, order_id, position, kind, title, qty, total)
           SELECT v_company, v_entity, (l.ordinality - 1)::integer, public.erp_text(l.value -> 'kind', 'position kind'),
@@ -2515,10 +2728,10 @@ BEGIN
         v_amount := public.erp_money(v_input -> 'price', 'price', true);
         v_title := public.erp_text(v_input -> 'title', 'title');
         IF v_amount + v_markup < 0 THEN RAISE EXCEPTION 'Markup exceeds order total' USING ERRCODE = '23514'; END IF;
-        INSERT INTO public.erp_orders(company_id, number, kind, customer_id, warehouse_id, title, qty, price, overhead, markup, due_date)
+        INSERT INTO public.erp_orders(company_id, number, kind, customer_id, warehouse_id, title, qty, price, overhead, markup, due_date, output_item_id)
           VALUES (v_company, 'ORD-' || (SELECT lpad((count(*) + 1)::text, greatest(4, length((count(*) + 1)::text)), '0') FROM public.erp_orders WHERE company_id = v_company),
             v_kind, v_customer, v_warehouse, v_title, v_qty, round(v_amount + v_markup, 2),
-            public.erp_money(v_input -> 'overhead', 'overhead', true), v_markup, public.erp_date(v_input -> 'dueDate')) RETURNING * INTO v_order;
+            public.erp_money(v_input -> 'overhead', 'overhead', true), v_markup, public.erp_date(v_input -> 'dueDate'), v_output_item) RETURNING * INTO v_order;
         v_entity := v_order.id;
         INSERT INTO public.erp_order_items(company_id, order_id, position, kind, title, qty, total)
           VALUES (v_company, v_entity, 0, v_kind, v_title, v_qty, v_amount) RETURNING id INTO v_line_id;
@@ -2541,6 +2754,16 @@ BEGIN
       END IF;
       IF NOT EXISTS (SELECT 1 FROM public.erp_customers WHERE company_id = v_company AND id = v_order.customer_id) THEN
         RAISE EXCEPTION 'Customer not found' USING ERRCODE = '22023';
+      END IF;
+      IF p_command ? 'outputItemId' THEN
+        v_output_item := CASE WHEN p_command -> 'outputItemId' <> 'null'::jsonb
+          THEN public.erp_uuid(p_command -> 'outputItemId', 'outputItemId') ELSE NULL END;
+        IF v_output_item IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.erp_items i
+          WHERE i.company_id = v_company AND i.id = v_output_item AND i.customer_id IS NULL AND i.kind = 'finished') THEN
+          RAISE EXCEPTION 'Tayyor mahsulotni tanlang' USING ERRCODE = '23514';
+        END IF;
+        UPDATE public.erp_orders SET output_item_id = v_output_item WHERE company_id = v_company AND id = v_entity;
+        v_order.output_item_id := v_output_item;
       END IF;
       IF p_command ? 'warehouseId' AND p_command -> 'warehouseId' <> 'null'::jsonb THEN
         v_warehouse := public.erp_uuid(p_command -> 'warehouseId', 'warehouseId');
@@ -2898,6 +3121,9 @@ BEGIN
     WHEN 'work.submit' THEN
       v_task := public.erp_work_task(v_company, v_actor, public.erp_uuid(p_command -> 'orderId', 'orderId'),
         public.erp_uuid(p_command -> 'taskId', 'taskId'));
+      IF v_task.assembly THEN
+        RAISE EXCEPTION 'Yig‘ish bosqichi «Tayyor» tugmasi bilan yakunlanadi' USING ERRCODE = '23514';
+      END IF;
       IF v_task.status <> 'in_progress' THEN RAISE EXCEPTION 'Task must be started before submission' USING ERRCODE = '23514'; END IF;
       v_qty := public.erp_num(p_command -> 'qty', 'qty');
       IF v_qty > v_task.planned - v_task.completed THEN RAISE EXCEPTION 'Report exceeds remaining quantity' USING ERRCODE = '23514'; END IF;
@@ -2940,6 +3166,127 @@ BEGIN
         UPDATE public.erp_tasks SET status = 'submitted' WHERE id = v_task.id;
       END IF;
       v_entity := v_report.id;
+    WHEN 'assembly.complete' THEN
+      v_task := public.erp_work_task(v_company, v_actor, public.erp_uuid(p_command -> 'orderId', 'orderId'),
+        public.erp_uuid(p_command -> 'taskId', 'taskId'));
+      IF NOT v_task.assembly THEN RAISE EXCEPTION 'Bu bosqich yig‘ish emas' USING ERRCODE = '23514'; END IF;
+      IF v_actor.role = 'worker' AND cardinality(v_workshop_scope) > 0
+         AND NOT (v_task.workshop_id = ANY(v_workshop_scope)) THEN
+        RAISE EXCEPTION 'Bu bosqich boshqa sexga tegishli' USING ERRCODE = '42501';
+      END IF;
+      IF v_task.status = 'completed' OR v_task.completed <> 0 THEN
+        RAISE EXCEPTION 'Task is already complete' USING ERRCODE = '23514';
+      END IF;
+      SELECT * INTO v_order FROM public.erp_orders WHERE company_id = v_company AND id = v_task.order_id FOR UPDATE;
+      IF NOT FOUND THEN RAISE EXCEPTION 'Order not found' USING ERRCODE = '22023'; END IF;
+      v_warehouse := v_order.warehouse_id;
+      v_text := public.erp_text(p_command -> 'output', 'output');
+      IF v_text NOT IN ('client', 'stock') THEN RAISE EXCEPTION 'Invalid output' USING ERRCODE = '22023'; END IF;
+      IF p_command ? 'outputItemId' AND p_command -> 'outputItemId' <> 'null'::jsonb THEN
+        v_output_item := public.erp_uuid(p_command -> 'outputItemId', 'outputItemId');
+        IF NOT EXISTS (SELECT 1 FROM public.erp_items i
+          WHERE i.company_id = v_company AND i.id = v_output_item AND i.customer_id IS NULL AND i.kind = 'finished') THEN
+          RAISE EXCEPTION 'Tayyor mahsulotni tanlang' USING ERRCODE = '23514';
+        END IF;
+        UPDATE public.erp_orders SET output_item_id = v_output_item WHERE company_id = v_company AND id = v_order.id;
+        v_order.output_item_id := v_output_item;
+      END IF;
+      IF v_text = 'stock' THEN
+        IF (SELECT count(*) FROM public.erp_order_items
+          WHERE company_id = v_company AND order_id = v_order.id AND status <> 'cancelled') <> 1 THEN
+          RAISE EXCEPTION 'Omborga chiqarish uchun bitta pozitsiya bo‘lishi kerak' USING ERRCODE = '23514';
+        END IF;
+        IF v_order.output_item_id IS NULL THEN RAISE EXCEPTION 'Tayyor mahsulotni tanlang' USING ERRCODE = '23514'; END IF;
+      END IF;
+      IF p_command -> 'materials' IS NULL OR jsonb_typeof(p_command -> 'materials') <> 'array' THEN
+        RAISE EXCEPTION 'materials must be an array' USING ERRCODE = '22023';
+      END IF;
+      SELECT count(*) INTO v_pos FROM public.erp_order_materials WHERE company_id = v_company AND line_id = v_task.line_id;
+      IF jsonb_array_length(p_command -> 'materials') <> v_pos THEN
+        RAISE EXCEPTION 'Haqiqiy sarf to‘liq kiritilishi kerak' USING ERRCODE = '23514';
+      END IF;
+      FOR v_rec IN SELECT value AS entry FROM jsonb_array_elements(p_command -> 'materials') LOOP
+        v_id := public.erp_uuid(v_rec.entry -> 'id', 'id');
+        IF v_id = ANY(v_seen) THEN RAISE EXCEPTION 'Duplicate material' USING ERRCODE = '22023'; END IF;
+        v_seen := v_seen || v_id;
+        v_actual := round(public.erp_num(v_rec.entry -> 'qty', 'qty', true), 3);
+        SELECT * INTO v_material FROM public.erp_order_materials
+          WHERE company_id = v_company AND line_id = v_task.line_id AND id = v_id FOR UPDATE;
+        IF NOT FOUND THEN RAISE EXCEPTION 'Material not found' USING ERRCODE = '22023'; END IF;
+        v_planned_item := v_material.item_id;
+        v_mat_item := CASE WHEN v_rec.entry ? 'itemId' AND v_rec.entry -> 'itemId' <> 'null'::jsonb
+          THEN public.erp_uuid(v_rec.entry -> 'itemId', 'itemId') ELSE v_planned_item END;
+        SELECT * INTO v_item FROM public.erp_items WHERE company_id = v_company AND id = v_mat_item;
+        IF NOT FOUND THEN RAISE EXCEPTION 'Material item not found' USING ERRCODE = '22023'; END IF;
+        IF v_item.customer_id IS NOT NULL AND v_item.customer_id <> v_order.customer_id THEN
+          RAISE EXCEPTION 'Material belongs to another customer' USING ERRCODE = '23514';
+        END IF;
+        IF v_material.issued_qty > 0 AND v_mat_item <> v_planned_item THEN
+          INSERT INTO public.erp_stock_movements(company_id, item_id, direction, qty, unit_cost, source, source_id, note, warehouse_id)
+            VALUES (v_company, v_planned_item, 'in', v_material.issued_qty, v_material.actual_cost, 'order', v_order.id,
+              'Yig‘ishda material almashtirildi', v_warehouse);
+          v_material.issued_qty := 0;
+          v_material.actual_cost := 0;
+        END IF;
+        v_delta := round(v_actual - v_material.issued_qty, 3);
+        IF v_delta > 0 THEN
+          v_free := greatest(public.erp_stock_qty(v_company, v_mat_item, v_warehouse)
+            - public.erp_reserved_qty(v_company, v_mat_item, v_order.id, v_warehouse), 0);
+          IF v_delta > v_free THEN RAISE EXCEPTION 'Omborda material yo‘q. Qoldiqni to‘ldiring' USING ERRCODE = '23514'; END IF;
+          INSERT INTO public.erp_stock_movements(company_id, item_id, direction, qty, unit_cost, source, source_id, note, warehouse_id)
+            VALUES (v_company, v_mat_item, 'out', v_delta,
+              CASE WHEN v_item.customer_id IS NULL THEN v_item.cost ELSE 0 END, 'order', v_order.id, '', v_warehouse);
+        ELSIF v_delta < 0 THEN
+          INSERT INTO public.erp_stock_movements(company_id, item_id, direction, qty, unit_cost, source, source_id, note, warehouse_id)
+            VALUES (v_company, v_mat_item, 'in', -v_delta, v_material.actual_cost, 'order', v_order.id,
+              'Yig‘ishda ortiqcha material qaytarildi', v_warehouse);
+        END IF;
+        IF v_actual = 0 THEN
+          DELETE FROM public.erp_order_materials WHERE company_id = v_company AND id = v_material.id;
+        ELSE
+          IF v_mat_item <> v_planned_item AND EXISTS (SELECT 1 FROM public.erp_order_materials m2
+            WHERE m2.company_id = v_company AND m2.line_id = v_task.line_id AND m2.id <> v_material.id
+              AND m2.item_id = v_mat_item) THEN
+            RAISE EXCEPTION 'Duplicate material' USING ERRCODE = '23514';
+          END IF;
+          UPDATE public.erp_order_materials SET item_id = v_mat_item,
+            actual_item_id = CASE WHEN v_mat_item = v_planned_item THEN NULL ELSE v_mat_item END,
+            estimated_cost = CASE WHEN v_item.customer_id IS NULL THEN v_item.cost ELSE 0 END,
+            actual_cost = CASE WHEN v_item.customer_id IS NULL THEN v_item.cost ELSE 0 END,
+            actual_qty = v_actual, issued_qty = v_actual, qty = v_actual
+            WHERE company_id = v_company AND id = v_material.id;
+        END IF;
+      END LOOP;
+      UPDATE public.erp_tasks SET completed = planned, status = 'completed', assembly_output = v_text
+        WHERE company_id = v_company AND id = v_task.id;
+      v_amount := round(v_task.rate * v_task.planned, 2);
+      v_crew := CASE WHEN jsonb_array_length(v_task.crew) > 0 THEN v_task.crew
+        ELSE jsonb_build_array(jsonb_build_object('employeeId', v_task.employee_id, 'weight', 1)) END;
+      v_len := jsonb_array_length(v_crew);
+      v_weight := 0;
+      FOR v_pos IN 1..v_len LOOP
+        v_weight := v_weight + (v_crew -> (v_pos - 1) ->> 'weight')::numeric;
+      END LOOP;
+      v_paid := 0;
+      FOR v_pos IN 1..v_len LOOP
+        v_crew_member := v_crew -> (v_pos - 1);
+        v_employee_id := public.erp_uuid(v_crew_member -> 'employeeId', 'employeeId');
+        SELECT * INTO v_employee FROM public.erp_employees WHERE company_id = v_company AND id = v_employee_id;
+        IF NOT FOUND OR NOT v_employee.active THEN RAISE EXCEPTION 'Employee is inactive' USING ERRCODE = '22023'; END IF;
+        v_share := CASE WHEN v_pos = v_len THEN round(v_amount - v_paid, 2)
+          ELSE round(v_amount * (v_crew_member ->> 'weight')::numeric / v_weight, 2) END;
+        v_paid := round(v_paid + v_share, 2);
+        SELECT * INTO v_payroll FROM public.erp_payroll
+          WHERE company_id = v_company AND order_id = v_order.id AND task_id = v_task.id AND employee_id = v_employee_id FOR UPDATE;
+        IF FOUND THEN
+          UPDATE public.erp_payroll SET amount = v_share, status = 'accepted' WHERE id = v_payroll.id;
+        ELSE
+          INSERT INTO public.erp_payroll(company_id, employee_id, report_id, order_id, task_id, amount, status)
+            VALUES (v_company, v_employee_id, NULL, v_order.id, v_task.id, v_share, 'accepted');
+        END IF;
+      END LOOP;
+      PERFORM public.erp_ready(v_company, v_order.id);
+      v_entity := v_task.id;
     WHEN 'work.review' THEN
       v_entity := public.erp_uuid(p_command -> 'reportId', 'reportId');
       v_accept := public.erp_bool(p_command -> 'accept', 'accept');
@@ -2966,7 +3313,8 @@ BEGIN
          AND NOT (v_task.workshop_id = ANY(v_workshop_scope)) THEN
         RAISE EXCEPTION 'Bu bosqich boshqa sexga tegishli' USING ERRCODE = '42501';
       END IF;
-      IF v_order.status <> 'production' OR EXISTS (SELECT 1 FROM public.erp_order_materials WHERE company_id = v_company AND order_id = v_order.id AND issued_qty < qty) THEN
+      IF v_order.status <> 'production' OR EXISTS (SELECT 1 FROM public.erp_order_materials
+        WHERE company_id = v_company AND line_id = v_task.line_id AND issued_qty < qty) THEN
         RAISE EXCEPTION 'Materials must be issued before review' USING ERRCODE = '23514';
       END IF;
       IF v_task.status <> 'submitted' THEN RAISE EXCEPTION 'Task is not awaiting review' USING ERRCODE = '23514'; END IF;
@@ -3636,6 +3984,7 @@ REVOKE ALL ON FUNCTION
   public.erp_stock_qty(uuid, uuid, uuid), public.erp_reserved_qty(uuid, uuid, uuid, uuid), public.erp_balance(uuid, text), public.erp_paid(uuid, text, uuid),
   public.erp_salary_ledger(uuid, uuid, date), public.erp_expense_ledger(uuid, uuid, date), public.erp_loan_ledger(uuid, uuid), public.erp_customer_paid(uuid, uuid), public.erp_customer_obligations(uuid, uuid), public.erp_customer_debt(uuid, uuid), public.erp_customer_advance(uuid, uuid), public.erp_order_paid(uuid, uuid),
   public.erp_supplier_cost(uuid, uuid), public.erp_ready(uuid, uuid), public.erp_work_task(uuid, public.erp_profiles, uuid, uuid),
+  public.erp_crew(uuid, uuid[], uuid, jsonb),
   public.erp_insert_components(uuid, uuid, jsonb), public.erp_assert_recipes(uuid), public.erp_insert_route(uuid, uuid, uuid, numeric, jsonb),
   public.erp_insert_materials(uuid, uuid, uuid, uuid, jsonb), public.erp_revise_materials(uuid, uuid, uuid, uuid, jsonb, integer),
   public.erp_norm_delta(uuid, uuid, uuid, uuid, jsonb, jsonb),

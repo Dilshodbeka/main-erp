@@ -138,7 +138,7 @@ export function diagnosticChecks(state: State): DiagnosticCheck[] {
     return false;
   }).length;
   const cashReversal = state.cash.filter(row => !!row.reversalOf && !cashIds.has(row.reversalOf)).length;
-  const payrollLinks = state.payroll.filter(row => !reportIds.has(row.reportId) || !employeeIds.has(row.employeeId)
+  const payrollLinks = state.payroll.filter(row => (row.reportId !== null && !reportIds.has(row.reportId)) || !employeeIds.has(row.employeeId)
     || !orderIds.has(row.orderId) || !taskExists(row.orderId, row.taskId)).length;
   const reportLinks = state.reports.filter(row => !orderIds.has(row.orderId) || !employeeIds.has(row.employeeId)
     || !taskExists(row.orderId, row.taskId)).length;

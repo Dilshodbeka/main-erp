@@ -82,7 +82,7 @@ export interface DefectRow {
   employeeId: string; operationId: string; qty: number; reason: DefectReason;
   note: string; materials: DefectMaterial[]; createdAt: string;
 }
-export interface PayrollEntry { id: string; employeeId: string; reportId: string; orderId: string; taskId: string; amount: number; status: 'pending' | 'accepted' | 'rejected'; createdAt: string }
+export interface PayrollEntry { id: string; employeeId: string; reportId: string | null; orderId: string; taskId: string; amount: number; status: 'pending' | 'accepted' | 'rejected'; createdAt: string }
 export interface SalaryPlan { id: string; employeeId: string; amount: number; fromMonth: string; createdAt: string }
 export interface ExpensePlan {
   id: string;        // версия-строка

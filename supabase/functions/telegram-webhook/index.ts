@@ -133,6 +133,55 @@ async function bindCustomer(customer: {
   await reply(chatId, '✅ Telegram bog‘landi. Endi shu oynadan korxona bilan yozishishingiz mumkin.');
 }
 
+const ORDER_THREAD_WINDOW_MS = 72 * 60 * 60 * 1000;
+
+async function orderIdForIncoming(
+  companyId: string, customerId: string, replyToMessageId: number | null,
+): Promise<string | null> {
+  const base = () => client().from('erp_order_messages')
+    .select('order_id, erp_orders!inner(customer_id)')
+    .eq('company_id', companyId)
+    .eq('erp_orders.customer_id', customerId);
+  if (replyToMessageId !== null) {
+    const byReply = await base().eq('telegram_message_id', replyToMessageId).maybeSingle();
+    if (byReply.error) console.error('Order chat reply lookup failed', byReply.error.code);
+    else if (byReply.data) return byReply.data.order_id;
+  }
+  const since = new Date(Date.now() - ORDER_THREAD_WINDOW_MS).toISOString();
+  const latest = await base().gte('created_at', since)
+    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (latest.error) {
+    console.error('Order chat fallback lookup failed', latest.error.code);
+    return null;
+  }
+  return latest.data?.order_id ?? null;
+}
+
+/** Best effort: the chat table may not exist until the migration is applied. */
+async function mirrorOrderMessage(
+  customer: { id: string; company_id: string; name: string }, incoming: IncomingMessage, text: string,
+) {
+  if (!text) return;
+  try {
+    const orderId = await orderIdForIncoming(customer.company_id, customer.id, incoming.replyToMessageId);
+    if (!orderId) return;
+    const { error } = await client().from('erp_order_messages').insert({
+      company_id: customer.company_id,
+      order_id: orderId,
+      author_kind: 'client',
+      author_profile_id: null,
+      author_name: customer.name,
+      text,
+      channel: 'telegram',
+      telegram_message_id: incoming.telegramMessageId,
+      created_at: incoming.sentAt,
+    });
+    if (error) console.error('Order chat mirror failed', error.code);
+  } catch (error) {
+    console.error('Order chat mirror failed', error instanceof Error ? error.name : 'unknown');
+  }
+}
+
 async function storeInboundFile(
   companyId: string, chatId: string, updateId: number, messageId: string,
   file: TelegramFileRef,
@@ -185,7 +234,7 @@ serve(async request => {
     }
 
     const lookup = await client()
-      .from('erp_customers').select('id, company_id')
+      .from('erp_customers').select('id, company_id, name')
       .eq('telegram_chat_id', incoming.chatId).maybeSingle();
     if (lookup.error) {
       console.error('Telegram customer lookup failed', lookup.error.code);
@@ -221,6 +270,10 @@ serve(async request => {
       console.error('Telegram message insert failed', inserted.error.code);
       return json({ ok: false }, 500);
     }
+    const orderText = text || (incoming.file?.fileType === 'photo' ? '[Rasm]'
+      : incoming.file?.fileType === 'voice' ? '[Ovozli xabar]'
+        : incoming.file ? `[Fayl: ${incoming.file.fileName}]` : '');
+    await mirrorOrderMessage(customer, incoming, orderText);
     if (incoming.file && !oversized) {
       const task = storeInboundFile(
         customer.company_id, incoming.chatId, incoming.updateId, inserted.data.id, incoming.file,

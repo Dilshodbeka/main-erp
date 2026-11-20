@@ -46,6 +46,7 @@ export interface IncomingMessage {
   text: string;
   file: TelegramFileRef | null;
   startPayload: string | null;
+  replyToMessageId: number | null;
   sentAt: string;
 }
 
@@ -89,7 +90,8 @@ export function parseTelegramUpdate(input: unknown): IncomingMessage | null {
     : null;
   const file = parseFile(message, telegramMessageId);
   if (!file && !text) return null;
-  return { updateId, chatId, telegramMessageId, text, file, startPayload, sentAt };
+  const replyToMessageId = safeInteger(record(message.reply_to_message)?.message_id);
+  return { updateId, chatId, telegramMessageId, text, file, startPayload, replyToMessageId, sentAt };
 }
 
 function parseFile(message: Json, messageId: number): TelegramFileRef | null {

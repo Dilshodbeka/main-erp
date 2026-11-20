@@ -318,7 +318,7 @@ function chatErrorFrom(error: { code?: string; message: string }): ChatError {
   return new ChatError('network', error.message);
 }
 
-async function callFunction(action: string, body: Record<string, unknown>): Promise<FunctionReply> {
+export async function callFunction(action: string, body: Record<string, unknown>): Promise<FunctionReply> {
   if (!supabase) throw new ChatError('telegram_not_configured');
   const { data: current } = await supabase.auth.getSession();
   const token = current.session?.access_token;

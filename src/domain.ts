@@ -995,7 +995,7 @@ function payCrew(state: State, order: Order, task: RouteLine, total: number): vo
       payroll.status = 'accepted';
     } else {
       state.payroll.push({
-        id: uuid(), employeeId: member.employeeId, reportId: '', orderId: order.id,
+        id: uuid(), employeeId: member.employeeId, reportId: null, orderId: order.id,
         taskId: task.id, amount, status: 'accepted', createdAt: now(),
       });
     }

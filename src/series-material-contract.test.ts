@@ -1,8 +1,14 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const schema = readFileSync(new URL('../supabase/schema.sql', import.meta.url), 'utf8');
-const migration = readFileSync(new URL('../supabase/migrations/20261125_series_duplicate_materials.sql', import.meta.url), 'utf8');
+const migrations = new URL('../supabase/migrations/', import.meta.url);
+const migration = readdirSync(migrations)
+  .filter(file => file.endsWith('.sql'))
+  .sort()
+  .reverse()
+  .map(file => readFileSync(new URL(file, migrations), 'utf8'))
+  .find(sql => sql.includes('CREATE OR REPLACE FUNCTION public.erp_execute(')) ?? '';
 
 const body = (name: string) => {
   const start = schema.indexOf(`CREATE FUNCTION public.${name}(`);

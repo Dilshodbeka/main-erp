@@ -37,8 +37,8 @@ describe('workshop SQL contract', () => {
   });
 
   it('stamps the operation workshop on route insert and unchanged stages', () => {
-    expect(schema).toContain('standard_minutes, planned, workshop_id)');
-    expect(schema).toContain('v_operation.standard_minutes, v_stage, v_operation.workshop_id);');
+    expect(schema).toContain('standard_minutes, planned, workshop_id,');
+    expect(schema).toContain('v_operation.standard_minutes, v_stage, v_operation.workshop_id,');
     expect(schema).toContain('planned = v_stage, completed = 0, status = \'assigned\', workshop_id = v_operation.workshop_id');
   });
 

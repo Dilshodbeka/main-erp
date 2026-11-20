@@ -51,6 +51,11 @@ describe('parseTelegramUpdate', () => {
     expect(voice?.file).toMatchObject({ fileId: 'v1', fileType: 'voice', fileName: 'voice-77.ogg' });
   });
 
+  it('keeps the replied-to message id for order-thread mapping', () => {
+    expect(parseTelegramUpdate(base({ text: 'Ha', reply_to_message: { message_id: 412 } }))?.replyToMessageId).toBe(412);
+    expect(parseTelegramUpdate(base({ text: 'Ha' }))?.replyToMessageId).toBeNull();
+  });
+
   it('exposes a /start deep-link payload', () => {
     expect(parseTelegramUpdate(base({ text: '/start abc123' }))?.startPayload).toBe('abc123');
     expect(parseTelegramUpdate(base({ text: '/start' }))?.startPayload).toBe('');
