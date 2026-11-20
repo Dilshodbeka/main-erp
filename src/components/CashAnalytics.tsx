@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { cashByCategory, cashByPeriod, type CashCategoryRow, type CashPeriodRow, type PeriodKind } from '../analytics';
 import { sortRows, type SortOption, type SortState } from '../listview';
+import { cashCategoryLabel } from '../i18n';
 import type { State } from '../types';
 import { Empty, Section, money } from '../ui';
 import { PeriodSwitch, periodTitle } from './PeriodSwitch';
@@ -21,7 +22,7 @@ export function CashAnalytics({ state }: { state: State }) {
   ];
   const rows = sortRows(cashByPeriod(state, kind), options, sort);
   const categoryOptions: SortOption<CashCategoryRow, CategorySort>[] = [
-    { value: 'category', label: 'Kategoriya', get: row => row.category },
+    { value: 'category', label: 'Kategoriya', get: row => cashCategoryLabel(row.category) },
     { value: 'income', label: 'Kirim', get: row => row.income },
     { value: 'expense', label: 'Chiqim', get: row => row.expense },
     { value: 'net', label: 'Sof oqim', get: row => row.net },
@@ -49,7 +50,7 @@ export function CashAnalytics({ state }: { state: State }) {
       <div className="table-scroll cardable"><table>
         <thead><tr><th>Kategoriya</th><th className="right">Yozuvlar</th><th className="right">Kirim</th><th className="right">Chiqim</th><th className="right">Sof oqim</th></tr></thead>
         <tbody>{categories.map(row => <tr key={row.category}>
-          <td data-label="Kategoriya"><b>{row.category}</b></td><td data-label="Yozuvlar" className="right">{row.count}</td>
+          <td data-label="Kategoriya"><b>{cashCategoryLabel(row.category)}</b></td><td data-label="Yozuvlar" className="right">{row.count}</td>
           <td data-label="Kirim" className="right positive">{money(row.income)}</td>
           <td data-label="Chiqim" className="right debt">{money(row.expense)}</td>
           <td data-label="Sof oqim" className={`right ${row.net < 0 ? 'debt' : 'positive'}`}>{money(row.net)}</td>
