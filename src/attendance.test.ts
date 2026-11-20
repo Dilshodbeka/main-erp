@@ -139,6 +139,21 @@ describe('timepay attendance', () => {
     expect(text).not.toContain('Fayzullo');
   });
 
+  it('the real account: lower-case "flexible", a 6-day cycle with a start date, Sunday off, the director not chased', () => {
+    const six = (start: string, end: string) => Array.from({ length: 6 }, (_, day) => ({ day, is_working: true, start_time: `${start}:00`, end_time: `${end}:00` }));
+    const early = schedule({ id: 5, name: 'Smena ( 8:00 - 18:00 )', schedule_type: 'flexible', schedule_cycle: 6, start_date: '2026-08-03', work_days: six('08:00', '18:00'), employee_ids: [1] });
+    const late = schedule({ id: 6, name: 'Smena ( 9:00 - 19:00 )', schedule_type: 'flexible', schedule_cycle: 6, start_date: '2026-08-17', work_days: six('09:00', '19:00'), employee_ids: [2, 3, 5] });
+    expect(shiftOn(early, TODAY)).toEqual({ start: 480, end: 1080 });
+    expect(shiftOn(late, TODAY)).toEqual({ start: 540, end: 1140 });
+    const staff = { employees: [...employees, { id: 5, first_name: 'Oybek', last_name: 'D', is_active: true, position: { id: 1, name: 'Директор' } }], schedules: [early, late], checks: [check(1, 'IN', '08:13'), check(2, 'IN', '09:05', 5)] } as unknown as AttendanceData;
+    const rows = attendanceRows(staff, TODAY, at('10:00'));
+    expect(rows.map(row => [row.employeeId, row.shiftStart, row.state])).toEqual([[1, 480, 'on_time'], [3, 540, 'absent'], [2, 540, 'late']]);
+    expect(rows.some(row => row.employeeId === 5)).toBe(false);                       // the director is not reported absent
+    expect(attendanceRows({ ...staff, checks: [] }, '2026-11-22', at('10:00'))).toEqual([]); // Sunday: nobody is "absent"
+    expect(attendanceRows({ ...staff, checks: [] }, '2026-11-23', at('10:00')).map(row => row.state)).toEqual(['absent', 'absent', 'absent']); // Monday
+    expect(ownerReply('/timepay', null, TODAY, false, { data: staff, nowMinutes: at('10:00') }).text).toContain('bugun: 09:00–19:00');
+  });
+
   it('builds the on-demand report', () => {
     const text = attendanceReport(data([check(1, 'IN', '08:55'), check(2, 'IN', '09:05', 5)]), TODAY, at('09:40'));
     expect(text).toContain('Smenada: 3 · keldi: 2 · kelmadi: 1');
