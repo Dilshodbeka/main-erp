@@ -254,7 +254,7 @@ export async function orderChatSend(
       if (!(error instanceof ChatError) || !DELIVERY_FALLBACK.has(error.code)) throw error;
     }
   }
-  const row = {
+  const row: Record<string, unknown> = {
     company_id: actor.companyId, order_id: orderId, author_kind: actor.role,
     author_profile_id: await profileId(), author_name: actor.name, text: body, channel: 'app',
   };
