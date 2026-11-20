@@ -85,6 +85,8 @@ import { ChatError, chatErrorText, chatOverview, playChatChime, subscribeChat, t
 import { invoiceFileName, sendInvoiceFile, shouldSendInvoiceFile } from './invoiceSend';
 import { cashReceipt, invoice, purchaseReceipt, routeSheet } from './documents';
 import { loadCompanyProfile, NO_COMPANY, type CompanyProfile } from './company-profile';
+import { FULL_ACCESS, daysLeft, loadSubscription, planLabel, subscriptionNotice, validUntil, visibleSections, type Subscription } from './subscription';
+import { PlatformPanel } from './components/PlatformPanel';
 import { CompanyProfileSettings } from './components/CompanyProfileSettings';
 import { acceptedWorkQty, boardTaskLabel, executorLabel, stageCostText, taskUnit, unitLabel, workTaskRows } from './work-view';
 import { warehouseGroups } from './warehouse';
@@ -146,6 +148,8 @@ export default function App() {
   const [clock, setClock] = useState(() => new Date());
   const [loginError, setLoginError] = useState('');
   const [needsCompany, setNeedsCompany] = useState(false);
+  const [subscription, setSubscription] = useState<Subscription>(FULL_ACCESS);
+  const [signup, setSignup] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
   const [orderView, setOrderView] = useState<'board' | 'table'>('board');
   const [cashFilter, setCashFilter] = useState('all');
@@ -232,6 +236,14 @@ export default function App() {
     let active = true;
     void loadCompanyProfile().then(profile => { if (active) setCompany(profile); });
     return () => { active = false; };
+  }, [authenticated]);
+  useEffect(() => {
+    if (!authenticated) { setSubscription(FULL_ACCESS); return; }
+    let active = true;
+    const refresh = () => { void loadSubscription().then(next => { if (active) setSubscription(next); }); };
+    refresh();
+    const timer = window.setInterval(refresh, 10 * 60 * 1000);
+    return () => { active = false; clearInterval(timer); };
   }, [authenticated]);
   useEffect(() => {
     if (actor.role !== 'display') return;
@@ -446,7 +458,9 @@ export default function App() {
     analytics: can('reports.view'),
     settings: can('settings.catalog', 'settings.access'),
   };
-  const visiblePages = admin ? pages : pages.filter(p => p.id === 'production' || pageGate[p.id]);
+  const allowedSections = visibleSections(pages.map(p => p.id), subscription);
+  const visiblePages = (admin ? pages : pages.filter(p => p.id === 'production' || pageGate[p.id])).filter(p => allowedSections.includes(p.id));
+  const planNotice = mode === 'cloud' && admin ? subscriptionNotice(subscription, new Date().toISOString()) : null;
   const visibleIds = visiblePages.map(p => p.id);
   const canClaim = !admin && can('customers.claim');
   const showMineFilter = !admin && can('orders.edit_own') && !can('orders.view_all');
@@ -536,7 +550,16 @@ export default function App() {
       setBusy(false);
     }
   })(); }} />;
-  if (!authenticated || !state) return <div className="login-shell"><div className="login-story"><div className="brand big"><span>A</span> ALIYA <small>ERP</small></div><h1>Birinchi qo‘ng‘iroqdan<br />tayyor mebelgacha.</h1><p>Buyurtmalar, sex, ombor va pul.<br />Bitta tizim. Bitta ishonchli hisob.</p><div className="story-stages">BUYURTMA <ChevronRight size={18} /> SEX <ChevronRight size={18} /> YETKAZIB BERISH</div></div><section className="login-card"><ShieldCheck size={28} /><h2>{mode === 'cloud' ? 'Korxonaga kirish' : state ? 'Tizimda kim ishlaydi?' : 'Yuklanmoqda'}</h2>{!state && mode === 'demo' && <Skeleton rows={3} />}<p>{mode === 'cloud' ? 'Supabase Auth orqali shaxsiy kirish. Rolni egasi tayinlaydi.' : state ? 'Demo rejim: profil tanlanadi. Huquqlar umumiy bazadagi tegishli kirish bilan bir xil.' : 'Namoyish hisobi tayyorlanmoqda.'}</p>{mode === 'cloud' && <form onSubmit={async event => { event.preventDefault(); const form = new FormData(event.currentTarget); setBusy(true); const { error } = await supabase!.auth.signInWithPassword({ email: text(form, 'email'), password: text(form, 'password') }); setBusy(false); if (error) setLoginError(error.message); }}><Field label="Email"><input name="email" type="email" autoComplete="username" required /></Field><Field label="Parol"><input name="password" type="password" autoComplete="current-password" required /></Field><button className="primary full" disabled={busy}>{busy ? 'Kirilmoqda…' : 'Kirish'}</button></form>}{mode === 'demo' && state && <div className="login-profiles"><button onClick={() => enterDemo(demoAdmin)}><ShieldCheck size={18} /><b>Egasi</b><small>Buyurtmalar, sex, ombor, pul, sozlamalar</small></button>{state.employees.filter(e => e.active).map(emp => <button key={emp.id} onClick={() => enterDemo({ id: emp.id, name: emp.name, role: 'worker', companyId: state.companyId })}><Factory size={18} /><b>{emp.name}</b><small>Xodim: o‘z topshiriqlari va hisob-kitoblari</small></button>)}<button onClick={() => enterDemo(demoDisplay)}><Tv size={18} /><b>Sex ekrani</b><small>Faqat TVda buyurtmalar kanbani, summasiz</small></button></div>}{loginError && <div className="warning">{loginError}</div>}<small>{mode === 'cloud' ? 'Baza sxemasi va kirish profili kirishdan oldin sozlangan bo‘lishi kerak.' : 'Bir necha kishi ishlashi uchun sozlamalarda umumiy bazani ulang.'}</small></section></div>;
+  if (!authenticated || !state) return <div className="login-shell"><div className="login-story"><div className="brand big"><span>A</span> ALIYA <small>ERP</small></div><h1>Birinchi qo‘ng‘iroqdan<br />tayyor mebelgacha.</h1><p>Buyurtmalar, sex, ombor va pul.<br />Bitta tizim. Bitta ishonchli hisob.</p><div className="story-stages">BUYURTMA <ChevronRight size={18} /> SEX <ChevronRight size={18} /> YETKAZIB BERISH</div></div><section className="login-card"><ShieldCheck size={28} /><h2>{mode === 'cloud' ? (signup ? 'Ro‘yxatdan o‘tish' : 'Korxonaga kirish') : state ? 'Tizimda kim ishlaydi?' : 'Yuklanmoqda'}</h2>{!state && mode === 'demo' && <Skeleton rows={3} />}<p>{mode === 'cloud' ? (signup ? 'Email va parol kiriting — keyingi qadamda korxonangiz nomini yozasiz. 14 kun bepul sinov.' : 'Shaxsiy kirish. Xodimlarga rolni korxona egasi tayinlaydi.') : state ? 'Demo rejim: profil tanlanadi. Huquqlar umumiy bazadagi tegishli kirish bilan bir xil.' : 'Namoyish hisobi tayyorlanmoqda.'}</p>{mode === 'cloud' && <form onSubmit={async event => { event.preventDefault(); const form = new FormData(event.currentTarget); setBusy(true); setLoginError('');
+        if (signup) {
+          // Yangi hisob: kirgandan keyin tizim korxona nomini so‘raydi va 14 kunlik sinov muddatini ochadi.
+          const { data, error } = await supabase!.auth.signUp({ email: text(form, 'email'), password: text(form, 'password') });
+          setBusy(false);
+          if (error) setLoginError(errorText(error));
+          else if (!data.session) { setSignup(false); setLoginError('Hisob yaratildi. Emailingizga kelgan havola orqali tasdiqlang, so‘ng kiring.'); }
+          return;
+        }
+        const { error } = await supabase!.auth.signInWithPassword({ email: text(form, 'email'), password: text(form, 'password') }); setBusy(false); if (error) setLoginError(error.message); }}><Field label="Email"><input name="email" type="email" autoComplete="username" required /></Field><Field label={signup ? 'Parol (kamida 8 belgi)' : 'Parol'}><input name="password" type="password" autoComplete={signup ? 'new-password' : 'current-password'} minLength={signup ? 8 : undefined} required /></Field><button className="primary full" disabled={busy}>{busy ? 'Kutilmoqda…' : signup ? 'Ro‘yxatdan o‘tish' : 'Kirish'}</button><div className="login-switch">{signup ? 'Hisobingiz bormi?' : 'Yangi korxonamisiz?'}<button type="button" onClick={() => { setSignup(!signup); setLoginError(''); }}>{signup ? 'Kirish' : 'Ro‘yxatdan o‘tish — 14 kun bepul'}</button></div></form>}{mode === 'demo' && state && <div className="login-profiles"><button onClick={() => enterDemo(demoAdmin)}><ShieldCheck size={18} /><b>Egasi</b><small>Buyurtmalar, sex, ombor, pul, sozlamalar</small></button>{state.employees.filter(e => e.active).map(emp => <button key={emp.id} onClick={() => enterDemo({ id: emp.id, name: emp.name, role: 'worker', companyId: state.companyId })}><Factory size={18} /><b>{emp.name}</b><small>Xodim: o‘z topshiriqlari va hisob-kitoblari</small></button>)}<button onClick={() => enterDemo(demoDisplay)}><Tv size={18} /><b>Sex ekrani</b><small>Faqat TVda buyurtmalar kanbani, summasiz</small></button></div>}{loginError && <div className="warning">{loginError}</div>}<small>{mode === 'cloud' ? 'Baza sxemasi va kirish profili kirishdan oldin sozlangan bo‘lishi kerak.' : 'Bir necha kishi ishlashi uchun sozlamalarda umumiy bazani ulang.'}</small></section></div>;
 
   const guide = pageGuide(state, current, actor);
   const supportTickets = visibleTickets(state.tickets, actor);
@@ -647,6 +670,7 @@ export default function App() {
     sidebar={<><div className="brand"><span>A</span><div>ALIYA<small>WORKSPACE / ERP</small></div><button className="icon-button mobile-only" aria-label="Menyuni yopish" onClick={() => setMenu(false)}><X size={18} /></button></div><div className="workspace-label"><i />Mebel ishlab chiqarish<small>O‘zbekiston · UZS</small></div><SectionNav pages={visiblePages} current={current} panel={panel} admin={admin} badges={{ production: myTasks, orders: chat.totalUnread + orderUnreadTotal, warehouse: low.length }} onNavigate={go} /><div className="sidebar-bottom"><div className="system-state"><ShieldCheck size={17} /><div>{mode === 'demo' ? 'Lokal demo rejim' : 'Himoyalangan kirish'}<small>{mode === 'demo' ? 'Korxonaning umumiy bazasi emas' : 'Supabase Auth · RLS'}</small></div></div><div className="profile"><div className="avatar">{actor.name.slice(0, 1)}</div><div><b>{actor.name}</b><small>{admin ? 'Egasi' : 'Xodim'}</small></div>{mode === 'demo' ? <button className="icon-button" aria-label="Chiqish va profilni almashtirish" title="Chiqish va profilni almashtirish" onClick={leaveSession}><LogOut size={17} /></button> : supabase && <button className="icon-button" aria-label="Chiqish" onClick={() => void signOut().catch(e => setNotice({ message: errorText(e), error: true }))}><LogOut size={17} /></button>}</div></div></>}
     banners={<>
     {mode === 'demo' && <div className="demo-banner"><span><CircleAlert size={15} />Namoyish: yozuvlar faqat shu brauzerda saqlanadi. Sex ishlashi uchun umumiy bazani ulang.</span><button onClick={() => go('settings', 'baza')}>Supabase ulash<ArrowUpRight size={14} /></button></div>}
+    {planNotice && <div className={`demo-banner subscription-${planNotice.tone}`}><span><CircleAlert size={15} />{planNotice.text}</span><button onClick={() => go('settings', 'kirish')}>Tarif<ArrowUpRight size={14} /></button></div>}
     {mode === 'cloud' && (!sync.online || sync.pending.length > 0) && <div className="demo-banner"><span><CircleAlert size={15} />{sync.pending.some(p => p.status === 'rejected') ? 'Konflikt bor: qayta yuborishdan oldin amalni tekshiring.' : `Oflayn navbat: ${sync.pending.length}. Ekranda faqat server tasdiqlagan qoldiqlar.`}</span><button onClick={() => show('sync')}>Sinxronizatsiya<RefreshCw size={14} /></button></div>}
     {mode === 'cloud' && admin && diagDue && <div className="demo-banner"><span><CircleAlert size={15} />Haftalik diagnostika vaqti keldi: hisobotni yuklab, mutaxassisga yuboring.</span><button onClick={() => go('settings', 'baza')}>Sozlamalar<ArrowUpRight size={14} /></button></div>}
     {(() => {
@@ -775,7 +799,16 @@ export default function App() {
       </>}
       {panel === 'kirish' && <>
       <div className="dashboard-grid"><Section title="Korxona profili"><div className="settings-facts"><span>Asosiy valyuta<b>O‘zbek so‘mi · UZS</b></span><span>Ishlab chiqarish hisobi<b>Sozlanadigan marshrut</b></span><span>Xodimlar to‘lovi<b>Oylik, har oy belgilanadi</b></span><span>Ombor<b>O‘z materiallari + mijoz materiallari</b></span><span>Ma’lumotlar<b>{mode === 'demo' ? 'Faqat shu brauzer' : 'Umumiy Supabase bazasi'}</b></span></div>{mode === 'cloud' && admin && <CompanyProfileSettings name={company.name} phone={company.phone} onSaved={phone => setCompany(current => ({ ...current, phone }))} onNotice={(message, error = false) => setNotice({ message, error })} />}{mode === 'demo' && <p className="panel-footnote">Foydalanuvchini almashtirish: chap pastki burchakdagi «Chiqish», so‘ng profilni tanlang — Egasi, xodim yoki TV uchun «Sex ekrani». Tanlov shu brauzerda eslab qolinadi.</p>}</Section></div>
+      {mode === 'cloud' && admin && <Section title="Tarif va obuna" hint="Obuna muddati tugasa ma’lumotlar saqlanadi va ko‘rinadi, lekin yangi yozuv kiritib bo‘lmaydi.">
+        <div className="settings-facts">
+          <span>Tarif<b>{planLabel(subscription.plan)}</b></span>
+          <span>Amal qilish muddati<b>{subscription.plan === 'lifetime' ? 'cheklanmagan' : validUntil(subscription) ? new Date(validUntil(subscription)!).toLocaleDateString('uz-UZ') : '—'}</b></span>
+          {subscription.plan !== 'lifetime' && <span>Qolgan kunlar<b className={(daysLeft(subscription, new Date().toISOString()) ?? 0) > 3 ? '' : 'debt'}>{daysLeft(subscription, new Date().toISOString())}</b></span>}
+          <span>Holat<b className={subscription.active ? 'positive' : 'debt'}>{subscription.blocked ? 'To‘xtatilgan' : subscription.active ? 'Faol' : 'Muddati tugagan'}</b></span>
+        </div>
+      </Section>}
       <AccessPanel cloud={mode === 'cloud'} employees={state.employees} workshops={state.workshops} />
+      {mode === 'cloud' && subscription.platformAdmin && <PlatformPanel onNotice={(message, error = false) => setNotice({ message, error })} />}
       </>}
       {panel === 'baza' && <>
       <Section title="Ma’lumotlar va tarix" hint="Eksport — qo‘shimcha nusxa. Asosiy zaxira pastdagi «Bulut zaxira nusxasi» bo‘limida."><div className="data-actions"><button className="secondary" onClick={() => exportData(state)}><Download size={16} />JSON eksporti</button>{mode === 'demo' && <button className="danger-button" onClick={() => show('reset')}>Faqat lokal demo ma’lumotlarni tozalash</button>}<small>Hisob versiyasi: {state.revision} · {state.audit.length} amal</small></div><div className="table-scroll cardable"><table><thead><tr><th>Sana / vaqt</th><th>Kim</th><th>Amal</th></tr></thead><tbody>{state.audit.slice(-20).reverse().map(a => <tr key={a.id}><td data-label="Sana / vaqt">{dateTime(a.createdAt)}</td><td data-label="Kim">{a.actorName}</td><td data-label="Amal">{a.action}</td></tr>)}</tbody></table></div></Section>

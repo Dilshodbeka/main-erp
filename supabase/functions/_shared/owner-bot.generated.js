@@ -136,6 +136,9 @@ var errorMessages = [
   [/stage quantity.*accepted work/i, "Bosqich miqdorini qabul qilingan ish miqdoridan kamaytirib bo‘lmaydi."],
   [/order line cannot be removed/i, "Ochiq pozitsiyani tahrirda o‘chirib bo‘lmaydi — avval uni bekor qiling."],
   [/paid, issued or used orders|order already has production|reverse order payments/i, "Buyurtma allaqachon to‘langan yoki ishlab chiqarishda ishlatilgan. Oddiy bekor qilish taqiqlangan."],
+  [/subscription expired/i, "Obuna muddati tugagan. Ma’lumotlarni ko‘rish mumkin; o‘zgartirish uchun obunani uzaytiring."],
+  [/user already registered/i, "Bu email bilan hisob allaqachon bor. «Kirish» orqali kiring."],
+  [/signups? (are )?(not allowed|disabled)/i, "Ro‘yxatdan o‘tish vaqtincha yopiq. Sotuvchi bilan bog‘laning."],
   [/fetch failed|failed to fetch|network/i, "Server bilan aloqa yo‘q. Oflayn navbat holatini tekshiring."]
 ];
 function translateError(message) {

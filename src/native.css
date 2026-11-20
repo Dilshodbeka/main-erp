@@ -83,3 +83,23 @@ button:active:not(:disabled){transform:scale(.97)}
   .page-heading>div:first-child{flex:0 0 auto}
   .page-heading>.button-group{justify-content:flex-start;width:100%}
 }
+
+/* ── Subscription banner and the seller's platform panel ── */
+.demo-banner.subscription-warn{background:#fbf3df;color:#7a5a12}
+.demo-banner.subscription-expired{background:#f8e6e2;color:#8a3a30}
+.platform-list{display:grid;gap:12px;padding:0 var(--panel-x) 22px}
+.platform-company{border:1px solid var(--border);border-radius:14px;padding:14px 16px;display:grid;gap:12px}
+.platform-company.inactive{background:#fbf7f5}
+.platform-company>header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.platform-company>header b{display:block;font-size:14px}
+.platform-company>header small{font-size:11px;color:var(--muted)}
+.platform-plan{flex:none;font-size:11px;font-weight:700;padding:5px 10px;border-radius:999px;background:#edf1e6;color:#3d5a45}
+.platform-plan.off{background:#f8e6e2;color:#8a3a30}
+.platform-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.platform-facts>span{display:grid;gap:3px;font-size:10px;color:var(--muted)}
+.platform-facts b{font-size:12px;color:#253932}
+.platform-modules{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px}
+.platform-modules label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.platform-company>.data-actions{padding:0}
+.login-switch{margin-top:10px;font-size:12px;color:var(--muted);text-align:center}
+.login-switch>button{background:none;border:0;padding:4px 6px;font-weight:700;color:var(--green);font-size:12px}
