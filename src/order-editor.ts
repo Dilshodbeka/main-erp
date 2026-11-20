@@ -2,7 +2,7 @@ import { areaMaterialCost, lineMaterials, lineRoute, shippedForLine, stagePlanCo
 import { formatQty } from './i18n';
 import { matchesQuery } from './listview';
 import { categoryLabel } from './warehouse';
-import type { CrewMember, ExecutorKind, Item, Order, OrderLine, OrderLineInput, OrderLineKind, RouteTemplate, RouteTemplateStage, State, Status } from './types';
+import type { CrewMember, Employee, ExecutorKind, Item, Order, OrderLine, OrderLineInput, OrderLineKind, RouteTemplate, RouteTemplateStage, State, Status } from './types';
 
 export type PositionMaterial = { itemId: string; qty: number; issuedQty: number };
 export type PositionStage = {
@@ -119,6 +119,23 @@ export function duplicatePosition(position: PositionDraft): PositionDraft {
 
 export function positionTotal(position: PositionDraft): number {
   return round(position.qty * position.unitPrice);
+}
+
+/**
+ * Bosqich ijrochisi ro‘yxati: amal tanlangan bo‘lsa — faqat unga ruxsati bor faol xodimlar
+ * (ruxsatsiz ijrochi bilan buyurtma baribir saqlanmaydi). Tanlab qo‘yilgan va marshrutda
+ * ishlatilgan xodim ro‘yxatdan yo‘qolmaydi.
+ */
+export function stageEmployees(state: State, stage: Pick<PositionStage, 'operationId' | 'employeeId'>, route: Pick<PositionStage, 'employeeId'>[]): Employee[] {
+  const operation = state.operations.find(row => row.id === stage.operationId);
+  return state.employees.filter(employee => employee.id === stage.employeeId
+    || (employee.active ? !operation || operation.employeeIds.includes(employee.id) : route.some(line => line.employeeId === employee.id)));
+}
+
+/** Mijoz narxi bo‘yicha bosqichlar yig‘indisidan chiqadigan bitta dona narxi; bosqich narxi yo‘q bo‘lsa 0. */
+export function suggestedUnitPrice(position: PositionDraft): number {
+  const total = position.route.reduce((sum, stage) => sum + (stage.salePrice ?? 0) * stage.qty, 0);
+  return position.qty > 0 ? round(total / position.qty) : 0;
 }
 
 export function stageAmounts(stage: PositionStage): { price: number; worker: number } {

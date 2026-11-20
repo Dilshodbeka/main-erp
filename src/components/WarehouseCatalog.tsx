@@ -78,11 +78,13 @@ export function WarehouseCatalog({ state, warehouseId, search, onEdit, onCount }
           <div className="table-scroll cardable"><table><thead><tr><th>Pozitsiya</th><th className="right">Omborda</th><th className="right">Band</th><th className="right">Bo‘sh</th><th className="right">{valueHead}</th><th /></tr></thead><tbody>{visible.map(item => {
             const qty = stockQty(state, item.id, warehouseId);
             const reserved = reservedQty(state, item.id, warehouseId);
+            // Jami qoldiq hisobotlarda barcha omborlar bo‘yicha — farqni shu yerda ko‘rsatamiz.
+            const elsewhere = stockQty(state, item.id) - qty;
             return <tr key={item.id}>
               <td data-label="Pozitsiya"><div className="item-cell">{item.photo
                 ? <img className="item-thumb" src={item.photo} alt="" loading="lazy" />
                 : <span className="item-thumb placeholder"><Package size={15} /></span>}<div><b>{item.name}</b><small>{categoryLabel(item.category)} · {item.customerId ? `Mijoz materiali: ${customerName(item.customerId)}` : `${num(item.minQty)} ${item.unit} minimum`}</small></div></div></td>
-              <td data-label="Omborda" className="right">{num(qty)} {item.unit}</td>
+              <td data-label="Omborda" className="right">{num(qty)} {item.unit}{elsewhere > 0.0005 && <small>boshqa omborlarda {num(elsewhere)}</small>}</td>
               <td data-label="Band" className="right muted">{num(reserved)}</td>
               <td data-label="Bo‘sh" className={`right ${qty - reserved < item.minQty ? 'debt' : ''}`}><b>{num(qty - reserved)}</b></td>
               <td data-label={valueHead} className="right">{tab === 'finished'

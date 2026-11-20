@@ -517,3 +517,23 @@ describe('markup and discount resolution', () => {
     expect(netMarkup(1000, 15, 'percent', 10, 'percent')).toBe(50);
   });
 });
+
+describe('stage executor list and price hint', () => {
+  it('offers only employees allowed for the chosen operation, keeping the current pick', async () => {
+    const { emptyState } = await import('./domain');
+    const { stageEmployees, suggestedUnitPrice, blankPosition } = await import('./order-editor');
+    const state = emptyState();
+    state.employees = [
+      { id: 'e1', name: 'Fayzullo', active: true }, { id: 'e2', name: 'Sherali', active: true }, { id: 'e3', name: 'Ketgan', active: false },
+    ];
+    state.operations = [{ id: 'op', name: 'Kromka', unit: 'piece', salePrice: 3500, workerRate: 100, standardMinutes: 0, machineId: null, employeeIds: ['e1'], active: true, autoAccept: true, norms: [] }];
+    expect(stageEmployees(state, { operationId: 'op', employeeId: null }, []).map(row => row.id)).toEqual(['e1']);
+    expect(stageEmployees(state, { operationId: '', employeeId: null }, []).map(row => row.id)).toEqual(['e1', 'e2']);
+    expect(stageEmployees(state, { operationId: 'op', employeeId: 'e2' }, []).map(row => row.id)).toEqual(['e1', 'e2']);
+    expect(stageEmployees(state, { operationId: 'op', employeeId: null }, [{ employeeId: 'e3' }]).map(row => row.id)).toEqual(['e1', 'e3']);
+
+    const position = { ...blankPosition(), qty: 2, route: [{ operationId: 'op', executorKind: 'employee' as const, employeeId: 'e1', supplierId: null, rate: 100, salePrice: 3500, qty: 10, locked: false, completed: 0 }] };
+    expect(suggestedUnitPrice(position)).toBe(17500);
+    expect(suggestedUnitPrice(blankPosition())).toBe(0);
+  });
+});

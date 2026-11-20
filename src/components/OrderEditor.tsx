@@ -18,7 +18,9 @@ import {
   positionTotal,
   positionsFromOrder,
   stageAmounts,
+  stageEmployees,
   stageNormEstimate,
+  suggestedUnitPrice,
   type AdjustmentMode,
   type PositionDraft,
   type PositionMaterial,
@@ -204,8 +206,12 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
       <Field label="Pozitsiya nomi"><input value={position.title} placeholder="Masalan, oshxona yoki fasadni bo‘yash" maxLength={200} onChange={event => onChange({ title: event.target.value })} required /></Field>
       <Field label="Pozitsiya turi"><select value={position.kind} onChange={event => onChange({ kind: event.target.value as OrderLineKind })}><option value="product">Mebel / mahsulot</option><option value="service">Alohida xizmat</option></select></Field>
       <Field label={floor > 0 ? `Miqdor · kamida ${num(floor)}` : 'Miqdor'}><input type="number" value={position.qty} min={floor > 0 ? floor : 0.001} step="0.001" onChange={event => onChange({ qty: Number(event.target.value) })} required /></Field>
-      <Field label="Bitta dona narxi, UZS"><input type="number" value={position.unitPrice || ''} min="0.01" step="0.01" placeholder="0" onChange={event => onChange({ unitPrice: Number(event.target.value) })} required /></Field>
+      <Field label="Bitta dona narxi, UZS"><input type="number" value={position.unitPrice || ''} min="0" step="0.01" placeholder="0" onChange={event => onChange({ unitPrice: Number(event.target.value) })} /></Field>
     </div>
+    {!(position.unitPrice > 0) && suggestedUnitPrice(position) > 0 && <p className="subtle-note">
+      Narx kiritilmagan. Bosqichlar bo‘yicha bitta dona: {money(suggestedUnitPrice(position))}.{' '}
+      <button type="button" className="secondary small" onClick={() => onChange({ unitPrice: suggestedUnitPrice(position) })}>Shu narxni qo‘yish</button>
+    </p>}
     <div className="form-section-title">
       <div><h3>Materiallar</h3><small>Shu pozitsiyaning umumiy miqdori, bitta birlikka emas</small></div>
       <button type="button" className="secondary small" onClick={() => onChange({ materials: [...position.materials, { itemId: '', qty: 1, issuedQty: 0 }] })}><Plus size={14} />Qator</button>
@@ -242,7 +248,11 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
           const operation = state.operations.find(op => op.id === operationId);
           setStage(index, task.executorKind === 'supplier'
             ? { operationId, rate: 0, supplierCost: task.supplierCost ?? 0, salePrice: operation?.salePrice || 0 }
-            : { operationId, rate: operation?.workerRate || 0, salePrice: operation?.salePrice || 0 });
+            : { operationId, rate: operation?.workerRate || 0, salePrice: operation?.salePrice || 0,
+                // Ruxsati yo‘q ijrochi bilan buyurtma saqlanmaydi — amal almashganda ruxsatlisiga o‘tkazamiz.
+                ...(operation && task.employeeId && !operation.employeeIds.includes(task.employeeId) && !task.assembly
+                  ? { employeeId: state.employees.find(employee => employee.active && operation.employeeIds.includes(employee.id))?.id ?? null }
+                  : {}) });
         }} />
       <div className="route-executor">
         <select aria-label={`Ijrochi turi ${index + 1}`} value={task.executorKind}
@@ -256,7 +266,7 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
         {task.executorKind === 'employee'
           ? <select aria-label={`Ijrochi ${index + 1}`} required value={task.employeeId ?? ''} disabled={task.locked} onChange={event => setStage(index, { employeeId: event.target.value || null })}>
             <option value="">Ijrochi</option>
-            {state.employees.filter(employee => employee.active || position.route.some(line => line.employeeId === employee.id)).map(employee => <option key={employee.id} value={employee.id}>{employee.name}{employee.active ? '' : ' · nofaol'}</option>)}
+            {stageEmployees(state, task, position.route).map(employee => <option key={employee.id} value={employee.id}>{employee.name}{employee.active ? '' : ' · nofaol'}</option>)}
           </select>
           : <select aria-label={`Pudratchi ${index + 1}`} required value={task.supplierId ?? ''}
             disabled={task.locked}
