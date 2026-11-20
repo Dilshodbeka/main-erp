@@ -2958,7 +2958,7 @@ var WATCH_DEFAULTS = {
   draftHours: 2,
   issueHours: 1,
   stalledHours: 24,
-  reviewHours: 1,
+  reviewHours: 0,
   readyHours: 24,
   transitHours: 48,
   debtDays: 7,

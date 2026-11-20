@@ -23,7 +23,7 @@ describe('Order chat UI', () => {
   });
 
   it('tells the owner when a message goes through Telegram', () => {
-    expect(render(admin, 'c-1')).toContain('Telegram orqali boradi');
+    expect(render(admin, 'c-1')).toContain('Telegrami ulangan bo‘lsa');
     expect(render(admin, null)).toContain('ishtirokchilariga');
   });
 });

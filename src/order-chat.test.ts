@@ -7,7 +7,7 @@ import {
   demoOrderOverview,
   demoOrderSend,
   emptyOrderChat,
-  mapOrderMessageRow,
+  mapOrderMessageRow, attachmentKind, safeFileName,
   orderAuthorLabel,
 } from './order-chat';
 
@@ -69,6 +69,28 @@ describe('order chat demo model', () => {
     })).toEqual({
       id: 'r1', orderId: 'o1', authorKind: 'worker', authorProfileId: 'p-worker',
       authorName: 'Usta', text: 'Tayyor', channel: 'app', createdAt: '2026-11-20T09:00:00+00:00',
+      kind: 'text', authorTitle: '', file: null,
     });
+  });
+
+  it('maps a system card and an attachment', () => {
+    const system = mapOrderMessageRow({ id: 's1', order_id: 'o1', author_kind: 'system', author_profile_id: null, author_name: 'Tizim', text: '📋 Buyurtma ORD-0001', channel: 'app', kind: 'system', created_at: '2026-11-20T09:00:00+00:00' });
+    expect(system.authorKind).toBe('system');
+    expect(system.kind).toBe('system');
+    expect(orderAuthorLabel('system')).toBe('Tizim');
+    const voice = mapOrderMessageRow({ id: 'v1', order_id: 'o1', author_kind: 'worker', author_profile_id: 'p', author_name: 'Usta', author_title: 'Yig‘ish', text: 'ovoz.webm', channel: 'app', kind: 'voice', file_path: 'c/o1/x-ovoz.webm', file_name: 'ovoz.webm', file_mime: 'audio/webm', file_size: 2048, created_at: '2026-11-20T09:01:00+00:00' });
+    expect(voice.authorTitle).toBe('Yig‘ish');
+    expect(voice.file).toEqual({ path: 'c/o1/x-ovoz.webm', name: 'ovoz.webm', mime: 'audio/webm', size: 2048 });
+  });
+
+  it('classifies attachments and makes safe storage names', () => {
+    expect(attachmentKind('image/jpeg')).toBe('image');
+    expect(attachmentKind('video/mp4')).toBe('video');
+    expect(attachmentKind('audio/webm')).toBe('voice');
+    expect(attachmentKind('application/pdf')).toBe('file');
+    expect(attachmentKind('video/webm', true)).toBe('voice');
+    expect(safeFileName('Чертёж кухни (2).pdf')).toMatch(/^[A-Za-z0-9._-]+\.pdf$/);
+    expect(safeFileName('../../etc/passwd')).not.toContain('/');
+    expect(safeFileName('…')).toBe('fayl');
   });
 });

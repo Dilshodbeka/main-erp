@@ -6,7 +6,9 @@ export const ORDER_MESSAGE_LIMIT = 4096;
 const STORE_KEY = 'aliya-erp-order-chat-v1';
 const CHANGE_EVENT = 'aliya-order-chat-change';
 
-export type OrderAuthorKind = 'admin' | 'worker' | 'client';
+export type OrderAuthorKind = 'admin' | 'worker' | 'client' | 'system';
+export type OrderMessageKind = 'system' | 'text' | 'image' | 'file' | 'voice' | 'video';
+export interface OrderAttachment { path: string; name: string; mime: string; size: number }
 
 export interface OrderChatMessage {
   id: string;
@@ -17,6 +19,10 @@ export interface OrderChatMessage {
   text: string;
   channel: 'app' | 'telegram';
   createdAt: string;
+  kind?: OrderMessageKind;
+  /** The author's part in this order: the stage name ("Yig‘ish", "O‘lchov"). */
+  authorTitle?: string;
+  file?: OrderAttachment | null;
 }
 
 export interface DemoOrderChat {
@@ -30,6 +36,7 @@ export interface OrderChatAuthor { id: string; name: string; kind: 'admin' | 'wo
 export function orderAuthorLabel(kind: OrderAuthorKind): string {
   if (kind === 'admin') return 'Menejer';
   if (kind === 'worker') return 'Ispolateli';
+  if (kind === 'system') return 'Tizim';
   return 'Klient';
 }
 interface StampOptions { now: Date; id: () => string }
@@ -104,6 +111,9 @@ export function mapOrderMessageRow(row: Record<string, unknown>): OrderChatMessa
     text: String(row.text),
     channel: row.channel === 'telegram' ? 'telegram' : 'app',
     createdAt: String(row.created_at),
+    kind: (typeof row.kind === 'string' ? row.kind : 'text') as OrderMessageKind,
+    authorTitle: typeof row.author_title === 'string' ? row.author_title : '',
+    file: row.file_path ? { path: String(row.file_path), name: String(row.file_name ?? ''), mime: String(row.file_mime ?? ''), size: Number(row.file_size ?? 0) } : null,
   };
 }
 
@@ -135,6 +145,74 @@ function fail(error: { code?: string; message: string }): ChatError {
   return new ChatError(String(error.code || 'order_chat_failed'), error.message);
 }
 
+/** The signed-in account. A worker's actor id is the employee id, while the chat rows are keyed by the account. */
+async function profileId(): Promise<string> {
+  const { data } = await supabase!.auth.getSession();
+  const id = data.session?.user.id;
+  if (!id) throw new ChatError('session_missing');
+  return id;
+}
+
+export const ORDER_FILE_LIMIT = 50 * 1024 * 1024;
+const BUCKET = 'order-chat';
+
+export function attachmentKind(mime: string, voice = false): OrderMessageKind {
+  if (voice) return 'voice';
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.startsWith('video/')) return 'video';
+  if (mime.startsWith('audio/')) return 'voice';
+  return 'file';
+}
+
+/** Storage keys allow a narrow character set: keep the extension, replace the rest. */
+export function safeFileName(name: string): string {
+  const clean = name.normalize('NFKD').replace(/[^A-Za-z0-9._-]+/g, '_').replace(/_+/g, '_').replace(/^[_.]+/, '');
+  return (clean || 'fayl').slice(-80);
+}
+
+/** Uploads a photo, document, voice note or video into the order's private folder and posts it to the chat. */
+export async function orderChatSendFile(actor: Actor, orderId: string, file: Blob, name: string, voice = false, authorTitle = ''): Promise<OrderChatMessage> {
+  if (actor.role === 'display') throw new ChatError('message_forbidden');
+  if (mode === 'demo') throw new ChatError('order_file_demo');
+  if (!file.size) throw new ChatError('empty_file');
+  if (file.size > ORDER_FILE_LIMIT) throw new ChatError('order_file_too_large');
+  const mime = file.type || 'application/octet-stream';
+  const path = `${actor.companyId}/${orderId}/${crypto.randomUUID()}-${safeFileName(name)}`;
+  const upload = await supabase!.storage.from(BUCKET).upload(path, file, { contentType: mime, upsert: false });
+  if (upload.error) throw new ChatError('upload_failed', upload.error.message);
+  const { data, error } = await supabase!.from('erp_order_messages').insert({
+    company_id: actor.companyId, order_id: orderId, author_kind: actor.role,
+    author_profile_id: await profileId(), author_name: actor.name, text: name.slice(0, 200) || 'fayl', channel: 'app',
+    kind: attachmentKind(mime, voice), file_path: path, file_name: name.slice(0, 200), file_mime: mime, file_size: file.size,
+    ...(authorTitle ? { author_title: authorTitle.slice(0, 80) } : {}),
+  }).select().single();
+  if (error) {
+    await supabase!.storage.from(BUCKET).remove([path]).catch(() => undefined);
+    throw fail(error);
+  }
+  return mapOrderMessageRow(data as Record<string, unknown>);
+}
+
+/** A short-lived link to an attachment; only participants of the order can get one. */
+export async function orderChatFileUrl(path: string): Promise<string> {
+  const { data, error } = await supabase!.storage.from(BUCKET).createSignedUrl(path, 3600);
+  if (error || !data?.signedUrl) throw new ChatError('upload_failed', error?.message);
+  return data.signedUrl;
+}
+
+/** Owner only: removes the whole chat of an order together with its files. */
+export async function orderChatDelete(orderId: string): Promise<void> {
+  if (mode === 'demo') {
+    const chat = demoStore();
+    saveDemoChat({ ...chat, messages: chat.messages.filter(message => message.orderId !== orderId) });
+    return;
+  }
+  const { data, error } = await supabase!.rpc('erp_order_chat_delete', { p_order_id: orderId });
+  if (error) throw fail(error);
+  const paths = Array.isArray(data) ? data.map(String) : [];
+  if (paths.length) await supabase!.storage.from(BUCKET).remove(paths).catch(() => undefined);
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -154,7 +232,7 @@ const DELIVERY_FALLBACK = new Set([
 ]);
 
 export async function orderChatSend(
-  actor: Actor, orderId: string, text: string, customerId?: string | null,
+  actor: Actor, orderId: string, text: string, customerId?: string | null, authorTitle = '',
 ): Promise<OrderChatMessage> {
   const body = cleanText(text);
   if (actor.role === 'display') throw new ChatError('message_forbidden');
@@ -176,10 +254,15 @@ export async function orderChatSend(
       if (!(error instanceof ChatError) || !DELIVERY_FALLBACK.has(error.code)) throw error;
     }
   }
-  const { data, error } = await supabase!.from('erp_order_messages').insert({
+  const row = {
     company_id: actor.companyId, order_id: orderId, author_kind: actor.role,
-    author_profile_id: actor.id, author_name: actor.name, text: body, channel: 'app',
-  }).select().single();
+    author_profile_id: await profileId(), author_name: actor.name, text: body, channel: 'app',
+  };
+  let { data, error } = await supabase!.from('erp_order_messages').insert(authorTitle ? { ...row, author_title: authorTitle.slice(0, 80) } : row).select().single();
+  // A database without the chat migration has no role column yet: the text must still go through.
+  if (error && authorTitle && (error.code === '42703' || error.code === 'PGRST204')) {
+    ({ data, error } = await supabase!.from('erp_order_messages').insert(row).select().single());
+  }
   if (error) throw fail(error);
   return mapOrderMessageRow(data as Record<string, unknown>);
 }
@@ -190,7 +273,7 @@ export async function orderChatMarkRead(actor: Actor, orderId: string): Promise<
     return;
   }
   const { error } = await supabase!.from('erp_order_chat_reads').upsert({
-    company_id: actor.companyId, order_id: orderId, profile_id: actor.id, last_read_at: new Date().toISOString(),
+    company_id: actor.companyId, order_id: orderId, profile_id: await profileId(), last_read_at: new Date().toISOString(),
   }, { onConflict: 'company_id,order_id,profile_id' });
   if (error) throw fail(error);
 }

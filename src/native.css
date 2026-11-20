@@ -179,3 +179,22 @@ button:active:not(:disabled){transform:scale(.97)}
   .advisor-chips::-webkit-scrollbar{display:none}
   .advisor-chips button{flex-shrink:0;min-height:40px}
 }
+
+/* ── Buyurtma chati: tizim kartasi, fayl, ovoz, video ── */
+.order-chat-tools{display:flex;align-items:center;gap:6px}
+.chat-system{align-self:center;max-width:94%;padding:10px 14px;border-radius:12px;background:#eaf3f1;border:1px dashed #b9d5cf;color:#1e5a52;font-size:12px}
+.chat-system p{white-space:pre-wrap;line-height:1.55;overflow-wrap:anywhere}
+.chat-system .chat-meta{display:block;text-align:center;margin-top:4px}
+.chat-photo img{display:block;max-width:100%;max-height:260px;border-radius:10px;object-fit:cover}
+.chat-audio{width:min(260px,100%);height:40px}
+.chat-video{max-width:100%;max-height:300px;border-radius:10px;background:#000}
+.chat-file{display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;min-width:0}
+.chat-file span{min-width:0;flex:1}
+.chat-file b{display:block;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.order-chat-composer{grid-template-columns:minmax(0,1fr) auto auto auto}
+.order-chat-composer .chat-tool{height:42px;width:42px;margin:0;padding:0;display:grid;place-items:center;border-radius:10px}
+.order-chat-composer .chat-tool.recording{background:#fbefec;border-color:#e3b9b2;color:#b3473b;animation:chat-rec 1.1s ease-in-out infinite}
+@keyframes chat-rec{50%{opacity:.55}}
+@media (max-width:700px){.order-chat-composer .chat-tool,.order-chat-composer .primary{height:44px;min-width:44px}}
+@media (prefers-reduced-motion:reduce){.order-chat-composer .chat-tool.recording{animation:none}}
+.position-card>header>div>b,.position-card>header>div>small{display:block}

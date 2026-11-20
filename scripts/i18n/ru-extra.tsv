@@ -288,3 +288,15 @@ Harakatsiz kun	Дней без движения
 Tavsiyalar:	Рекомендации:
 ta muhim holat	критичных
 ta	шт
+Tizim	Система
+Faylni ochib bo‘lmadi.	Не удалось открыть файл.
+Chatni o‘chirish	Удалить чат
+Chat barcha xabar va fayllari bilan o‘chirilsinmi? Buni qaytarib bo‘lmaydi.	Удалить чат со всеми сообщениями и файлами? Это нельзя отменить.
+Fayl, rasm yoki video biriktirish	Прикрепить файл, фото или видео
+Yozishni to‘xtatish va yuborish	Остановить запись и отправить
+Ovozli xabar yozish	Записать голосовое сообщение
+Yozilmoqda… Yuborish uchun tugmani yana bosing.	Идёт запись… Нажмите кнопку ещё раз, чтобы отправить.
+Matn mijozga ham boradi — agar uning Telegrami ulangan bo‘lsa. Fayl, ovoz va videoni faqat buyurtma ishtirokchilari ko‘radi.	Текст уйдёт и клиенту — если его Telegram подключён. Файлы, голос и видео видят только участники заказа.
+Fayl hajmi 50 MB dan oshmasligi kerak.	Размер файла не должен превышать 50 МБ.
+Demo rejimida faqat matn yuboriladi. Fayl, ovoz va video umumiy bazada ishlaydi.	В демо-режиме отправляется только текст. Файлы, голос и видео работают в общей базе.
+Mikrofonga ruxsat berilmadi. Brauzer sozlamalarida ruxsatni yoqing.	Доступ к микрофону не выдан. Включите разрешение в настройках браузера.
