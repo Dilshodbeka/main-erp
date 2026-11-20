@@ -1,6 +1,7 @@
 // Telegram Bot API webhook. Deploy without platform JWT verification:
 //   supabase functions deploy telegram-webhook --no-verify-jwt
 // Secrets: TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET.
+// Optional: OWNER_TELEGRAM_IDS (comma-separated Telegram user ids) turns on the owner report bot.
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import {
@@ -12,11 +13,14 @@ import {
   type IncomingMessage,
   type TelegramFileRef,
 } from '../_shared/telegram.ts';
+import { ownerNeedsState, ownerReply, parseOwnerIds } from '../_shared/owner-bot.generated.js';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';
 const webhookSecret = Deno.env.get('TELEGRAM_WEBHOOK_SECRET') ?? '';
+const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+const ownerIds = parseOwnerIds(Deno.env.get('OWNER_TELEGRAM_IDS'));
 const apiBase = (Deno.env.get('TELEGRAM_API_BASE') ?? 'https://api.telegram.org').replace(/\/+$/, '');
 
 let admin: SupabaseClient | null = null;
@@ -54,6 +58,70 @@ async function reply(chatId: string, text: string) {
     // A reply to an unlinked or blocked chat is best effort.
   }
 }
+
+// ── Owner report bot ────────────────────────────────────────────────────────
+// The owner's chat is matched by Telegram id (OWNER_TELEGRAM_IDS). Reports are computed by the
+// same domain code as the web app from the admin snapshot, so the numbers cannot diverge.
+// erp_snapshot() resolves the caller through auth.uid(), so the function opens a short-lived
+// session for the company's admin profile (service-role magic link, never sent anywhere).
+let ownerSession: { token: string; expiresAt: number } | null = null;
+
+async function adminToken(): Promise<string> {
+  if (ownerSession && ownerSession.expiresAt - Date.now() > 60_000) return ownerSession.token;
+  const profile = await client().from('erp_profiles').select('id').eq('role', 'admin').limit(1).maybeSingle();
+  if (profile.error || !profile.data) throw new Error('owner_profile_missing');
+  const user = await client().auth.admin.getUserById(profile.data.id);
+  const email = user.data.user?.email;
+  if (user.error || !email) throw new Error('owner_email_missing');
+  const link = await client().auth.admin.generateLink({ type: 'magiclink', email });
+  const tokenHash = link.data.properties?.hashed_token;
+  if (link.error || !tokenHash) throw new Error('owner_link_failed');
+  const visitor = createClient(supabaseUrl, anonKey || serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const verified = await visitor.auth.verifyOtp({ token_hash: tokenHash, type: 'magiclink' });
+  const session = verified.data.session;
+  if (verified.error || !session) throw new Error('owner_session_failed');
+  ownerSession = { token: session.access_token, expiresAt: (session.expires_at ?? 0) * 1000 };
+  return ownerSession.token;
+}
+
+async function adminState(): Promise<unknown> {
+  const token = await adminToken();
+  const scoped = createClient(supabaseUrl, anonKey || serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
+  const snapshot = await scoped.rpc('erp_snapshot');
+  if (snapshot.error) {
+    ownerSession = null;
+    throw new Error('owner_snapshot_failed');
+  }
+  return (snapshot.data as { state?: unknown } | null)?.state;
+}
+
+async function handleOwner(incoming: IncomingMessage) {
+  const input = incoming.startPayload !== null ? '/start' : incoming.text;
+  let answer: { text: string; keyboard: string[][] };
+  try {
+    answer = ownerReply(input, ownerNeedsState(input) ? await adminState() : null);
+  } catch (error) {
+    console.error('Owner bot failed', error instanceof Error ? error.message : 'unknown');
+    answer = { text: 'Hisobotni olishda xatolik. Birozdan keyin qayta urinib ko‘ring.', keyboard: [] };
+  }
+  try {
+    await telegram('sendMessage', {
+      chat_id: incoming.chatId,
+      text: answer.text,
+      parse_mode: 'HTML',
+      link_preview_options: { is_disabled: true },
+      ...(answer.keyboard.length
+        ? { reply_markup: { keyboard: answer.keyboard.map(row => row.map(text => ({ text }))), resize_keyboard: true, is_persistent: true } }
+        : {}),
+    });
+  } catch (error) {
+    console.error('Owner bot reply failed', error instanceof Error ? error.name : 'unknown');
+  }
+}
+
 
 async function handleStart(incoming: IncomingMessage) {
   const payload = incoming.startPayload ?? '';
@@ -228,6 +296,10 @@ serve(async request => {
   if (!incoming) return json({ ok: true });
 
   try {
+    if (ownerIds.includes(incoming.chatId)) {
+      await handleOwner(incoming);
+      return json({ ok: true });
+    }
     if (incoming.startPayload !== null) {
       await handleStart(incoming);
       return json({ ok: true });

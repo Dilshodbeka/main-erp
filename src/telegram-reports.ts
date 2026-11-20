@@ -1,11 +1,14 @@
 // Pure report formatting for the owner Telegram bot.
-// Takes an admin ERP snapshot (State) and produces Telegram-ready Uzbek text.
+// Takes an admin ERP snapshot (State) and produces Uzbek text for Telegram's HTML parse mode.
 // Reuses the same domain/analytics functions as the web app so the numbers never diverge.
 // No Deno, Supabase or React imports here: the Edge Function and the browser bundle both load it.
 import { cashBalance, supplierDebt, payrollDebt, stockQty } from './domain';
 import { customerBalance } from './receivables';
 import { statusLabel } from './i18n';
 import type { State, Status } from './types';
+
+/** Telegram HTML parse mode: only &, < and > need escaping. */
+export const esc = (value: string): string => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 const round = (value: number): number => Math.round((value + Number.EPSILON) * 100) / 100;
 
@@ -42,7 +45,7 @@ export function parseOwnerCommand(input: string): ReportKey | 'menu' | null {
 
 export function ownerMenuText(): string {
   const lines = OWNER_COMMANDS.map(row => `${row.label} — ${row.command}`);
-  return ['🏭 *Mebel Aliya — boshqaruv*', '', 'Hisobot uchun buyruq tanlang:', ...lines].join('\n');
+  return ['🏭 <b>Mebel Aliya — boshqaruv</b>', '', 'Hisobot uchun buyruq tanlang:', ...lines].join('\n');
 }
 
 export function kassaReport(state: State): string {
@@ -52,11 +55,11 @@ export function kassaReport(state: State): string {
   const supplier = state.suppliers.reduce((sum, s) => sum + Math.max(0, supplierDebt(state, s.id)), 0);
   const payroll = state.employees.reduce((sum, e) => sum + Math.max(0, payrollDebt(state, e.id)), 0);
   return [
-    '💵 *Kassa holati*',
+    '💵 <b>Kassa holati</b>',
     '',
-    `Naqd pul: *${uzs(cash)}*`,
-    `Bank / karta: *${uzs(bank)}*`,
-    `Jami kassada: *${uzs(cash + bank)}*`,
+    `Naqd pul: <b>${uzs(cash)}</b>`,
+    `Bank / karta: <b>${uzs(bank)}</b>`,
+    `Jami kassada: <b>${uzs(cash + bank)}</b>`,
     '',
     `Mijozlar qarzi (bizga): ${uzs(customerDebt)}`,
     `Taʼminotchilarga qarz: ${uzs(supplier)}`,
@@ -69,11 +72,11 @@ export function mijozQarzReport(state: State): string {
     .map(c => ({ name: c.name, debt: round(customerBalance(state, c.id).debt) }))
     .filter(row => row.debt > 0)
     .sort((a, b) => b.debt - a.debt);
-  if (!rows.length) return '👤 *Mijozlar qarzi*\n\nQarzdor mijoz yoʻq.';
+  if (!rows.length) return '👤 <b>Mijozlar qarzi</b>\n\nQarzdor mijoz yoʻq.';
   const total = rows.reduce((sum, row) => sum + row.debt, 0);
-  const lines = rows.slice(0, 30).map((row, i) => `${i + 1}. ${row.name} — *${uzs(row.debt)}*`);
+  const lines = rows.slice(0, 30).map((row, i) => `${i + 1}. ${esc(row.name)} — <b>${uzs(row.debt)}</b>`);
   const tail = rows.length > 30 ? [`…va yana ${rows.length - 30} ta`] : [];
-  return ['👤 *Mijozlar qarzi*', '', ...lines, ...tail, '', `Jami: *${uzs(total)}*`].join('\n');
+  return ['👤 <b>Mijozlar qarzi</b>', '', ...lines, ...tail, '', `Jami: <b>${uzs(total)}</b>`].join('\n');
 }
 
 export function taminotQarzReport(state: State): string {
@@ -81,10 +84,10 @@ export function taminotQarzReport(state: State): string {
     .map(s => ({ name: s.name, debt: round(supplierDebt(state, s.id)) }))
     .filter(row => row.debt > 0)
     .sort((a, b) => b.debt - a.debt);
-  if (!rows.length) return '🚚 *Taʼminotchilarga qarz*\n\nQarz yoʻq.';
+  if (!rows.length) return '🚚 <b>Taʼminotchilarga qarz</b>\n\nQarz yoʻq.';
   const total = rows.reduce((sum, row) => sum + row.debt, 0);
-  const lines = rows.slice(0, 30).map((row, i) => `${i + 1}. ${row.name} — *${uzs(row.debt)}*`);
-  return ['🚚 *Taʼminotchilarga qarz*', '', ...lines, '', `Jami: *${uzs(total)}*`].join('\n');
+  const lines = rows.slice(0, 30).map((row, i) => `${i + 1}. ${esc(row.name)} — <b>${uzs(row.debt)}</b>`);
+  return ['🚚 <b>Taʼminotchilarga qarz</b>', '', ...lines, '', `Jami: <b>${uzs(total)}</b>`].join('\n');
 }
 
 const ACTIVE_STATUSES: Status[] = ['draft', 'production', 'ready', 'shipped'];
@@ -101,10 +104,10 @@ export function buyurtmalarReport(state: State): string {
     .filter(status => groups.has(status))
     .map(status => {
       const bucket = groups.get(status)!;
-      return `${statusLabel(status)}: *${bucket.count}* — ${uzs(bucket.sum)}`;
+      return `${statusLabel(status)}: <b>${bucket.count}</b> — ${uzs(bucket.sum)}`;
     });
-  if (!lines.length) return '🧾 *Buyurtmalar*\n\nFaol buyurtma yoʻq.';
-  return ['🧾 *Faol buyurtmalar*', '', ...lines].join('\n');
+  if (!lines.length) return '🧾 <b>Buyurtmalar</b>\n\nFaol buyurtma yoʻq.';
+  return ['🧾 <b>Faol buyurtmalar</b>', '', ...lines].join('\n');
 }
 
 export function omborReport(state: State): string {
@@ -112,9 +115,9 @@ export function omborReport(state: State): string {
     .map(item => ({ name: item.name, unit: item.unit, qty: stockQty(state, item.id), min: item.minQty }))
     .filter(row => row.min > 0 && row.qty < row.min)
     .sort((a, b) => (a.qty - a.min) - (b.qty - b.min));
-  if (!rows.length) return '📦 *Ombor*\n\nTanqis material yoʻq. Barcha qoldiqlar meʼyorida.';
-  const lines = rows.slice(0, 40).map(row => `• ${row.name}: ${row.qty} ${row.unit} (meʼyor ${row.min})`);
-  return ['📦 *Toʻldirish kerak*', '', ...lines].join('\n');
+  if (!rows.length) return '📦 <b>Ombor</b>\n\nTanqis material yoʻq. Barcha qoldiqlar meʼyorida.';
+  const lines = rows.slice(0, 40).map(row => `• ${esc(row.name)}: ${row.qty} ${esc(row.unit)} (meʼyor ${row.min})`);
+  return ['📦 <b>Toʻldirish kerak</b>', '', ...lines].join('\n');
 }
 
 export function hisobotReport(state: State): string {
@@ -124,10 +127,10 @@ export function hisobotReport(state: State): string {
   const supplier = state.suppliers.reduce((sum, s) => sum + Math.max(0, supplierDebt(state, s.id)), 0);
   const shortage = state.items.filter(item => item.minQty > 0 && stockQty(state, item.id) < item.minQty).length;
   return [
-    '📊 *Umumiy hisobot*',
+    '📊 <b>Umumiy hisobot</b>',
     '',
-    `💵 Kassada: *${uzs(cash)}*`,
-    `🧾 Faol buyurtmalar: *${activeOrders}*`,
+    `💵 Kassada: <b>${uzs(cash)}</b>`,
+    `🧾 Faol buyurtmalar: <b>${activeOrders}</b>`,
     `👤 Mijozlar qarzi: ${uzs(customerDebt)}`,
     `🚚 Taʼminot qarzi: ${uzs(supplier)}`,
     `📦 Tanqis materiallar: ${shortage}`,
