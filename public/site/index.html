@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#172e2a" />
+<title>Aliya ERP — mebel ishlab chiqarish uchun tizim</title>
+<meta name="description" content="Buyurtma, sex, ombor, kassa va xodimlar — bitta tizimda. Mebel va ishlab chiqarish korxonalari uchun. 1 kun bepul sinov." />
+<link rel="icon" href="../icons/icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+:root{--green:#214c3c;--dark:#172e2a;--lime:#d6ed8f;--ink:#1d3129;--muted:#66756b;--line:#e2e7dd;--paper:#f6f7f3;--teal:#1f7a63}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;font-family:Manrope,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;color:var(--ink);background:var(--paper);font-weight:500;line-height:1.55;-webkit-text-size-adjust:100%}
+a{color:inherit}h1,h2,h3,p{margin:0}h1,h2,h3{font-weight:800;letter-spacing:-.035em;line-height:1.12;text-wrap:balance}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+header.top{position:sticky;top:0;z-index:10;background:rgba(246,247,243,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:14px;height:64px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.12em;font-size:18px;text-decoration:none}
+.brand span{width:32px;height:36px;display:grid;place-items:center;border-radius:9px 9px 2px 9px;background:var(--green);color:var(--lime);letter-spacing:0;font-size:22px}
+.top nav{margin-left:auto;display:flex;align-items:center;gap:6px}
+.lang{display:inline-flex;padding:3px;border-radius:10px;background:#eaefe4;border:1px solid var(--line)}
+.lang button{border:0;background:none;font:inherit;font-size:12px;font-weight:800;padding:6px 10px;border-radius:7px;color:var(--muted);cursor:pointer;min-height:32px}
+.lang button[aria-pressed=true]{background:#fff;color:var(--green);box-shadow:0 1px 2px rgba(20,40,30,.14)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:12px 22px;border-radius:12px;font-weight:800;font-size:15px;text-decoration:none;border:1px solid var(--green);background:var(--green);color:#fff;transition:transform .12s ease,background .12s ease}
+.btn:hover{background:#1a3d30}.btn:active{transform:scale(.98)}
+.btn.ghost{background:transparent;color:var(--green)}
+.btn.small{min-height:40px;padding:8px 16px;font-size:13px}
+.btn.lime{background:var(--lime);border-color:var(--lime);color:var(--dark)}
+.hero{background:var(--dark);color:#fff;padding:72px 0 0;overflow:hidden}
+.hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:48px;align-items:end}
+.eyebrow{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--lime)}
+.hero h1{font-size:clamp(34px,5.2vw,58px);margin:16px 0 18px}
+.hero p.lead{font-size:18px;color:#c9d6cd;max-width:34em}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:30px 0 14px}
+.hero small{color:#9db0a4;font-size:13px}
+.hero .text{padding-bottom:72px}
+.screen{background:#fff;color:var(--ink);border-radius:18px 18px 0 0;padding:18px;box-shadow:0 -10px 60px rgba(0,0,0,.35);display:grid;gap:12px}
+.screen .row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.kpi{border:1px solid var(--line);border-radius:12px;padding:12px}
+.kpi.dark{background:var(--green);color:#fff;border-color:var(--green)}
+.kpi small{display:block;font-size:11px;color:var(--muted)}.kpi.dark small{color:#bcd0c4}
+.kpi b{font-size:20px;font-weight:800;letter-spacing:-.03em}
+.tip{border:1px solid var(--line);border-left:4px solid #b3473b;border-radius:12px;padding:12px 14px;font-size:13px}
+.tip.g{border-left-color:var(--teal)}
+.tip b{display:block;font-size:14px;margin-bottom:2px}
+.tip span{color:var(--muted)}
+section{padding:76px 0}
+section h2{font-size:clamp(26px,3.6vw,38px);max-width:20em}
+section .sub{color:var(--muted);font-size:17px;margin-top:12px;max-width:40em}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:36px}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:24px}
+.card h3{font-size:18px;margin-bottom:8px}.card p{color:var(--muted);font-size:15px}
+.card .n{display:inline-grid;place-items:center;width:36px;height:36px;border-radius:10px;background:#eef4e4;color:var(--green);font-weight:800;margin-bottom:14px}
+.flow{background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.steps{display:grid;grid-template-columns:repeat(5,1fr);gap:0;margin-top:36px;counter-reset:s}
+.steps div{padding:18px 16px 18px 0;border-top:3px solid var(--green);counter-increment:s}
+.steps div::before{content:"0" counter(s);font-size:12px;font-weight:800;color:var(--teal);letter-spacing:.1em}
+.steps b{display:block;font-size:16px;margin:6px 0 4px}.steps span{color:var(--muted);font-size:14px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:36px}
+.list{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:10px}
+.list li{position:relative;padding-left:26px;font-size:15px}
+.list li::before{content:"";position:absolute;left:0;top:.5em;width:14px;height:8px;border-left:3px solid var(--teal);border-bottom:3px solid var(--teal);transform:rotate(-45deg)}
+.price{background:var(--dark);color:#fff;border-radius:22px;padding:44px;display:grid;grid-template-columns:1.2fr .8fr;gap:32px;align-items:center}
+.price p{color:#c9d6cd;margin-top:12px}.price .list li{color:#e6efe8}.price .list li::before{border-color:var(--lime)}
+.price .box{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:26px;text-align:center}
+.price .box b{display:block;font-size:34px;font-weight:800;letter-spacing:-.03em;color:var(--lime)}
+.price .box small{display:block;color:#c9d6cd;margin:6px 0 18px}
+footer{padding:34px 0 48px;color:var(--muted);font-size:13px;border-top:1px solid var(--line)}
+footer .wrap{display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
+[data-ru]{display:none}html[lang=ru] [data-ru]{display:revert}html[lang=ru] [data-uz]{display:none}
+@media (max-width:860px){
+  .hero{padding-top:44px}.hero .wrap{grid-template-columns:1fr;gap:28px}.hero .text{padding-bottom:0}
+  .grid,.two{grid-template-columns:1fr}.steps{grid-template-columns:1fr 1fr;gap:0 16px}
+  .price{grid-template-columns:1fr;padding:28px}section{padding:54px 0}
+  .top nav .btn{display:none}.cta .btn{flex:1 1 100%}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.btn{transition:none}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="#top"><span>A</span>ALIYA</a>
+  <nav>
+    <div class="lang" role="group" aria-label="Til / Язык"><button type="button" data-lang="uz" aria-pressed="true">UZ</button><button type="button" data-lang="ru" aria-pressed="false">RU</button></div>
+    <a class="btn small" href="../"><span data-uz>Kirish</span><span data-ru>Войти</span></a>
+  </nav>
+</div></header>
+
+<main id="top">
+<div class="hero"><div class="wrap">
+  <div class="text">
+    <p class="eyebrow"><span data-uz>Mebel va ishlab chiqarish uchun ERP</span><span data-ru>ERP для мебели и производства</span></p>
+    <h1><span data-uz>Birinchi qo‘ng‘iroqdan tayyor mebelgacha — bitta tizimda.</span><span data-ru>От первого звонка до готовой мебели — в одной системе.</span></h1>
+    <p class="lead"><span data-uz>Buyurtma, sex, ombor, kassa va xodimlar bir-biriga bog‘langan. Har bir so‘m va har bir list qayerda ekanini ko‘rasiz — telefonda ham, kompyuterda ham.</span><span data-ru>Заказы, цех, склад, касса и сотрудники связаны между собой. Вы видите, где каждый сум и каждый лист — и с телефона, и с компьютера.</span></p>
+    <div class="cta">
+      <a class="btn lime" href="../"><span data-uz>1 kun bepul sinab ko‘rish</span><span data-ru>Попробовать 1 день бесплатно</span></a>
+      <a class="btn ghost" style="color:#fff;border-color:rgba(255,255,255,.35)" href="#imkoniyatlar"><span data-uz>Imkoniyatlar</span><span data-ru>Возможности</span></a>
+    </div>
+    <small><span data-uz>Karta kerak emas. Ro‘yxatdan o‘ting — korxonangiz 1 daqiqada tayyor.</span><span data-ru>Карта не нужна. Зарегистрируйтесь — предприятие готово за минуту.</span></small>
+  </div>
+  <div class="screen" aria-hidden="true">
+    <div class="row">
+      <div class="kpi dark"><small><span data-uz>Ishdagi buyurtmalar</span><span data-ru>Заказы в работе</span></small><b>12</b></div>
+      <div class="kpi"><small><span data-uz>Kassa va bank</span><span data-ru>Касса и банк</span></small><b>48,2 mln</b></div>
+      <div class="kpi"><small><span data-uz>Mijozlar qarzi</span><span data-ru>Долг клиентов</span></small><b>16,4 mln</b></div>
+    </div>
+    <div class="tip"><b><span data-uz>ORD-0031 — muddatga ulgurmaslik xavfi</span><span data-ru>ORD-0031 — риск не успеть к сроку</span></b><span><span data-uz>Muddatgacha 2 kun, 3 ta bosqich qolgan. Hozir: «Kromka».</span><span data-ru>До срока 2 дня, осталось 3 этапа. Сейчас: «Кромка».</span></span></div>
+    <div class="tip g"><b><span data-uz>Harakatsiz zaxira: 7 ta pozitsiya</span><span data-ru>Неликвид на складе: 7 позиций</span></b><span><span data-uz>5,4 mln so‘m muzlab turibdi — 20% chegirma bilan 4,3 mln qaytadi.</span><span data-ru>Заморожено 5,4 млн сум — со скидкой 20% вернётся 4,3 млн.</span></span></div>
+  </div>
+</div></div>
+
+<section id="imkoniyatlar"><div class="wrap">
+  <h2><span data-uz>Sexda nima bo‘layotganini so‘rab yurmaysiz — ko‘rib turasiz.</span><span data-ru>Не нужно спрашивать, что происходит в цехе, — вы это видите.</span></h2>
+  <p class="sub"><span data-uz>Tizim mebel sexining real ishiga moslab qurilgan: LDSP, kromka, bo‘yash, yig‘ish, pudratchi.</span><span data-ru>Система построена под реальную работу мебельного цеха: ЛДСП, кромка, покраска, сборка, подрядчик.</span></p>
+  <div class="grid">
+    <div class="card"><span class="n">1</span><h3><span data-uz>Buyurtma va mijozlar</span><span data-ru>Заказы и клиенты</span></h3><p><span data-uz>Narx, avans, qarz va hisob-faktura. Mijoz bilan Telegram orqali yozishma buyurtma kartasida.</span><span data-ru>Цена, аванс, долг и счёт-фактура. Переписка с клиентом в Telegram — прямо в карточке заказа.</span></p></div>
+    <div class="card"><span class="n">2</span><h3><span data-uz>Sex va bosqichlar</span><span data-ru>Цех и этапы</span></h3><p><span data-uz>Har bir buyurtma marshrut bo‘yicha yuradi. Ishchi telefonida topshiriqni qabul qiladi va natijani topshiradi.</span><span data-ru>Каждый заказ идёт по маршруту. Рабочий принимает задание и сдаёт результат с телефона.</span></p></div>
+    <div class="card"><span class="n">3</span><h3><span data-uz>Ombor va ta’minot</span><span data-ru>Склад и снабжение</span></h3><p><span data-uz>Qoldiq, band qilish, o‘rtacha tannarx. Yetishmayotgan material bir tugma bilan xaridga aylanadi.</span><span data-ru>Остатки, резерв, средняя себестоимость. Недостающий материал одной кнопкой превращается в закупку.</span></p></div>
+    <div class="card"><span class="n">4</span><h3><span data-uz>Kassa va foyda</span><span data-ru>Касса и прибыль</span></h3><p><span data-uz>Naqd va bank, qarzlar, oylik xarajatlar. Har bir buyurtma bo‘yicha haqiqiy foyda — taxmin emas.</span><span data-ru>Наличные и банк, долги, ежемесячные расходы. Фактическая прибыль по каждому заказу — не оценка.</span></p></div>
+    <div class="card"><span class="n">5</span><h3><span data-uz>Tavsiyalar markazi</span><span data-ru>Центр рекомендаций</span></h3><p><span data-uz>Tizim o‘zi aytadi: qaysi buyurtma kechikmoqda, qayerda pul muzlab turibdi, kim ortiqcha yuklangan.</span><span data-ru>Система сама подскажет: какой заказ опаздывает, где заморожены деньги, кто перегружен.</span></p></div>
+    <div class="card"><span class="n">6</span><h3><span data-uz>Nazorat telefonda</span><span data-ru>Контроль в телефоне</span></h3><p><span data-uz>Telegram-bot va bildirishnomalar: kassa hisoboti, qotib qolgan buyurtma, ertalabki tavsiyalar.</span><span data-ru>Telegram-бот и уведомления: отчёт по кассе, зависший заказ, утренние рекомендации.</span></p></div>
+  </div>
+</div></section>
+
+<section class="flow"><div class="wrap">
+  <h2><span data-uz>Bitta zanjir — yo‘qolgan yozuvsiz.</span><span data-ru>Одна цепочка — без потерянных записей.</span></h2>
+  <div class="steps">
+    <div><b><span data-uz>Buyurtma</span><span data-ru>Заказ</span></b><span><span data-uz>Narx va materiallar hisoblanadi</span><span data-ru>Считаются цена и материалы</span></span></div>
+    <div><b><span data-uz>Ombor</span><span data-ru>Склад</span></b><span><span data-uz>Material band qilinadi va beriladi</span><span data-ru>Материал резервируется и выдаётся</span></span></div>
+    <div><b><span data-uz>Sex</span><span data-ru>Цех</span></b><span><span data-uz>Bosqichlar ketma-ket yopiladi</span><span data-ru>Этапы закрываются по порядку</span></span></div>
+    <div><b><span data-uz>Yetkazish</span><span data-ru>Доставка</span></b><span><span data-uz>Tushum yuborishda tan olinadi</span><span data-ru>Выручка признаётся при отправке</span></span></div>
+    <div><b><span data-uz>Pul</span><span data-ru>Деньги</span></b><span><span data-uz>To‘lov qarzni yopadi, foyda ko‘rinadi</span><span data-ru>Оплата закрывает долг, видна прибыль</span></span></div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2><span data-uz>Kimlar uchun</span><span data-ru>Для кого</span></h2>
+  <div class="two">
+    <div class="card"><h3><span data-uz>Egasi va rahbar</span><span data-ru>Владелец и руководитель</span></h3><ul class="list">
+      <li><span data-uz>Pul, qarz va majburiyatlar — bitta ekranda</span><span data-ru>Деньги, долги и обязательства — на одном экране</span></li>
+      <li><span data-uz>Har bir xodimga alohida kirish va huquqlar</span><span data-ru>Отдельный вход и права для каждого сотрудника</span></li>
+      <li><span data-uz>Yozuvlar o‘chirilmaydi — faqat bekor yozuvi bilan tuzatiladi</span><span data-ru>Записи не удаляются — исправляются только отменой</span></li>
+    </ul></div>
+    <div class="card"><h3><span data-uz>Sex va ombor</span><span data-ru>Цех и склад</span></h3><ul class="list">
+      <li><span data-uz>Ishchi faqat o‘z topshiriqlarini ko‘radi</span><span data-ru>Рабочий видит только свои задания</span></li>
+      <li><span data-uz>Sex uchun TV-ekran: buyurtmalar kanbani summasiz</span><span data-ru>ТВ-экран для цеха: канбан заказов без сумм</span></li>
+      <li><span data-uz>Internet uzilsa ham ishlaydi, keyin o‘zi sinxronlanadi</span><span data-ru>Работает и без интернета, затем синхронизируется</span></li>
+    </ul></div>
+  </div>
+</div></section>
+
+<section style="padding-top:0"><div class="wrap">
+  <div class="price">
+    <div>
+      <h2><span data-uz>Obuna — modullar bo‘yicha.</span><span data-ru>Подписка — по модулям.</span></h2>
+      <p><span data-uz>Faqat kerakli bo‘limlar uchun to‘laysiz. O‘rnatish kerak emas: brauzerda ochiladi, telefonga ilova kabi o‘rnatiladi.</span><span data-ru>Платите только за нужные разделы. Установка не нужна: открывается в браузере, ставится на телефон как приложение.</span></p>
+      <ul class="list">
+        <li><span data-uz>O‘zbek va rus tillari</span><span data-ru>Узбекский и русский языки</span></li>
+        <li><span data-uz>Har kuni avtomatik zaxira nusxa</span><span data-ru>Ежедневная автоматическая резервная копия</span></li>
+        <li><span data-uz>Sinov tugasa ham ma’lumotlaringiz saqlanadi</span><span data-ru>После пробного периода данные сохраняются</span></li>
+      </ul>
+    </div>
+    <div class="box">
+      <b><span data-uz>1 kun</span><span data-ru>1 день</span></b>
+      <small><span data-uz>bepul sinov, to‘liq imkoniyatlar bilan</span><span data-ru>бесплатно, со всеми возможностями</span></small>
+      <a class="btn lime" href="../"><span data-uz>Boshlash</span><span data-ru>Начать</span></a>
+    </div>
+  </div>
+</div></section>
+</main>
+
+<footer><div class="wrap">
+  <span>© Aliya ERP</span>
+  <span><span data-uz>Mebel ishlab chiqarish uchun boshqaruv tizimi</span><span data-ru>Система управления мебельным производством</span></span>
+</div></footer>
+<script>
+(function () {
+  var saved = 'uz';
+  try { saved = localStorage.getItem('aliya.lang') === 'ru' ? 'ru' : 'uz'; } catch (e) {}
+  function apply(lang) {
+    document.documentElement.lang = lang;
+    document.title = lang === 'ru' ? 'Aliya ERP — система для мебельного производства' : 'Aliya ERP — mebel ishlab chiqarish uchun tizim';
+    document.querySelectorAll('[data-lang]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-lang') === lang)); });
+    try { localStorage.setItem('aliya.lang', lang); } catch (e) {}
+  }
+  document.querySelectorAll('[data-lang]').forEach(function (b) { b.addEventListener('click', function () { apply(b.getAttribute('data-lang')); }); });
+  apply(saved);
+})();
+</script>
+</body>
+</html>
