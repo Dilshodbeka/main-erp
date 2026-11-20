@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { attendanceFindings, attendanceReport, attendanceRows, companyEmployees, minutesOf, shiftOn, type AttendanceData, type TimepayCheck, type TimepaySchedule } from './attendance';
+import { attendanceFindings, attendanceReport, attendanceRows, companyEmployees, duration, minutesOf, shiftOn, type AttendanceData, type TimepayCheck, type TimepaySchedule } from './attendance';
 import { ownerNeedsAttendance, ownerReply, watchRun } from './telegram-owner';
 import { emptyState } from './domain';
 
@@ -152,6 +152,18 @@ describe('timepay attendance', () => {
     expect(attendanceRows({ ...staff, checks: [] }, '2026-11-22', at('10:00'))).toEqual([]); // Sunday: nobody is "absent"
     expect(attendanceRows({ ...staff, checks: [] }, '2026-11-23', at('10:00')).map(row => row.state)).toEqual(['absent', 'absent', 'absent']); // Monday
     expect(ownerReply('/timepay', null, TODAY, false, { data: staff, nowMinutes: at('10:00') }).text).toContain('bugun: 09:00–19:00');
+  });
+
+  it('prints long delays in hours and minutes', () => {
+    expect([5, 59, 60, 61, 198, 361, 480].map(duration)).toEqual(['5 daqiqa', '59 daqiqa', '1 soat', '1 soat 1 daqiqa', '3 soat 18 daqiqa', '6 soat 1 daqiqa', '8 soat']);
+    const day = data([check(1, 'IN', '15:01', 361)]);
+    expect(attendanceReport(day, TODAY, at('16:00'))).toContain('15:01, 6 soat 1 daqiqa kechikdi');
+    const found = attendanceFindings(day, TODAY, at('16:00'));
+    expect(found.find(row => row.key.startsWith('late:1'))!.text).toContain('6 soat 1 daqiqa kechikdi');
+    expect(found.find(row => row.key.startsWith('absent:2'))!.text).toContain('(7 soat o‘tdi)');
+    const left = data([check(2, 'IN', '09:00'), check(2, 'OUT', '16:30')]);
+    expect(attendanceFindings(left, TODAY, at('17:40')).find(row => row.key.startsWith('left:2'))!.text).toContain('smena 18:00 gacha — 1 soat 30 daqiqa erta');
+    expect(attendanceReport(left, TODAY, at('17:40'))).toContain('16:30 da chiqqan, 1 soat 30 daqiqa erta');
   });
 
   it('builds the on-demand report', () => {

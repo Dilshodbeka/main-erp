@@ -32,6 +32,13 @@ export function minutesOf(value: string | null | undefined): number | null {
   const match = /^(\d{2}):(\d{2})$/.exec(clock);
   return match ? Number(match[1]) * 60 + Number(match[2]) : null;
 }
+/** 45 → "45 daqiqa", 60 → "1 soat", 361 → "6 soat 1 daqiqa". */
+export function duration(minutes: number): string {
+  const total = Math.max(0, Math.round(minutes));
+  if (total < 60) return `${total} daqiqa`;
+  const rest = total % 60;
+  return rest ? `${Math.floor(total / 60)} soat ${rest} daqiqa` : `${Math.floor(total / 60)} soat`;
+}
 const hhmm = (minutes: number): string => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 
 /** The shift of this schedule on the given date, or null on a day off / free schedule. */
@@ -198,15 +205,15 @@ export function attendanceFindings(data: AttendanceData, today: string, nowMinut
   for (const row of attendanceRows(data, today, nowMinutes, config)) {
     if (row.state === 'absent') {
       found.push({ key: `absent:${row.employeeId}:${today}`, group: 'staff', repeatHours: 24,
-        text: `🚫 <b>${row.name}</b> — ishga kelmagan, smena ${hhmm(row.shiftStart)} da boshlangan (${nowMinutes - row.shiftStart} daqiqa o‘tdi)` });
+        text: `🚫 <b>${row.name}</b> — ishga kelmagan, smena ${hhmm(row.shiftStart)} da boshlangan (${duration(nowMinutes - row.shiftStart)} o‘tdi)` });
     }
     if (row.lateMinutes > 0 && row.firstIn !== null) {
       found.push({ key: `late:${row.employeeId}:${today}`, group: 'staff', repeatHours: 24,
-        text: `⏱ <b>${row.name}</b> — ${row.lateMinutes} daqiqa kechikdi (keldi ${hhmm(row.firstIn)}, smena ${hhmm(row.shiftStart)})` });
+        text: `⏱ <b>${row.name}</b> — ${duration(row.lateMinutes)} kechikdi (keldi ${hhmm(row.firstIn)}, smena ${hhmm(row.shiftStart)})` });
     }
     if (row.state === 'left_early' && row.lastAt !== null && row.shiftEnd !== null) {
       found.push({ key: `left:${row.employeeId}:${today}`, group: 'staff', repeatHours: 24,
-        text: `🚪 <b>${row.name}</b> — ${hhmm(row.lastAt)} da chiqib ketgan, qaytmagan (smena ${hhmm(row.shiftEnd)} gacha)` });
+        text: `🚪 <b>${row.name}</b> — ${hhmm(row.lastAt)} da chiqib ketgan, qaytmagan (smena ${hhmm(row.shiftEnd)} gacha — ${duration(row.shiftEnd - row.lastAt)} erta)` });
     }
   }
   return found;
@@ -218,10 +225,10 @@ export function attendanceReport(data: AttendanceData, today: string, nowMinutes
   if (!rows.length) return `🕘 <b>Davomat</b>\n\nTimepay’dan faol xodim topilmadi.\n\n<code>${esc(attendanceDiagnostics(data))}</code>`;
   const list = (state: AttendanceRow['state'], render: (row: AttendanceRow) => string) => rows.filter(row => row.state === state).map(render);
   const onTime = list('on_time', row => `• ${row.name} — ${row.firstIn !== null ? hhmm(row.firstIn) : ''}`);
-  const late = list('late', row => `• ${row.name} — ${row.firstIn !== null ? hhmm(row.firstIn) : ''}, ${row.lateMinutes} daqiqa kechikdi`);
+  const late = list('late', row => `• ${row.name} — ${row.firstIn !== null ? hhmm(row.firstIn) : ''}, ${duration(row.lateMinutes)} kechikdi`);
   const absent = list('absent', row => `• ${row.name} — smena ${hhmm(row.shiftStart)}`);
   const waiting = list('waiting', row => `• ${row.name} — smena ${hhmm(row.shiftStart)}`);
-  const left = list('left_early', row => `• ${row.name} — ${row.lastAt !== null ? hhmm(row.lastAt) : ''} da chiqqan`);
+  const left = list('left_early', row => `• ${row.name} — ${row.lastAt !== null ? hhmm(row.lastAt) : ''} da chiqqan${row.lastAt !== null && row.shiftEnd !== null ? `, ${duration(row.shiftEnd - row.lastAt)} erta` : ''}`);
   const block = (title: string, lines: string[]) => (lines.length ? ['', `<b>${title} — ${lines.length}</b>`, ...lines] : []);
   return [
     `🕘 <b>Davomat · ${today}</b>`,
