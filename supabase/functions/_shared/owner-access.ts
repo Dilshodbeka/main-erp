@@ -78,13 +78,38 @@ export async function linkOwnerChat(service: SupabaseClient, code: string, chatI
   return true;
 }
 
+let platformCompany: string | undefined;
+
+/**
+ * The company of the platform owner. Server-wide integrations configured by one secret (Timepay)
+ * belong to it, whichever way its owner's chat was connected: by the secret or by "/ulash".
+ */
+export async function platformCompanyId(service: SupabaseClient): Promise<string | null> {
+  if (platformCompany) return platformCompany;
+  try {
+    const row = await service.from('erp_profiles').select('company_id').eq('id', await adminProfileId(service, null)).maybeSingle();
+    if (row.error || !row.data) return null;
+    platformCompany = row.data.company_id as string;
+    return platformCompany;
+  } catch {
+    return null;
+  }
+}
+
 /** Everyone the watcher reports to: the legacy owner plus every company with a linked chat. */
 export async function ownerTargets(service: SupabaseClient, legacyIds: string[]): Promise<OwnerTarget[]> {
-  const targets: OwnerTarget[] = legacyIds.length ? [{ companyId: null, chatIds: legacyIds }] : [];
   const rows = await service.from('erp_owner_chats').select('company_id, telegram_chat_id');
-  if (rows.error) return targets;
+  if (rows.error) return legacyIds.length ? [{ companyId: null, chatIds: legacyIds }] : [];
+  // Chats linked to the platform owner's own company join the legacy target: one company is checked
+  // once, and everybody connected to it gets the same message.
+  const home = await platformCompanyId(service);
+  const own = new Set(legacyIds);
   const byCompany = new Map<string, string[]>();
-  for (const row of rows.data ?? []) byCompany.set(row.company_id, [...(byCompany.get(row.company_id) ?? []), row.telegram_chat_id]);
+  for (const row of rows.data ?? []) {
+    if (home && row.company_id === home) own.add(row.telegram_chat_id);
+    else byCompany.set(row.company_id, [...(byCompany.get(row.company_id) ?? []), row.telegram_chat_id]);
+  }
+  const targets: OwnerTarget[] = own.size ? [{ companyId: null, chatIds: [...own] }] : [];
   for (const [companyId, chatIds] of byCompany) targets.push({ companyId, chatIds });
   return targets;
 }

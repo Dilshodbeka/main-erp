@@ -16,7 +16,7 @@ import {
   type TelegramFileRef,
 } from '../_shared/telegram.ts';
 import { clockMinutes, fetchAttendance, ownerErrorText, ownerNeedsAttendance, ownerNeedsState, ownerReply, parseOwnerIds } from '../_shared/owner-bot.generated.js';
-import { adminClientFor, adminSnapshotFor, linkOwnerChat, ownerOfChat } from '../_shared/owner-access.ts';
+import { adminClientFor, adminSnapshotFor, linkOwnerChat, ownerOfChat, platformCompanyId } from '../_shared/owner-access.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -88,8 +88,9 @@ async function ownerAnswer(incoming: IncomingMessage, companyId: string | null):
   const input = incoming.startPayload !== null ? '/start' : incoming.text;
   if (!ownerNeedsState(input)) return ownerReply(input, null);
   const today = tashkentToday();
-  // Timepay is configured by one server secret, so it belongs to the legacy (platform owner's) company only.
-  if (timepayToken && companyId === null && ownerNeedsAttendance(input)) {
+  // Timepay is configured by one server secret, so it belongs to the platform owner's company —
+  // for every chat of that company, connected by the secret or by "/ulash".
+  if (timepayToken && ownerNeedsAttendance(input) && (companyId === null || companyId === await platformCompanyId(client()))) {
     const clock = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
     try {
       const data = await fetchAttendance(timepayToken, today, fetch);
