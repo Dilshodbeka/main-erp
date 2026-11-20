@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { ChevronRight, LogOut, Menu, RefreshCw } from 'lucide-react';
+import { usePullToRefresh } from '../pull-refresh';
 
 export interface AppShellProps {
   menu: boolean;
@@ -21,8 +22,10 @@ export interface AppShellProps {
 }
 
 export function AppShell(props: AppShellProps) {
+  const pullIndicator = usePullToRefresh(props.onRefresh, props.busy);
   return (
     <div className="app-shell">
+      <div ref={pullIndicator} className="ptr" aria-hidden="true"><RefreshCw size={18} /></div>
       <aside className={`sidebar ${props.menu ? 'open' : ''}`}>{props.sidebar}</aside>
       {props.menu && <button className="menu-shade" aria-label="Menyuni yopish" onClick={() => props.setMenu(false)} />}
       <div className="main-shell">

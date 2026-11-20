@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { useSheetDrag } from './sheet-drag';
 import { X, ArrowUpRight, Inbox, type LucideIcon } from 'lucide-react';
 import type { Status } from './types';
 import { formatDate, formatDateTime, formatMoney, formatQty, statusLabel, translateError } from './i18n';
@@ -45,7 +46,8 @@ export function Dialog({ title, subtitle, close, children, wide = false, classNa
     document.addEventListener('keydown', handler);
     return () => { document.removeEventListener('keydown', handler); previous?.focus(); };
   }, []);
-  return <div className="modal-backdrop"><div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className={`dialog ${wide ? 'wide' : ''} ${className}`}><header><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="icon-button" aria-label="Yopish" onClick={close}><X size={20} /></button></header>{children}</div></div>;
+  const sheetDrag = useSheetDrag(ref, () => onClose.current());
+  return <div className="modal-backdrop"><div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className={`dialog ${wide ? 'wide' : ''} ${className}`}><header {...sheetDrag}><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="icon-button" aria-label="Yopish" onClick={close}><X size={20} /></button></header>{children}</div></div>;
 }
 export function Field({ label, children }: { label: string; children: ReactNode }) { return <label className="field"><span>{label}</span>{children}</label>; }
 export function Amount({ name = 'amount', label = 'Summa, UZS', defaultValue, max }: { name?: string; label?: string; defaultValue?: number; max?: number }) { return <Field label={label}><input name={name} type="number" step="0.01" min="0.01" max={max} defaultValue={defaultValue} required /></Field>; }
