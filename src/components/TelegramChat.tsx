@@ -18,7 +18,7 @@ import {
 } from '../chat';
 import { MAX_TELEGRAM_FILE_BYTES, OUTBOUND_ACCEPT, sanitizeFileName, validateOutboundFile } from '../../supabase/functions/_shared/telegram';
 import { mode } from '../repository';
-import { formatMoney } from '../i18n';
+import { formatMoney, dateLocale } from '../i18n';
 import { debtDocument, debtFileName } from '../debtDocument';
 import { sendDebtFile } from '../invoiceSend';
 import type { CompanyProfile } from '../company-profile';
@@ -312,7 +312,7 @@ export function TelegramChat({ customer, companyId, chatId, debt, state, company
               <button type="button" className="secondary small" onClick={() => void copyLink()}>{copied ? <Check size={14} /> : <Copy size={14} />}{copied ? 'Nusxalandi' : 'Nusxalash'}</button>
               {mode === 'demo' && <button type="button" className="primary small" onClick={() => void demoStart()}><MessageCircle size={14} />Mijoz «Start» bosdi (demo)</button>}
             </div>
-            <small>Amal qiladi: {new Date(link.expiresAt).toLocaleString('uz-UZ')}</small>
+            <small>Amal qiladi: {new Date(link.expiresAt).toLocaleString(dateLocale)}</small>
           </div>
           : <button type="button" className="primary small" onClick={() => void createLink()}><Link2 size={14} />Havola yaratish</button>}
         <button type="button" className="text-button" onClick={() => setManualOpen(value => !value)}>Chat ID orqali bog‘lash<Link2 size={13} /></button>
@@ -333,7 +333,7 @@ export function TelegramChat({ customer, companyId, chatId, debt, state, company
             {message.text && <p>{message.text}</p>}
             {message.fileType && message.fileType !== 'text' && message.fileType !== 'voice' && fileCard(message)}
             {message.fileType === 'voice' && <div className="chat-file"><span className="chat-file-icon"><MessageCircle size={17} /></span><div><b>Ovozli xabar</b><small>{fileSize(message.fileSize)}</small></div><div className="chat-file-actions"><button type="button" className="icon-button" aria-label="Ovozli xabarni ochish" onClick={() => void openFile(message, false)}><ExternalLink size={15} /></button></div></div>}
-            <small className="chat-meta">{new Date(message.createdAt).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}</small>
+            <small className="chat-meta">{new Date(message.createdAt).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}</small>
           </article>)}
         </div>)}
         <div ref={endRef} />

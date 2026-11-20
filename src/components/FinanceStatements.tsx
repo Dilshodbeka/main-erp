@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ArrowUpRight, Banknote, FileText, Layers, Package, Send, Wallet, Wrench, ChevronRight } from 'lucide-react';
 import { periodEnd, periodKey, periodStart, type PeriodKind } from '../analytics';
 import { customerKindLabel } from '../customers';
-import { statusLabel } from '../i18n';
+import { statusLabel, dateLocale } from '../i18n';
 import { matchesQuery, sortRows, type SortOption, type SortState } from '../listview';
 import {
   customerStatements, orderStatements, supplierStatements,
@@ -33,7 +33,7 @@ const nextDay = (iso: string): string => {
 function periodLabel(key: string, kind: PeriodKind): string {
   if (key === 'all') return 'Butun davr';
   if (kind !== 'month') return periodTitle(key, kind);
-  return new Date(`${key}-02T00:00:00`).toLocaleDateString('uz-UZ', { month: 'long', year: 'numeric' });
+  return new Date(`${key}-02T00:00:00`).toLocaleDateString(dateLocale, { month: 'long', year: 'numeric' });
 }
 
 export function rowClass(selectedId: string | null, rowId: string): string {

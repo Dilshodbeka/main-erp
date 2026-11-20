@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { dateLocale } from '../i18n';
 import { Ban, CalendarPlus, Infinity as InfinityIcon, RefreshCw } from 'lucide-react';
 import { Empty, Section } from '../ui';
 import {
@@ -6,7 +7,7 @@ import {
   type PlatformChange, type PlatformCompany,
 } from '../subscription';
 
-const day = (value: string | null) => (value ? new Date(value).toLocaleDateString('uz-UZ') : '—');
+const day = (value: string | null) => (value ? new Date(value).toLocaleDateString(dateLocale) : '—');
 
 /** Seller's view of every company on the platform: plan, validity, modules, block switch. */
 export function PlatformPanel({ onNotice }: { onNotice: (message: string, error?: boolean) => void }) {

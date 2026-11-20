@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { dateLocale } from '../i18n';
 import { Link2, Unlink } from 'lucide-react';
 import { supabase } from '../repository';
 import { Section } from '../ui';
@@ -32,7 +33,7 @@ export function OwnerTelegramCard({ onNotice }: { onNotice: (message: string, er
     <div className="settings-facts">
       <span>Ulangan Telegram<b className={count > 0 ? 'positive' : ''}>{count > 0 ? `${count} ta` : 'ulanmagan'}</b></span>
     </div>
-    {link && <p className="subtle-note">Korxona botiga shu xabarni yuboring: <b className="owner-link-code">/ulash {link.code}</b><br />Kod {new Date(link.expiresAt).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })} gacha amal qiladi. Yuborgach «Tekshirish»ni bosing.</p>}
+    {link && <p className="subtle-note">Korxona botiga shu xabarni yuboring: <b className="owner-link-code">/ulash {link.code}</b><br />Kod {new Date(link.expiresAt).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })} gacha amal qiladi. Yuborgach «Tekshirish»ni bosing.</p>}
     <div className="data-actions">
       <button className="secondary" disabled={busy} onClick={() => void run(async () => setLink(await call<LinkCode>('erp_owner_link_code')))}><Link2 size={16} />{link ? 'Yangi kod' : 'Ulash kodi olish'}</button>
       {link && <button className="secondary" disabled={busy} onClick={refresh}>Tekshirish</button>}

@@ -1,10 +1,11 @@
 import { Banknote, ChevronRight, CircleAlert, Layers, Wallet } from 'lucide-react';
+import { dateLocale } from '../i18n';
 import { directorConsole } from '../console';
 import type { State } from '../types';
 import { Empty, Metric, Section, money } from '../ui';
 
 const monthLabel = (key: string): string =>
-  new Date(`${key}-02T00:00:00`).toLocaleDateString('uz-UZ', { month: 'long', year: 'numeric' });
+  new Date(`${key}-02T00:00:00`).toLocaleDateString(dateLocale, { month: 'long', year: 'numeric' });
 
 export function DirectorConsole({ state, onGo, onPayExpense, onRepayLoan, onOpenCustomer }: {
   state: State;

@@ -176,14 +176,14 @@ var collections = [
 ];
 function migrateState(value) {
   if (!value || typeof value !== "object") throw new Error("Ma’lumotlar formati noto‘g‘ri");
-  const source = value;
-  if (![1, 2, 3, 4].includes(Number(source.version)) || !Number.isSafeInteger(source.revision) || collections.some((key) => !Array.isArray(source[key]))) {
+  const source2 = value;
+  if (![1, 2, 3, 4].includes(Number(source2.version)) || !Number.isSafeInteger(source2.revision) || collections.some((key) => !Array.isArray(source2[key]))) {
     throw new Error("Ma’lumotlar formati noto‘g‘ri");
   }
-  const employees = source.employees;
+  const employees = source2.employees;
   const activeEmployees = employees.filter((employee) => employee.active).map((employee) => employee.id);
-  const machines = (Array.isArray(source.machines) ? source.machines : []).map((machine) => ({ ...machine, workshopId: machine.workshopId ?? MAIN_WORKSHOP_ID }));
-  const operations = source.operations.map((operation) => ({
+  const machines = (Array.isArray(source2.machines) ? source2.machines : []).map((machine) => ({ ...machine, workshopId: machine.workshopId ?? MAIN_WORKSHOP_ID }));
+  const operations = source2.operations.map((operation) => ({
     id: operation.id,
     name: operation.name,
     unit: operation.unit ?? "piece",
@@ -197,14 +197,14 @@ function migrateState(value) {
     norms: Array.isArray(operation.norms) ? operation.norms : [],
     workshopId: operation.workshopId ?? MAIN_WORKSHOP_ID
   }));
-  const reports = source.reports;
-  const customers = source.customers.map((customer) => ({
+  const reports = source2.reports;
+  const customers = source2.customers.map((customer) => ({
     ...customer,
     kind: customer.kind === "shop" ? "shop" : customer.kind === "service" ? "service" : "customer",
     employeeId: customer.employeeId ?? null,
     sellerId: customer.sellerId ?? null
   }));
-  const orders = source.orders.map((order) => {
+  const orders = source2.orders.map((order) => {
     const route = order.route.map((task) => {
       const workshopId = task.workshopId ?? operations.find((operation) => operation.id === task.operationId)?.workshopId ?? MAIN_WORKSHOP_ID;
       return {
@@ -245,14 +245,14 @@ function migrateState(value) {
       route: route.map((task) => ({ ...task, lineId: task.lineId ?? first }))
     };
   });
-  const payroll = source.payroll.map((entry) => ({
+  const payroll = source2.payroll.map((entry) => ({
     ...entry,
     taskId: entry.taskId ?? reports.find((row) => row.id === entry.reportId)?.taskId ?? "",
     status: entry.status ?? "accepted"
   }));
-  if (Number(source.version) <= 2) acceptReportedWork(orders, reports, payroll);
+  if (Number(source2.version) <= 2) acceptReportedWork(orders, reports, payroll);
   for (const order of orders) if (order.lines.length === 1) order.lines[0].status = order.status;
-  const purchases = source.purchases.map((purchase) => ({
+  const purchases = source2.purchases.map((purchase) => ({
     ...purchase,
     warehouseId: purchase.warehouseId ?? MAIN_WAREHOUSE_ID,
     orderId: purchase.orderId ?? null,
@@ -264,7 +264,7 @@ function migrateState(value) {
       newAverageCost: line.newAverageCost ?? 0
     }))
   }));
-  const shipments = source.shipments.map((shipment) => {
+  const shipments = source2.shipments.map((shipment) => {
     const order = orders.find((row) => row.id === shipment.orderId);
     const qty = shipment.qty ?? 0;
     const lines = Array.isArray(shipment.lines) ? shipment.lines.map((line) => ({ ...line, itemId: line.itemId ?? null })) : qty > 0 && order ? [legacyShipmentLine(shipment.id ?? "", order, qty, payroll)] : [];
@@ -282,7 +282,7 @@ function migrateState(value) {
       reversalOf: shipment.reversalOf ?? null
     };
   });
-  const cash = source.cash.map((entry) => {
+  const cash = source2.cash.map((entry) => {
     const withNumber = { ...entry, number: typeof entry.number === "string" && entry.number.length > 0 ? entry.number : null };
     if (entry.source === "order") {
       const order = orders.find((row) => row.id === entry.sourceId);
@@ -290,7 +290,7 @@ function migrateState(value) {
     }
     return { ...withNumber, customerId: entry.customerId ?? null };
   });
-  const items = source.items.map((item) => ({
+  const items = source2.items.map((item) => ({
     ...item,
     kind: item.kind ?? "material",
     salePrice: item.salePrice ?? 0,
@@ -300,13 +300,13 @@ function migrateState(value) {
     lastPurchasePrice: item.lastPurchasePrice ?? lastPurchasePrice(purchases, item.id ?? ""),
     photo: typeof item.photo === "string" ? item.photo : ""
   }));
-  const warehouses = Array.isArray(source.warehouses) && source.warehouses.length > 0 ? source.warehouses : [mainWarehouse()];
-  const workshops = Array.isArray(source.workshops) && source.workshops.length > 0 ? source.workshops : [mainWorkshop()];
-  const movements = source.movements.map((row) => ({ ...row, warehouseId: row.warehouseId ?? MAIN_WAREHOUSE_ID }));
+  const warehouses = Array.isArray(source2.warehouses) && source2.warehouses.length > 0 ? source2.warehouses : [mainWarehouse()];
+  const workshops = Array.isArray(source2.workshops) && source2.workshops.length > 0 ? source2.workshops : [mainWorkshop()];
+  const movements = source2.movements.map((row) => ({ ...row, warehouseId: row.warehouseId ?? MAIN_WAREHOUSE_ID }));
   return {
-    ...source,
+    ...source2,
     version: 4,
-    companyId: typeof source.companyId === "string" && source.companyId.length > 0 ? source.companyId : DEMO_COMPANY_ID,
+    companyId: typeof source2.companyId === "string" && source2.companyId.length > 0 ? source2.companyId : DEMO_COMPANY_ID,
     customers,
     machines,
     operations,
@@ -314,17 +314,17 @@ function migrateState(value) {
     warehouses,
     workshops,
     movements,
-    recipes: Array.isArray(source.recipes) ? source.recipes : [],
+    recipes: Array.isArray(source2.recipes) ? source2.recipes : [],
     orders,
     purchases,
     payroll,
-    salaryPlans: Array.isArray(source.salaryPlans) ? source.salaryPlans : [],
-    expensePlans: Array.isArray(source.expensePlans) ? source.expensePlans : [],
-    loans: Array.isArray(source.loans) ? source.loans : [],
-    routeTemplates: Array.isArray(source.routeTemplates) ? source.routeTemplates : [],
-    workerDeductions: Array.isArray(source.workerDeductions) ? source.workerDeductions : [],
-    tickets: Array.isArray(source.tickets) ? source.tickets : [],
-    defects: Array.isArray(source.defects) ? source.defects : [],
+    salaryPlans: Array.isArray(source2.salaryPlans) ? source2.salaryPlans : [],
+    expensePlans: Array.isArray(source2.expensePlans) ? source2.expensePlans : [],
+    loans: Array.isArray(source2.loans) ? source2.loans : [],
+    routeTemplates: Array.isArray(source2.routeTemplates) ? source2.routeTemplates : [],
+    workerDeductions: Array.isArray(source2.workerDeductions) ? source2.workerDeductions : [],
+    tickets: Array.isArray(source2.tickets) ? source2.tickets : [],
+    defects: Array.isArray(source2.defects) ? source2.defects : [],
     cash,
     shipments
   };
@@ -1223,8 +1223,8 @@ function cashBalance(state, selectedAccount) {
     return total + (row.account === selectedAccount ? row.direction === "in" ? row.amount : -row.amount : 0);
   }, 0));
 }
-function sourceNet(state, source, sourceId, incoming) {
-  return round6(state.cash.reduce((total, row) => row.source === source && row.sourceId === sourceId ? total + (row.direction === (incoming ? "in" : "out") ? row.amount : row.direction === "transfer" ? 0 : -row.amount) : total, 0));
+function sourceNet(state, source2, sourceId, incoming) {
+  return round6(state.cash.reduce((total, row) => row.source === source2 && row.sourceId === sourceId ? total + (row.direction === (incoming ? "in" : "out") ? row.amount : row.direction === "transfer" ? 0 : -row.amount) : total, 0));
 }
 function orderPaid(state, orderId) {
   return orderBalance(state, orderId)?.paid ?? 0;
@@ -1350,6 +1350,20 @@ function workContext(state, command, actor) {
   check(tasks.slice(0, index).every((row) => !exceeds(row.planned, row.completed)), "Previous route stage is incomplete");
   return { order, task, operation, employee };
 }
+function availableTask(state, orderId, taskId) {
+  const order = state.orders.find((row) => row.id === orderId);
+  if (!order || order.status !== "production") return false;
+  const index = order.route.findIndex((row) => row.id === taskId);
+  if (index < 0) return false;
+  const task = order.route[index];
+  if (task.executorKind !== "employee" || !task.employeeId) return false;
+  const line = order.lines.find((row) => row.id === task.lineId);
+  if (!line || line.status !== "production") return false;
+  if (lineMaterials(order, line.id).some((row) => !isIssued(row)) && !task.assembly) return false;
+  const operation = state.operations.find((row) => row.id === task.operationId);
+  const tasks = lineRoute(order, line.id);
+  return !!operation && operation.employeeIds.includes(task.employeeId) && state.employees.some((row) => row.id === task.employeeId && row.active) && tasks.slice(0, tasks.indexOf(task)).every((row) => !exceeds(row.planned, row.completed)) && task.status !== "completed" && task.status !== "submitted" && exceeds(task.planned, task.completed);
+}
 function totalPrice(order) {
   return round6(order.price);
 }
@@ -1382,11 +1396,11 @@ function postCash(state, row) {
   state.cash.push(entry);
   return entry;
 }
-function payment(state, source, sourceId, amount, selectedAccount, options) {
+function payment(state, source2, sourceId, amount, selectedAccount, options) {
   const value = money(amount, true);
   account(selectedAccount);
   let payable;
-  if (source === "supplier") {
+  if (source2 === "supplier") {
     find(state.suppliers, sourceId, "Supplier");
     payable = supplierDebt(state, sourceId);
   } else {
@@ -1399,10 +1413,10 @@ function payment(state, source, sourceId, amount, selectedAccount, options) {
     amount: value,
     account: selectedAccount,
     toAccount: null,
-    source,
+    source: source2,
     sourceId,
     customerId: null,
-    category: options?.category ?? (source === "payroll" && options?.kind ? options.kind : source),
+    category: options?.category ?? (source2 === "payroll" && options?.kind ? options.kind : source2),
     note: options?.note ?? "",
     reversalOf: null
   });
@@ -3482,6 +3496,118 @@ function attendanceReport(data, today, nowMinutes) {
   ].join("\n");
 }
 
+// src/push-messages.ts
+function plainText(html) {
+  return html.replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+}
+function ownerPush(due) {
+  if (!due.length) return null;
+  const lines = due.slice(0, 4).map((row) => plainText(row.text));
+  if (due.length > 4) lines.push(`…va yana ${due.length - 4} ta`);
+  return { title: due.length === 1 ? "Nazorat: e’tibor bering" : `Nazorat: ${due.length} ta holat`, body: lines.join("\n"), url: "#/dashboard", tag: "watch" };
+}
+function workerNotices(state) {
+  const notices = [];
+  for (const order of state.orders) {
+    if (order.status !== "production") continue;
+    for (const task of order.route) {
+      if (task.status !== "assigned" || task.executorKind === "supplier") continue;
+      if (!availableTask(state, order.id, task.id)) continue;
+      const people = new Set([task.employeeId, ...(task.crew ?? []).map((member) => member.employeeId)].filter((id) => Boolean(id)));
+      for (const employeeId of people) {
+        notices.push({
+          key: `task:${task.id}:${employeeId}`,
+          employeeId,
+          message: { title: "Yangi topshiriq", body: `${order.number} · ${task.name} — ${order.title}`, url: "#/production", tag: `task-${task.id}` }
+        });
+      }
+    }
+  }
+  return notices;
+}
+
+// src/webpush.ts
+var encoder = new TextEncoder();
+function toBase64Url(bytes) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function fromBase64Url(text2) {
+  const normal = text2.replace(/-/g, "+").replace(/_/g, "/");
+  const binary = atob(normal + "=".repeat((4 - normal.length % 4) % 4));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+function concat(...parts) {
+  const out = new Uint8Array(parts.reduce((sum2, part) => sum2 + part.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    out.set(part, offset);
+    offset += part.length;
+  }
+  return out;
+}
+var source = (bytes) => bytes;
+async function generateVapidKeys() {
+  const pair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+  const raw = new Uint8Array(await crypto.subtle.exportKey("raw", pair.publicKey));
+  return { publicKey: toBase64Url(raw), privateKey: await crypto.subtle.exportKey("jwk", pair.privateKey) };
+}
+async function vapidAuthorization(endpoint, keys, subject, nowSeconds) {
+  const header = toBase64Url(encoder.encode(JSON.stringify({ typ: "JWT", alg: "ES256" })));
+  const claims = toBase64Url(encoder.encode(JSON.stringify({ aud: new URL(endpoint).origin, exp: nowSeconds + 12 * 3600, sub: subject })));
+  const key = await crypto.subtle.importKey("jwk", keys.privateKey, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+  const signature = new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, source(encoder.encode(`${header}.${claims}`))));
+  return `vapid t=${header}.${claims}.${toBase64Url(signature)}, k=${keys.publicKey}`;
+}
+async function hkdf(salt, material, info, length) {
+  const key = await crypto.subtle.importKey("raw", source(material), "HKDF", false, ["deriveBits"]);
+  return new Uint8Array(await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: source(salt), info: source(info) }, key, length * 8));
+}
+async function encryptPush(p256dh, auth, payload) {
+  const receiverPublic = fromBase64Url(p256dh);
+  const local = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const senderPublic = new Uint8Array(await crypto.subtle.exportKey("raw", local.publicKey));
+  const receiverKey = await crypto.subtle.importKey("raw", source(receiverPublic), { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: receiverKey }, local.privateKey, 256));
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const material = await hkdf(fromBase64Url(auth), shared, concat(encoder.encode("WebPush: info\0"), receiverPublic, senderPublic), 32);
+  const contentKey = await hkdf(salt, material, encoder.encode("Content-Encoding: aes128gcm\0"), 16);
+  const nonce = await hkdf(salt, material, encoder.encode("Content-Encoding: nonce\0"), 12);
+  const aes = await crypto.subtle.importKey("raw", source(contentKey), "AES-GCM", false, ["encrypt"]);
+  const cipher = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: source(nonce) }, aes, source(concat(payload, new Uint8Array([2])))));
+  const head2 = new Uint8Array(21);
+  head2.set(salt);
+  new DataView(head2.buffer).setUint32(16, 4096);
+  head2[20] = senderPublic.length;
+  return concat(head2, senderPublic, cipher);
+}
+async function pushRequest(target, message, keys, subject, nowSeconds, ttlSeconds = 12 * 3600) {
+  return {
+    url: target.endpoint,
+    headers: {
+      authorization: await vapidAuthorization(target.endpoint, keys, subject, nowSeconds),
+      "content-encoding": "aes128gcm",
+      "content-type": "application/octet-stream",
+      ttl: String(ttlSeconds),
+      urgency: "normal"
+    },
+    body: await encryptPush(target.p256dh, target.auth, encoder.encode(JSON.stringify(message)))
+  };
+}
+var pushGone = (status) => status === 404 || status === 410;
+var PUSH_HOSTS = [/^fcm\.googleapis\.com$/, /^updates\.push\.services\.mozilla\.com$/, /(^|\.)notify\.windows\.com$/, /(^|\.)push\.apple\.com$/];
+function allowedPushEndpoint(endpoint) {
+  try {
+    const url = new URL(endpoint);
+    return url.protocol === "https:" && !url.username && !url.port && PUSH_HOSTS.some((host) => host.test(url.hostname));
+  } catch {
+    return false;
+  }
+}
+
 // src/timepay.ts
 var TIMEPAY_BASE = "https://api.app.time-pay.uz/api/v1/integration";
 var PAGE_LIMIT = 100;
@@ -3563,26 +3689,33 @@ function ownerErrorText(message) {
 function watchRun(rawSnapshot, sent, nowIso, today, localHour, attendance = null) {
   const snapshot = rawSnapshot;
   const staff = attendance ? attendanceFindings(attendance.data, today, attendance.nowMinutes) : [];
-  const findings = [...staff, ...watchFindings(migrateState(snapshot?.state), nowIso, today)];
-  const activeKeys = findings.map((row) => row.key);
-  if (isQuietHour(localHour)) return { text: null, sentKeys: [], activeKeys };
+  const state = migrateState(snapshot?.state);
+  const findings = [...staff, ...watchFindings(state, nowIso, today)];
+  const tasks = workerNotices(state);
+  const activeKeys = [...findings.map((row) => row.key), ...tasks.map((row) => row.key)];
+  if (isQuietHour(localHour)) return { text: null, sentKeys: [], activeKeys, push: null, workers: [] };
+  const workers = tasks.filter((row) => !sent[row.key]);
   const due = dueFindings(findings, sent, nowIso);
-  if (!due.length) return { text: null, sentKeys: [], activeKeys };
-  return { text: watchDigest(due, "🔔 <b>Nazorat: e’tibor bering</b>"), sentKeys: due.map((row) => row.key), activeKeys };
+  if (!due.length) return { text: null, sentKeys: [], activeKeys, push: null, workers };
+  return { text: watchDigest(due, "🔔 <b>Nazorat: e’tibor bering</b>"), sentKeys: due.map((row) => row.key), activeKeys, push: ownerPush(due), workers };
 }
 function clockMinutes(hhmm2) {
   const [hours, minutes] = hhmm2.split(":").map(Number);
   return hours % 24 * 60 + (minutes || 0);
 }
 export {
+  allowedPushEndpoint,
   clockMinutes,
   fetchAttendance,
+  generateVapidKeys,
   ownerErrorText,
   ownerKeyboard,
   ownerNeedsAttendance,
   ownerNeedsState,
   ownerReply,
   parseOwnerIds,
+  pushGone,
+  pushRequest,
   resolveOwnerInput,
   watchRun
 };

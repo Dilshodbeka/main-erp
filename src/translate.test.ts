@@ -65,3 +65,21 @@ describe('page translation', () => {
     stop();
   });
 });
+
+describe('russian dictionary', () => {
+  it('is built from the translation batches (run `npm run build:i18n` after editing them)', async () => {
+    const built = (await import('../scripts/i18n/build.mjs?check' as string)).default as Record<string, string>;
+    const shipped = (await import('./locales/ru.json')).default as Record<string, string>;
+    expect(shipped).toEqual(built);
+  });
+
+  it('translates real interface texts, their parts and templates', async () => {
+    const translate = createTranslator((await import('./locales/ru.json')).default as Record<string, string>);
+    expect(translate('Buyurtma qabul qilish')).toBe('Принять заказ');
+    expect(translate('Savdo va CRM · Buyurtmalar')).toBe('Продажи и CRM · Заказы');
+    expect(translate('1,500,000 so‘m')).toBe('1,500,000 сум');
+    expect(translate('noyabr · 2026')).toBe('ноябрь · 2026');
+    expect(translate('Sinov muddati: 1 kun qoldi.')).toBe('Пробный период: осталось 1 дн.');
+    expect(translate('ORD-0007')).toBeNull();
+  });
+});

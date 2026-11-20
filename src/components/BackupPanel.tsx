@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { dateLocale } from '../i18n';
 import { CloudDownload, CloudUpload, Download, HardDriveDownload, RefreshCw, RotateCcw, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { backupName, downloadBackup, listSnapshots, readSnapshot, saveSnapshot, type BackupFile, type BackupMeta } from '../backup';
 import { playbackCopy, type CopyMeta } from '../../supabase/functions/_shared/backup';
@@ -20,7 +21,7 @@ import { Empty, Section } from '../ui';
 const kiloBytes = (bytes: number) => `${Math.max(1, Math.round(bytes / 1024))} KB`;
 const stamp = (exportedAt: string) => {
   const parsed = Date.parse(exportedAt);
-  return Number.isFinite(parsed) ? new Date(parsed).toLocaleString('uz-UZ') : exportedAt;
+  return Number.isFinite(parsed) ? new Date(parsed).toLocaleString(dateLocale) : exportedAt;
 };
 const cloudErrorText = (error: unknown) =>
   error instanceof CloudBackupError ? cloudBackupErrorText(error.code) : error instanceof Error ? error.message : 'Nusxa bilan muammo chiqdi.';
@@ -205,7 +206,7 @@ export function BackupPanel({ state, cloud, onRestored }: { state: State; cloud:
       <div className="table-scroll cardable"><table>
         <thead><tr><th>Sana</th><th className="right">Versiya</th><th className="right">Hajm</th><th /></tr></thead>
         <tbody>{snapshots.map(meta => <tr key={meta.key}>
-          <td data-label="Sana"><b>{new Date(meta.exportedAt).toLocaleString('uz-UZ')}</b></td>
+          <td data-label="Sana"><b>{new Date(meta.exportedAt).toLocaleString(dateLocale)}</b></td>
           <td data-label="Versiya" className="right">{meta.revision}</td>
           <td data-label="Hajm" className="right">{kiloBytes(meta.bytes)}</td>
           <td data-label="Amallar"><button className="icon-button" aria-label={`Nusxani yuklab olish ${meta.exportedAt}`} title="Yuklab olish" onClick={() => downloadLocal(readSnapshot(localStorage, meta.key))}><Download size={16} /></button></td>

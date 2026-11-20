@@ -7,6 +7,7 @@ import { planOwnerAction } from './telegram-actions';
 import type { Actor, Command } from './types';
 import { attendanceFindings, attendanceReport, type AttendanceData } from './attendance';
 import { dueFindings, isQuietHour, watchDigest, watchFindings, type Finding } from './watch';
+import { ownerPush, workerNotices, type PushMessage, type WorkerNotice } from './push-messages';
 import { esc, OWNER_COMMANDS, ownerMenuText, ownerReport, parseOwnerCommand, type ReportKey } from './telegram-reports';
 
 export interface OwnerReply {
@@ -87,6 +88,10 @@ export interface WatchRun {
   sentKeys: string[];
   /** Every situation that still exists — rows for other keys can be forgotten. */
   activeKeys: string[];
+  /** The same news as a browser notification for the owner's devices (null when nothing is due). */
+  push: PushMessage | null;
+  /** "A task is waiting for you" notifications for workers that were not announced yet. */
+  workers: WorkerNotice[];
 }
 
 /**
@@ -98,14 +103,18 @@ export function watchRun(rawSnapshot: unknown, sent: Record<string, string>, now
   attendance: { data: AttendanceData; nowMinutes: number } | null = null): WatchRun {
   const snapshot = rawSnapshot as { state?: unknown } | null;
   const staff: Finding[] = attendance ? attendanceFindings(attendance.data, today, attendance.nowMinutes) : [];
-  const findings = [...staff, ...watchFindings(migrateState(snapshot?.state), nowIso, today)];
-  const activeKeys = findings.map(row => row.key);
-  if (isQuietHour(localHour)) return { text: null, sentKeys: [], activeKeys };
+  const state = migrateState(snapshot?.state);
+  const findings = [...staff, ...watchFindings(state, nowIso, today)];
+  const tasks = workerNotices(state);
+  const activeKeys = [...findings.map(row => row.key), ...tasks.map(row => row.key)];
+  if (isQuietHour(localHour)) return { text: null, sentKeys: [], activeKeys, push: null, workers: [] };
+  const workers = tasks.filter(row => !sent[row.key]);
   const due = dueFindings(findings, sent, nowIso);
-  if (!due.length) return { text: null, sentKeys: [], activeKeys };
-  return { text: watchDigest(due, '🔔 <b>Nazorat: e’tibor bering</b>'), sentKeys: due.map(row => row.key), activeKeys };
+  if (!due.length) return { text: null, sentKeys: [], activeKeys, push: null, workers };
+  return { text: watchDigest(due, '🔔 <b>Nazorat: e’tibor bering</b>'), sentKeys: due.map(row => row.key), activeKeys, push: ownerPush(due), workers };
 }
 
+export { generateVapidKeys, pushRequest, pushGone, allowedPushEndpoint } from './webpush';
 export { fetchAttendance } from './timepay';
 
 /** "HH:MM" local clock → minutes from midnight (for the attendance rules). */

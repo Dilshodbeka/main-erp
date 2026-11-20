@@ -104,3 +104,19 @@ button:active:not(:disabled){transform:scale(.97)}
 .login-switch{margin-top:10px;font-size:12px;color:var(--muted);text-align:center}
 .login-switch>button{background:none;border:0;padding:4px 6px;font-weight:700;color:var(--green);font-size:12px}
 .owner-link-code{font-size:14px;letter-spacing:.06em;color:#253932;user-select:all;-webkit-user-select:all}
+
+/* ── Til tanlash (UZ / RU) ── */
+.lang-switch{display:inline-flex;align-self:flex-start;gap:2px;padding:3px;border-radius:10px;background:#eef2ea;border:1px solid var(--border)}
+.lang-switch button{min-height:30px;padding:4px 12px;border-radius:7px;font-size:12px;font-weight:700;color:#68766c;line-height:1.2}
+.lang-switch button.active{background:#fff;color:var(--green);box-shadow:0 1px 2px rgba(20,40,30,.14)}
+.login-card>.lang-switch{align-self:flex-end;margin-bottom:-6px}
+.sidebar-bottom>.lang-switch{margin:0 0 10px 10px}
+@media (max-width:700px){.lang-switch button{min-height:36px;padding:6px 14px}}
+
+/* ── Bildirishnomalar (Web Push) ── */
+.push-toggle{display:flex;align-items:center;gap:9px;width:calc(100% - 20px);margin:0 10px 10px;padding:9px 12px;min-height:38px;border-radius:10px;border:1px solid var(--border);background:#fff;font-size:12px;font-weight:700;color:#55655b;text-align:left}
+.push-toggle.on{background:#eef4e4;border-color:#c9d8b4;color:var(--green)}
+.push-toggle span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.push-hint{display:flex;align-items:flex-start;gap:8px;margin:0 10px 10px;font-size:11px;line-height:1.45;color:var(--muted)}
+.push-hint svg{flex-shrink:0;margin-top:1px}
+@media (max-width:700px){.push-toggle{min-height:44px}}

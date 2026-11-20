@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { dateLocale } from '../i18n';
 import { CircleAlert, Download } from 'lucide-react';
 import {
   clearDiagnostics, diagnosticChecks, diagnosticFileName, downloadDiagnosticReport,
@@ -33,7 +34,7 @@ export function DiagnosticsPanel({ state, actor, mode, build, sync, onExported }
 
   return <Section title="Diagnostika va xatolar" hint="Haftalik tekshiruv: xatolar, sinxronizatsiya navbati va ma’lumot izchilligi. Faylda ism, telefon, manzil va summa yo‘q.">
     <div className="settings-facts">
-      <span>Oxirgi hisobot<b>{last ? new Date(last).toLocaleString('uz-UZ') : 'hali yo‘q'}</b></span>
+      <span>Oxirgi hisobot<b>{last ? new Date(last).toLocaleString(dateLocale) : 'hali yo‘q'}</b></span>
       <span>Yig‘ilgan xatolar<b>{entries.length}</b></span>
       <span>Muammoli tekshiruvlar<b className={failed.length ? 'debt' : 'positive'}>{failed.length}</b></span>
       <span>Rejim<b>{mode === 'cloud' ? 'Umumiy baza' : 'Lokal demo'}</b></span>
@@ -57,7 +58,7 @@ export function DiagnosticsPanel({ state, actor, mode, build, sync, onExported }
     {entries.length ? <div className="table-scroll cardable"><table>
       <thead><tr><th>Sana</th><th>Turi</th><th>Xabar</th></tr></thead>
       <tbody>{entries.slice(0, 10).map((entry, index) => <tr key={`${entry.at}-${index}`}>
-        <td data-label="Sana">{new Date(entry.at).toLocaleString('uz-UZ')}</td>
+        <td data-label="Sana">{new Date(entry.at).toLocaleString(dateLocale)}</td>
         <td data-label="Turi">{entry.kind === 'error' ? 'Skript' : 'Va’da'}</td>
         <td data-label="Xabar">{entry.message}{entry.detail && <small>{entry.detail}</small>}</td>
       </tr>)}</tbody>

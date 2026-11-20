@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { applyCommand } from './domain';
 import { DEMO_COMPANY_ID, migrateState } from './migrations';
+import { disablePush } from './push';
 import { createDemo } from './seed';
 import { createSync, emptyCache, TransportError, type Pending, type Snapshot, type SyncCache } from './sync';
 import type { Actor, Command, Envelope, State } from './types';
@@ -107,6 +108,8 @@ export async function signOut() {
     });
     activeKey = null;
   }
+  // The next person on this device must not receive this account's notifications.
+  await disablePush(supabase!).catch(() => undefined);
   await supabase!.auth.signOut();
 }
 

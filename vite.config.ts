@@ -38,6 +38,24 @@ self.addEventListener('fetch', event => {
   } else if (assets.includes(event.request.url)) {
     event.respondWith(caches.open(cacheName).then(async cache => (await cache.match(event.request, { ignoreVary: true })) || fetch(event.request)));
   }
+});
+self.addEventListener('push', event => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (error) { data = { body: event.data ? event.data.text() : '' }; }
+  const icon = new URL('icons/icon-192.png', self.registration.scope).href;
+  event.waitUntil(self.registration.showNotification(data.title || 'ALIYA ERP', { body: data.body || '', tag: data.tag || undefined, renotify: Boolean(data.tag), icon, badge: icon, data: { url: data.url || '' } }));
+});
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const target = new URL((event.notification.data && event.notification.data.url) || '', self.registration.scope).href;
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async windows => {
+    for (const client of windows) {
+      if (!client.url.startsWith(self.registration.scope)) continue;
+      if ('navigate' in client) await client.navigate(target).catch(() => undefined);
+      return client.focus();
+    }
+    return self.clients.openWindow(target);
+  }));
 });`;
       this.emitFile({ type: 'asset', fileName: 'sw.js', source });
     },
@@ -46,6 +64,7 @@ self.addEventListener('fetch', event => {
 function chunkOf(id: string): string | undefined {
   const path = id.split('\\').join('/');
   if (!path.includes('/node_modules/')) {
+    if (path.includes('/src/locales/')) return undefined; // loaded on demand, only for that language
     if (path.includes('/src/components/')) return 'screens';
     if (/(^|\/)src\/(App|main)\.tsx$/.test(path)) return 'app';
     return path.includes('/src/') ? 'core' : undefined;

@@ -5,11 +5,14 @@
 // Secrets: WATCH_SECRET (shared with the cron job), TELEGRAM_BOT_TOKEN. Recipients: OWNER_TELEGRAM_IDS
 // (first company) and every chat a company owner linked with /ulash (table erp_owner_chats).
 // Optional: TIMEPAY_TOKEN adds attendance control (late, absent, left early) from Timepay.
+// Web Push (after migration 20261202_push.sql): the same news goes to the owner's subscribed devices and
+// workers get "a task is waiting for you"; server keys are created here on the first run.
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { constantTimeEqual } from '../_shared/telegram.ts';
 import { clockMinutes, fetchAttendance, parseOwnerIds, watchRun } from '../_shared/owner-bot.generated.js';
 import { adminSnapshotFor, ownerTargets, type OwnerTarget } from '../_shared/owner-access.ts';
+import { companyDevices, deliverAll, pushCompanies, pushKeys, type PushKeys } from '../_shared/push.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -20,6 +23,8 @@ const timepayToken = Deno.env.get('TIMEPAY_TOKEN') ?? '';
 const ownerIds = parseOwnerIds(Deno.env.get('OWNER_TELEGRAM_IDS'));
 const apiBase = (Deno.env.get('TELEGRAM_API_BASE') ?? 'https://api.telegram.org').replace(/\/+$/, '');
 const timeZone = Deno.env.get('WATCH_TIME_ZONE') ?? 'Asia/Tashkent';
+// Push services want a contact of the sender: an https address or mailto.
+const pushSubject = Deno.env.get('PUSH_CONTACT') ?? supabaseUrl;
 
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -71,8 +76,8 @@ async function attendance(today: string, nowMinutes: number) {
 
 type Snapshot = { state?: { companyId?: string } } | null;
 
-/** One company: check, send what is due to its owner chats, remember what was sent. */
-async function watchCompany(target: OwnerTarget, now: Date, dry: boolean): Promise<Record<string, unknown>> {
+/** One company: check, send what is due to its owner chats and devices, remember what was sent. */
+async function watchCompany(target: OwnerTarget, now: Date, dry: boolean, keys: PushKeys | null): Promise<Record<string, unknown>> {
   const snapshot = await adminSnapshotFor(client(), { url: supabaseUrl, serviceKey, anonKey }, target.companyId) as Snapshot;
   const companyId = snapshot?.state?.companyId;
   if (!companyId) throw new Error('company_missing');
@@ -85,21 +90,33 @@ async function watchCompany(target: OwnerTarget, now: Date, dry: boolean): Promi
   // Timepay is one server secret, so attendance belongs to the legacy (platform owner's) company.
   const staff = target.companyId === null ? await attendance(today, minutes) : null;
   const result = watchRun(snapshot, sent, now.toISOString(), today, hour, staff);
-  if (dry) return { companyId, dry: true, active: result.activeKeys.length, due: result.sentKeys.length, text: result.text };
+  const devices = keys ? await companyDevices(client(), companyId) : [];
+  if (dry) return { companyId, dry: true, active: result.activeKeys.length, due: result.sentKeys.length, workers: result.workers.length, devices: devices.length, text: result.text };
 
   // Situations that no longer exist are forgotten, so they are announced again if they come back.
   const gone = Object.keys(sent).filter(key => !result.activeKeys.includes(key));
   if (gone.length) await client().from('erp_watch_sent').delete().eq('company_id', companyId).in('key', gone);
 
-  if (!result.text) return { companyId, sent: 0, active: result.activeKeys.length };
-  const delivered = (await Promise.all(target.chatIds.map(id => send(id, result.text!)))).some(Boolean);
-  if (delivered) {
+  const announced: string[] = [];
+  // Workers: "a task is waiting for you" — only to that worker's own devices.
+  for (const notice of keys ? result.workers : []) {
+    const own = devices.filter(device => device.employeeId === notice.employeeId);
+    if (own.length && await deliverAll(client(), own, notice.message, keys!, pushSubject)) announced.push(notice.key);
+  }
+  // Owner: Telegram and the owner's devices; either channel reaching them counts as delivered.
+  if (result.text) {
+    const byTelegram = (await Promise.all(target.chatIds.map(id => send(id, result.text!)))).some(Boolean);
+    const admins = devices.filter(device => device.role === 'admin');
+    const byPush = Boolean(keys && result.push && admins.length && await deliverAll(client(), admins, result.push, keys, pushSubject));
+    if (byTelegram || byPush) announced.push(...result.sentKeys);
+  }
+  if (announced.length) {
     await client().from('erp_watch_sent').upsert(
-      result.sentKeys.map(key => ({ company_id: companyId, key, sent_at: now.toISOString() })),
+      announced.map(key => ({ company_id: companyId, key, sent_at: now.toISOString() })),
       { onConflict: 'company_id,key' },
     );
   }
-  return { companyId, sent: delivered ? result.sentKeys.length : 0, active: result.activeKeys.length };
+  return { companyId, sent: announced.length, active: result.activeKeys.length, devices: devices.length };
 }
 
 serve(async request => {
@@ -109,13 +126,26 @@ serve(async request => {
   const dry = new URL(request.url).searchParams.get('dry') === '1';
   const now = new Date();
   const results: Record<string, unknown>[] = [];
-  // Companies are independent: one failing must not silence the others.
-  for (const target of await ownerTargets(client(), ownerIds)) {
+  const keys = await pushKeys(client());
+  const seen = new Set<string>();
+  const run = async (target: OwnerTarget) => {
+    // Companies are independent: one failing must not silence the others.
     try {
-      results.push(await watchCompany(target, now, dry));
+      const row = await watchCompany(target, now, dry, keys);
+      seen.add(String(row.companyId));
+      results.push(row);
     } catch (error) {
       console.error('Watcher failed', error instanceof Error ? error.message : 'unknown');
       results.push({ companyId: target.companyId, error: error instanceof Error ? error.message : 'unknown' });
+    }
+  };
+  const targets = await ownerTargets(client(), ownerIds);
+  for (const target of targets) await run(target);
+  // Companies that use only browser notifications (no Telegram chat linked).
+  if (keys) {
+    const linked = new Set(targets.map(target => target.companyId));
+    for (const companyId of await pushCompanies(client())) {
+      if (!seen.has(companyId) && !linked.has(companyId)) await run({ companyId, chatIds: [] });
     }
   }
   return json({ ok: results.every(row => !row.error), companies: results.length, results });

@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { CircleAlert, Package, Users } from 'lucide-react';
 import { Empty, Metric, Section, dateTime, money, num } from '../ui';
-import { defectReasonLabel } from '../i18n';
+import { defectReasonLabel, dateLocale } from '../i18n';
 import { defectJournalRows, defectMonths, defectTotals } from '../defect-view';
 import { unitLabel } from '../work-view';
 import type { State } from '../types';
 
 const monthLabel = (key: string): string =>
-  new Date(`${key}-02T00:00:00`).toLocaleDateString('uz-UZ', { month: 'long', year: 'numeric' });
+  new Date(`${key}-02T00:00:00`).toLocaleDateString(dateLocale, { month: 'long', year: 'numeric' });
 
 export function DefectJournal({ state }: { state: State }) {
   const months = defectMonths(state);

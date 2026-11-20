@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { dateLocale } from '../i18n';
 import { CircleAlert, MessageCircle, Send } from 'lucide-react';
 import { ChatError, chatErrorText } from '../chat';
 import {
@@ -26,7 +27,7 @@ const describe = (error: unknown): string =>
 
 const time = (value: string): string => {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' });
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' });
 };
 
 const dayKey = (value: string): string => {

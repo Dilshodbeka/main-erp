@@ -10,6 +10,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
     "test": "vitest run",
+    "build:i18n": "node scripts/i18n/build.mjs",
     "build:bot": "node scripts/build-bot.mjs",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "deploy": "npm run build && node -e \"require('node:fs').rmSync('dist/_redirects',{force:true})\" && wrangler deploy"
@@ -26,6 +27,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.4.1",
     "happy-dom": "^21.0.4",
+    "http_ece": "^1.2.1",
     "typescript": "~5.8.3",
     "vite": "^6.3.5",
     "vitest": "^3.2.4",

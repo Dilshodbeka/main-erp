@@ -1,0 +1,179 @@
+# узбекская строка<TAB>перевод — строки, которых нет в uz-keys.json (короткие слова, единицы, месяцы)
+qarz	долг
+tanqis	дефицит
+dona	шт
+list	лист
+litr	л
+metr	м
+muddat	срок
+buyurtma	зак.
+xodim	сотр.
+amal	действий
+Kim	Кто
+Ism	Имя
+Sex	Цех
+daq.	мин.
+bosqich	этапов
+versiya	версий
+berilgan	выдано
+qisman	частично
+to‘lanmagan	не оплачено
+tayinlangan	назначено
+qabul qilingan	принято
+Kun	День
+Yil	Год
+Oy	Месяц
+xizmat	услуга
+zagotovka	заготовка
+muddati o‘tgan	срок прошёл
+-kungacha	-го числа
+-reviziya	-я ревизия
+Naqd pul	Наличные
+Bank	Банк
+→ Naqd pul	→ Наличные
+→ Bank	→ Банк
+Lak	Лак
+cheklanmagan	без ограничений
+yo‘q	нет
+hali yo‘q	ещё нет
+yanvar	январь
+fevral	февраль
+mart	март
+aprel	апрель
+may	май
+iyun	июнь
+iyul	июль
+avgust	август
+sentabr	сентябрь
+oktabr	октябрь
+noyabr	ноябрь
+dekabr	декабрь
+{0} ta	{0} шт
+{0} dona	{0} шт
+{0} list	{0} лист
+{0} litr	{0} л
+summa {0}	сумма {0}
+{0} tanqislik	дефицит: {0}
+Ombor qoldig‘i manfiy emas	Остаток на складе не отрицательный
+Yuborilgan miqdor buyurtmadan oshmagan	Отправленное количество не превышает заказ
+Kassa yozuvlari mavjud yozuvga bog‘langan	Кассовые записи привязаны к существующей записи
+Bekor qilish asl kassa yozuvini topadi	Отмена находит исходную кассовую запись
+Bosqich tannarxi yozuvlari hisobot va bosqichga bog‘langan	Записи себестоимости этапа привязаны к отчёту и этапу
+Ish hisobotlari buyurtma va bosqichga bog‘langan	Отчёты о работе привязаны к заказу и этапу
+Buyurtma raqamlari takrorlanmaydi	Номера заказов не повторяются
+Ombor harakati mavjud pozitsiyaga bog‘langan	Движения склада привязаны к существующей позиции
+Yuborishlar mavjud mijozga bog‘langan	Отправки привязаны к существующему клиенту
+Buyurtmalar mavjud mijozga bog‘langan	Заказы привязаны к существующему клиенту
+SEX	ЦЕХ
+Rol	Роль
+Kod	Код
+Uya	Гнездо
+QQS	НДС
+Tur	Тип
+qoldiq {0}	остаток {0}
+Bu Aliya ERP zaxira fayli emas	Это не файл резервной копии Aliya ERP
+Noma’lum xatolik	Неизвестная ошибка
+Skript xatosi	Ошибка скрипта
+Va’da rad etildi	Отклонённый промис
+Kirim va chiqimni solishtiring; omborni sanab, qoldiqni qayta tasdiqlang.	Сверьте приход и расход; пересчитайте склад и подтвердите остаток заново.
+Buyurtma miqdori va yuborishlar qatorlarini solishtiring.	Сверьте количество заказа и строки отправок.
+Kassadagi to‘lov bog‘langan mijoz, xodim, ta’minotchi yoki buyurtmani topmadi. Bekor qilish bilan tuzatish kerak.	Оплата в кассе не нашла связанного клиента, сотрудника, поставщика или заказ. Исправляется отменой.
+Bekor qilingan yozuv o‘chirilgan yoki ko‘chirilgan. Asl yozuvni tiklang.	Отменённая запись удалена или перемещена. Восстановите исходную запись.
+Tannarx yozuvida xodim, hisobot yoki buyurtma bosqichi topilmadi.	В записи себестоимости не найден сотрудник, отчёт или этап заказа.
+Qabul qilingan hisobotda buyurtma yoki marshrut bosqichi topilmadi.	В принятом отчёте не найден заказ или этап маршрута.
+Bir xil raqamli buyurtmalar bor. Raqamlarni ajratib belgilang.	Есть заказы с одинаковым номером. Разведите номера.
+Harakat bog‘langan material yoki mahsulot topilmadi.	Не найден материал или изделие, к которому привязано движение.
+Yuborishda mijoz topilmadi; hujjat va qarz noto‘g‘ri hisoblanishi mumkin.	В отправке не найден клиент; документ и долг могут считаться неверно.
+Seriyadan tashqari buyurtmada mijoz topilmadi.	В несерийном заказе не найден клиент.
+noma’lum	неизвестно
+Sex nofaol	Цех неактивен
+Ombor nofaol	Склад неактивен
+Brigada faqat yig‘ish bosqichida bo‘ladi	Бригада бывает только на этапе сборки
+Yig‘ish bosqichini xodimlar bajaradi	Этап сборки выполняют сотрудники
+Mas’ul yig‘uvchi brigadada bo‘lishi kerak	Ответственный сборщик должен быть в бригаде
+Haqiqiy sarf to‘liq kiritilishi kerak	Фактический расход нужно ввести полностью
+Yig‘ishda material almashtirildi	При сборке материал заменён
+Omborda material yo‘q. Qoldiqni to‘ldiring	На складе нет материала. Пополните остаток
+Yig‘ishda ortiqcha material qaytarildi	При сборке возвращён лишний материал
+Bu mijoz allaqachon biriktirilgan	Этот клиент уже закреплён
+Mijoz sizga biriktirildi	Клиент закреплён за вами
+Mas’ul sotuvchi tayinlandi	Ответственный продавец назначен
+Mas’ul sotuvchi olib tashlandi	Ответственный продавец снят
+Kamida bitta faol sex qolishi kerak	Должен остаться хотя бы один активный цех
+Materiallar berilgan — omborni o‘zgartirib bo‘lmaydi	Материалы выданы — склад изменить нельзя
+Pozitsiyalarning har birida ishga tushirishdan oldin kamida bitta bosqich bo‘lishi shart.	Перед запуском в каждой позиции должен быть хотя бы один этап.
+Bu buyurtma boshqa sexga tegishli	Этот заказ относится к другому цеху
+Bekor qilingan buyurtma materiali qaytarildi	Материал отменённого заказа возвращён
+Yig‘ish bosqichi «Tayyor» tugmasi bilan yakunlanadi	Этап сборки завершается кнопкой «Готово»
+Bu bosqich boshqa sexga tegishli	Этот этап относится к другому цеху
+Bu bosqich yig‘ish emas	Этот этап — не сборка
+Yig‘ishni faqat xodim bajaradi	Сборку выполняет только сотрудник
+Omborga chiqarish uchun bitta pozitsiya bo‘lishi kerak	Для выпуска на склад должна быть одна позиция
+Kamida bitta faol ombor qolishi kerak	Должен остаться хотя бы один активный склад
+Omborlar bir xil bo‘lmasligi kerak	Склады не должны совпадать
+Omborda yetarli qoldiq yo‘q	На складе недостаточно остатка
+Yuborish bekor qilingani bo‘yicha qaytarish	Возврат по отменённой отправке
+Ustaxona ekrani faqat kanbanni ko‘radi va amallarni bajara olmaydi.	Экран цеха показывает только канбан и не может выполнять действия.
+Faqat o‘z mijozlaringiz buyurtmalarini boshqarishingiz mumkin.	Вы можете управлять только заказами своих клиентов.
+Ma’lumotlar formati noto‘g‘ri	Неверный формат данных
+Katta sotuvchi	Старший продавец
+Omborchi	Кладовщик
+Ishlab chiqarish ustasi	Мастер производства
+Barcha buyurtmalarni ko‘rish	Просмотр всех заказов
+O‘z mijozining buyurtmasini tahrirlash	Изменение заказов своих клиентов
+Barcha buyurtmalarni tahrirlash	Изменение всех заказов
+Buyurtmani ishga tushirish	Запуск заказа
+Mijozni o‘ziga biriktirish	Закрепление клиента за собой
+Mijozni boshqa sotuvchiga biriktirish	Закрепление клиента за другим продавцом
+Kassani ko‘rish	Просмотр кассы
+Kassa operatsiyalari	Кассовые операции
+Kassa bekor qilish	Отмена кассовых записей
+Xaridlarni ko‘rish	Просмотр закупок
+Xaridni qabul qilish	Приёмка закупки
+Omborni ko‘rish	Просмотр склада
+Omborlar o‘rtasida ko‘chirish	Перемещение между складами
+Tannarxni ko‘rish	Просмотр себестоимости
+Barcha ishlab chiqarishni ko‘rish	Просмотр всего производства
+Ishni tekshirish (qabul)	Проверка работы (приёмка)
+Brakni ko‘rish	Просмотр брака
+Oyliklarni ko‘rish	Просмотр окладов
+Oylik to‘lash	Выплата оклада
+Hisobotlarni ko‘rish	Просмотр отчётов
+Yetkazishlarni ko‘rish	Просмотр доставок
+Yetkazish yaratish	Создание доставки
+Ma’lumotnoma (katalog)	Справочник (каталог)
+Kirish huquqlarini boshqarish	Управление правами доступа
+Savdo	Продажи
+Xavfsiz hisob uchun Web Locks va HTTPS qo‘llaydigan zamonaviy brauzer kerak.	Для надёжного учёта нужен современный браузер с поддержкой Web Locks и HTTPS.
+Server bilan aloqa yo‘q	Нет связи с сервером
+Hisobingizga kiring.	Войдите в аккаунт.
+Korxona nomi 2 dan 160 belgigacha bo‘lishi kerak	Название предприятия — от 2 до 160 символов
+Avval navbatni sinxronlang yoki yuborilmagan amallarni bekor qiling.	Сначала синхронизируйте очередь или отмените неотправленные действия.
+Sinxronlanmagan amallar bor. Avval navbatni hal qiling.	Есть несинхронизированные действия. Сначала разберите очередь.
+Server natijani to‘g‘ri snapshot bilan tasdiqlamadi. Yozuv avvalgi ID bilan navbatda qoladi.	Сервер не подтвердил результат корректным снимком. Запись остаётся в очереди с прежним ID.
+Oflayn ishlash uchun onlayn kiring va ma’lumotlarni yangilang. Oflayn kirish muddati — 24 soat.	Для работы офлайн войдите онлайн и обновите данные. Офлайн-доступ действует 24 часа.
+Avval konfliktni hal qiling yoki yuborilgan amal natijasini sinxronizatsiyada aniqlang.	Сначала разрешите конфликт или уточните результат отправленного действия в синхронизации.
+Kirish profili o‘zgardi. Sahifani yangilang.	Профиль входа изменился. Обновите страницу.
+Ma’lumotlar boshqa varaqda o‘zgardi. Saqlashdan oldin ularni yangilang.	Данные изменились в другой вкладке. Обновите их перед сохранением.
+Natija noma’lum: avval avvalgi ID bilan sinxronizatsiyani takrorlang. O‘chirish hisobni ikkilantirishi mumkin.	Результат неизвестен: сначала повторите синхронизацию с прежним ID. Удаление может задвоить учёт.
+Konfliktni hal qilish uchun ulanish kerak.	Для разрешения конфликта нужно подключение.
+Faqat birinchi rad etilgan amalni takrorlash mumkin.	Повторить можно только первое отклонённое действие.
+ombor seriyasi	складская серия
+1 soatdan kam	меньше часа
+{0} soat	{0} ч
+Xodimlar davomati	Посещаемость сотрудников
+Yetkazish	Доставка
+Pul	Деньги
+Ombor va ta’minot	Склад и снабжение
+Bildirishnomalar uchun ilovani «Bosh ekranga» o‘rnating.	Для уведомлений установите приложение на экран «Домой».
+Bildirishnomalar brauzerda bloklangan.	Уведомления заблокированы в браузере.
+Bu qurilmada bildirishnomalar o‘chirildi.	Уведомления на этом устройстве отключены.
+Bildirishnomalar yoqildi: yangiliklar shu qurilmaga keladi.	Уведомления включены: новости будут приходить на это устройство.
+Bildirishnomalarni sozlab bo‘lmadi.	Не удалось настроить уведомления.
+Bildirishnomalar yoqilgan	Уведомления включены
+Bildirishnomalarni yoqish	Включить уведомления
+Bu brauzer bildirishnomalarni qo‘llamaydi.	Этот браузер не поддерживает уведомления.
+Bildirishnomalar serverda hali sozlanmagan.	Уведомления на сервере ещё не настроены.
+Server kaliti hali tayyor emas — nazoratchi birinchi marta ishga tushgach (15 daqiqa ichida) qayta urinib ko‘ring.	Ключ сервера ещё не готов — повторите после первого запуска наблюдателя (в течение 15 минут).
+Bildirishnomalarga ruxsat berilmadi. Brauzer sozlamalarida sayt uchun ruxsatni yoqing.	Разрешение на уведомления не выдано. Включите его для сайта в настройках браузера.
+Qurilmani serverda saqlab bo‘lmadi. Qayta urinib ko‘ring.	Не удалось сохранить устройство на сервере. Попробуйте ещё раз.

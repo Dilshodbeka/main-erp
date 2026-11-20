@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { dateLocale } from '../i18n';
 import { Check, Factory, Package, Plus } from 'lucide-react';
 import { Badge, Empty, Section, money, num } from '../ui';
 import { actualSeriesCost, estimatedCost, stockQty } from '../domain';
@@ -47,7 +48,7 @@ function SeriesCard({ order, state, busy, run, onGo, itemName }: {
       <div>
         <span className="eyebrow">{order.number} / OMBOR SERIYASI</span>
         <h2>{order.title}</h2>
-        <small>{num(order.qty)} {unit} · muddat {new Date(`${order.dueDate}T12:00:00`).toLocaleDateString('uz-UZ', { day: '2-digit', month: 'short' })} · mijozsiz</small>
+        <small>{num(order.qty)} {unit} · muddat {new Date(`${order.dueDate}T12:00:00`).toLocaleDateString(dateLocale, { day: '2-digit', month: 'short' })} · mijozsiz</small>
       </div>
       <Badge status={order.status} />
     </header>

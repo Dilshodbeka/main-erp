@@ -56,6 +56,12 @@ export function createTranslator(dictionary: Dictionary): (text: string) => stri
         return translate(captured, depth + 1) ?? captured;
       });
     }
+    // "Savdo va CRM · Buyurtmalar": parts joined with a middle dot are translated one by one.
+    if (depth === 0 && key.includes(' · ')) {
+      const parts = key.split(' · ');
+      const done = parts.map(part => translate(part, 1));
+      if (done.some(part => part !== null)) return parts.map((part, index) => done[index] ?? part).join(' · ');
+    }
     return null;
   };
   // Surrounding spaces belong to the layout (inline gaps) — keep them exactly.

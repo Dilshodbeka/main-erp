@@ -61,8 +61,12 @@ export function formatQty(value: number): string {
   return qtyFormat.format(value);
 }
 
+/** Locale of dates shown on screen: follows the interface language, set once at startup. */
+export let dateLocale = 'uz-UZ';
+export function setDateLocale(locale: string): void { dateLocale = locale; }
+
 export function formatDate(value: string): string {
-  return value ? new Date(value.length === 10 ? `${value}T12:00:00` : value).toLocaleDateString('uz-UZ', { day: '2-digit', month: 'short' }) : '—';
+  return value ? new Date(value.length === 10 ? `${value}T12:00:00` : value).toLocaleDateString(dateLocale, { day: '2-digit', month: 'short' }) : '—';
 }
 
 export function formatDateTime(value: string): string {
