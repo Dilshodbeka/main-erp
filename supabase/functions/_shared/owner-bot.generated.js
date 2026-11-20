@@ -358,9 +358,9 @@ function acceptReportedWork(orders, reports, payroll) {
   }
 }
 function legacyShipmentLine(shipmentId, order, qty, payroll) {
-  const material = order.materials.reduce((sum, line) => sum + line.issuedQty * line.actualCost, 0);
-  const outsourced = order.route.reduce((sum, row) => row.executorKind === "supplier" && row.status === "completed" ? sum + row.completed * row.rate : sum, 0);
-  const labor = payroll.reduce((sum, row) => row.orderId === order.id && row.status === "accepted" ? sum + row.amount : sum, 0) + outsourced;
+  const material = order.materials.reduce((sum2, line) => sum2 + line.issuedQty * line.actualCost, 0);
+  const outsourced = order.route.reduce((sum2, row) => row.executorKind === "supplier" && row.status === "completed" ? sum2 + row.completed * row.rate : sum2, 0);
+  const labor = payroll.reduce((sum2, row) => row.orderId === order.id && row.status === "accepted" ? sum2 + row.amount : sum2, 0) + outsourced;
   const cost = material + labor;
   const perUnit = (total) => order.qty > 0 ? total / order.qty : 0;
   return {
@@ -390,8 +390,8 @@ function shipmentQty(shipment) {
   return shipment.lines.reduce((total, line) => total + line.qty, 0);
 }
 function shipmentTotals(shipment) {
-  const sum = (pick) => round(shipment.lines.reduce((total, line) => total + line.qty * pick(line), 0));
-  return { revenue: sum((line) => line.salePrice), cost: sum((line) => line.unitCost), materialCost: sum((line) => line.materialCost), laborCost: sum((line) => line.laborCost) };
+  const sum2 = (pick) => round(shipment.lines.reduce((total, line) => total + line.qty * pick(line), 0));
+  return { revenue: sum2((line) => line.salePrice), cost: sum2((line) => line.unitCost), materialCost: sum2((line) => line.materialCost), laborCost: sum2((line) => line.laborCost) };
 }
 
 // src/receivables.ts
@@ -424,9 +424,9 @@ function customerBalance(state, customerId) {
   });
   return {
     customerId,
-    contract: round2(obligations.reduce((sum, row) => sum + row.total, 0)),
+    contract: round2(obligations.reduce((sum2, row) => sum2 + row.total, 0)),
     paid: received,
-    debt: round2(obligations.reduce((sum, row) => sum + row.outstanding, 0)),
+    debt: round2(obligations.reduce((sum2, row) => sum2 + row.outstanding, 0)),
     advance: Math.max(0, pool),
     obligations
   };
@@ -497,7 +497,7 @@ function expenseLedger(state, planId, asOf) {
     months.push({ month, obliged: round3(amount), paid: 0, unpaid: round3(amount) });
     month = nextMonth(month);
   }
-  const plannedTotal = round3(months.reduce((sum, row) => sum + row.obliged, 0));
+  const plannedTotal = round3(months.reduce((sum2, row) => sum2 + row.obliged, 0));
   let pool = paidTotal;
   for (const row of months) {
     const paid = Math.min(Math.max(0, pool), row.unpaid);
@@ -514,9 +514,9 @@ function expenseLedger(state, planId, asOf) {
 var round4 = (value) => Math.sign(value) * Math.round((Math.abs(value) + Number.EPSILON) * 100) / 100;
 function loanLedger(state, loanId) {
   const loan = state.loans.find((row) => row.id === loanId);
-  const sum = (category, direction) => round4(state.cash.reduce((total, row) => row.source === "loan" && row.sourceId === loanId && row.category === category && row.direction === direction ? total + row.amount : total, 0));
-  const drawn = round4(sum("loan-draw", "in") - sum("loan-draw", "out"));
-  const repaid = round4(sum("loan-repay", "out") - sum("loan-repay", "in"));
+  const sum2 = (category, direction) => round4(state.cash.reduce((total, row) => row.source === "loan" && row.sourceId === loanId && row.category === category && row.direction === direction ? total + row.amount : total, 0));
+  const drawn = round4(sum2("loan-draw", "in") - sum2("loan-draw", "out"));
+  const repaid = round4(sum2("loan-repay", "out") - sum2("loan-repay", "in"));
   const principal = round4(loan?.amount ?? 0);
   return {
     id: loanId,
@@ -578,9 +578,9 @@ function salaryLedger(state, employeeId, asOf) {
     employeeId,
     months,
     prepaid: available,
-    owed: months.reduce((sum, month) => sum + month.unpaid, 0),
+    owed: months.reduce((sum2, month) => sum2 + month.unpaid, 0),
     paidTotal: payments,
-    plannedTotal: months.reduce((sum, month) => sum + month.obliged, 0)
+    plannedTotal: months.reduce((sum2, month) => sum2 + month.obliged, 0)
   };
 }
 
@@ -1244,7 +1244,7 @@ function stagePlanCost(task) {
   return task.executorKind === "supplier" ? supplierStagePlan(task) : round6(task.planned * task.rate);
 }
 function acceptedOutsourceCost(state, supplierId) {
-  return round6(state.orders.reduce((total, order) => total + order.route.reduce((sum, task) => task.executorKind === "supplier" && task.supplierId === supplierId && task.status === "completed" ? sum + supplierStageActual(task) : sum, 0), 0));
+  return round6(state.orders.reduce((total, order) => total + order.route.reduce((sum2, task) => task.executorKind === "supplier" && task.supplierId === supplierId && task.status === "completed" ? sum2 + supplierStageActual(task) : sum2, 0), 0));
 }
 function supplierDebt(state, supplierId) {
   const purchases = new Set(state.purchases.filter((row) => row.supplierId === supplierId).map((row) => row.id));
@@ -1258,7 +1258,7 @@ function estimatedCost(_state, order) {
   return round6(order.materials.reduce((total, row) => total + round6(row.qty * row.estimatedCost), 0) + order.route.reduce((total, row) => total + stagePlanCost(row), 0) + order.overhead);
 }
 function acceptedRouteCost(order, lineId) {
-  return round6(order.route.reduce((sum, task) => task.executorKind === "supplier" && task.status === "completed" && (lineId === void 0 || task.lineId === lineId) ? sum + supplierStageActual(task) : sum, 0));
+  return round6(order.route.reduce((sum2, task) => task.executorKind === "supplier" && task.status === "completed" && (lineId === void 0 || task.lineId === lineId) ? sum2 + supplierStageActual(task) : sum2, 0));
 }
 function actualCost(state, order) {
   return round6(order.materials.reduce((total, row) => total + round6(row.issuedQty * row.actualCost), 0) + state.payroll.reduce((total, row) => row.orderId === order.id && row.status === "accepted" ? total + row.amount : total, 0) + acceptedRouteCost(order));
@@ -1275,7 +1275,7 @@ function countsLine(order, entry, line) {
 function qtyForLine(state, order, line, statuses2) {
   return state.shipments.reduce((total, row) => {
     if (row.orderId !== order.id || row.kind !== "order" || !statuses2.includes(row.status)) return total;
-    return total + row.lines.reduce((sum, entry) => countsLine(order, entry, line) ? sum + entry.qty : sum, 0);
+    return total + row.lines.reduce((sum2, entry) => countsLine(order, entry, line) ? sum2 + entry.qty : sum2, 0);
   }, 0);
 }
 function shippedForLine(state, order, line) {
@@ -1285,9 +1285,9 @@ function deliveredForLine(state, order, line) {
   return qtyForLine(state, order, line, ["delivered"]);
 }
 function orderShipmentLine(state, order, line, beforeQty, qty) {
-  const materialTotal = round6(lineMaterials(order, line.id).reduce((sum, row) => sum + round6(row.issuedQty * row.actualCost), 0));
+  const materialTotal = round6(lineMaterials(order, line.id).reduce((sum2, row) => sum2 + round6(row.issuedQty * row.actualCost), 0));
   const tasks = new Set(lineRoute(order, line.id).map((row) => row.id));
-  const laborTotal = round6(state.payroll.reduce((sum, row) => row.orderId === order.id && tasks.has(row.taskId) && row.status === "accepted" ? sum + row.amount : sum, 0) + acceptedRouteCost(order, line.id));
+  const laborTotal = round6(state.payroll.reduce((sum2, row) => row.orderId === order.id && tasks.has(row.taskId) && row.status === "accepted" ? sum2 + row.amount : sum2, 0) + acceptedRouteCost(order, line.id));
   const costTotal = round6(materialTotal + laborTotal);
   const slice = (total) => round6(total * (beforeQty + qty) / line.qty) - round6(total * beforeQty / line.qty);
   const material = slice(materialTotal);
@@ -1438,10 +1438,10 @@ function ready(state, order) {
   syncOrder(order);
 }
 function actualSeriesMaterialCost(state, order) {
-  return round6(order.materials.reduce((sum, line) => sum + round6(line.issuedQty * line.actualCost), 0));
+  return round6(order.materials.reduce((sum2, line) => sum2 + round6(line.issuedQty * line.actualCost), 0));
 }
 function actualSeriesLaborCost(state, order) {
-  return round6(state.payroll.filter((row) => row.orderId === order.id && row.status === "accepted").reduce((sum, entry) => sum + entry.amount, 0));
+  return round6(state.payroll.filter((row) => row.orderId === order.id && row.status === "accepted").reduce((sum2, entry) => sum2 + entry.amount, 0));
 }
 function actualSeriesCost(state, order) {
   return round6(actualSeriesMaterialCost(state, order) + actualSeriesLaborCost(state, order));
@@ -1472,11 +1472,11 @@ function receiveSeriesOutput(state, order) {
   });
 }
 function lineMaterialCost(order, lineId) {
-  return round6(lineMaterials(order, lineId).reduce((sum, row) => sum + round6(row.issuedQty * row.actualCost), 0));
+  return round6(lineMaterials(order, lineId).reduce((sum2, row) => sum2 + round6(row.issuedQty * row.actualCost), 0));
 }
 function lineLaborCost(state, order, lineId) {
   const tasks = new Set(lineRoute(order, lineId).map((row) => row.id));
-  return round6(state.payroll.reduce((sum, row) => row.orderId === order.id && tasks.has(row.taskId) && row.status === "accepted" ? sum + row.amount : sum, 0) + acceptedRouteCost(order, lineId));
+  return round6(state.payroll.reduce((sum2, row) => row.orderId === order.id && tasks.has(row.taskId) && row.status === "accepted" ? sum2 + row.amount : sum2, 0) + acceptedRouteCost(order, lineId));
 }
 function receiveAssemblyOutput(state, order, line) {
   if (state.movements.some((row) => row.source === "production" && row.sourceId === order.id)) return;
@@ -1518,7 +1518,7 @@ function outputItem(state, itemId) {
 }
 function payCrew(state, order, task, total) {
   const crew = task.crew !== void 0 && task.crew.length > 0 ? task.crew : [{ employeeId: task.employeeId, weight: 1 }];
-  const weight = crew.reduce((sum, member) => sum + member.weight, 0);
+  const weight = crew.reduce((sum2, member) => sum2 + member.weight, 0);
   let paid = 0;
   crew.forEach((member, index) => {
     const employee = find(state.employees, member.employeeId, "Employee");
@@ -2729,7 +2729,7 @@ function mutate(state, command, actor) {
         return stockShipmentLine(item, qty);
       });
       check(typeof command.allowDebt === "boolean", "Invalid debt approval");
-      const total = round6(lines.reduce((sum, line) => sum + line.qty * line.salePrice, 0));
+      const total = round6(lines.reduce((sum2, line) => sum2 + line.qty * line.salePrice, 0));
       check(command.allowDebt || !exceeds(total, customerAdvance(state, customer.id)), "Unpaid stock shipment");
       const row = {
         id: uuid(),
@@ -2906,8 +2906,157 @@ function applyCommand(state, envelope, actor) {
   return next;
 }
 
-// src/telegram-reports.ts
+// src/watch.ts
+var WATCH_DEFAULTS = {
+  draftHours: 2,
+  issueHours: 1,
+  stalledHours: 24,
+  reviewHours: 1,
+  readyHours: 24,
+  transitHours: 48,
+  debtDays: 7,
+  purchaseDays: 3
+};
+var HOUR = 36e5;
 var esc = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+var sum = (value) => `${Math.round(value).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} so‘m`;
+function ago(hours) {
+  if (hours < 1) return "1 soatdan kam";
+  if (hours < 24) return `${Math.floor(hours)} soat`;
+  return `${Math.floor(hours / 24)} kun`;
+}
+var hoursSince = (iso, now2) => iso ? Math.max(0, (now2 - new Date(iso).getTime()) / HOUR) : 0;
+function head(state, order) {
+  const customer = order.kind === "series" ? "ombor seriyasi" : state.customers.find((row) => row.id === order.customerId)?.name ?? "—";
+  return `<b>${esc(order.number)}</b> ${esc(order.title)} · ${esc(customer)}`;
+}
+function lastActivity(state, order) {
+  let latest = order.createdAt;
+  for (const entry of state.audit) if (entry.entityId === order.id && entry.createdAt > latest) latest = entry.createdAt;
+  for (const report of state.reports) if (report.orderId === order.id && report.createdAt > latest) latest = report.createdAt;
+  for (const move of state.movements) if (move.sourceId === order.id && move.createdAt > latest) latest = move.createdAt;
+  return latest;
+}
+function launchedAt(state, order) {
+  const launch = state.audit.filter((entry) => entry.entityId === order.id && entry.action === "order.launch").map((entry) => entry.createdAt).sort().at(-1);
+  return launch ?? order.createdAt;
+}
+function watchFindings(state, nowIso, today, config = WATCH_DEFAULTS) {
+  const now2 = new Date(nowIso).getTime();
+  const tomorrow = new Date((/* @__PURE__ */ new Date(`${today}T00:00:00Z`)).getTime() + 24 * HOUR).toISOString().slice(0, 10);
+  const found = [];
+  for (const order2 of state.orders) {
+    if (order2.status === "cancelled" || order2.status === "delivered") continue;
+    if (order2.status !== "shipped" && order2.dueDate) {
+      if (order2.dueDate < today) {
+        found.push({ key: `overdue:${order2.id}`, group: "orders", repeatHours: 24, text: `⏰ ${head(state, order2)} — muddati o‘tgan (${order2.dueDate})` });
+      } else if (order2.dueDate === tomorrow && (order2.status === "draft" || order2.status === "production")) {
+        found.push({ key: `due:${order2.id}`, group: "orders", repeatHours: 24, text: `📅 ${head(state, order2)} — muddati ertaga, hali tayyor emas` });
+      }
+    }
+    if (order2.status === "draft") {
+      const waiting = hoursSince(order2.createdAt, now2);
+      if (waiting >= config.draftHours) {
+        found.push({ key: `draft:${order2.id}`, group: "orders", repeatHours: 24, text: `📝 ${head(state, order2)} — ${ago(waiting)}dan beri qoralama, sexga yuborilmagan` });
+      }
+      continue;
+    }
+    if (order2.status === "production") {
+      const pending = order2.materials.filter((row) => row.qty - row.issuedQty > 1e-9).length;
+      const sinceLaunch = hoursSince(launchedAt(state, order2), now2);
+      if (pending > 0 && sinceLaunch >= config.issueHours) {
+        found.push({ key: `issue:${order2.id}`, group: "production", repeatHours: 12, text: `📦 ${head(state, order2)} — materiallar sexga berilmagan (${pending} ta), ${ago(sinceLaunch)}` });
+      }
+      const idle = hoursSince(lastActivity(state, order2), now2);
+      if (idle >= config.stalledHours) {
+        const stage = order2.route.find((task) => task.completed < task.planned);
+        const who = stage ? stage.executorKind === "supplier" ? state.suppliers.find((row) => row.id === stage.supplierId)?.name : state.employees.find((row) => row.id === stage.employeeId)?.name : void 0;
+        const where = stage ? ` — «${esc(stage.name)}»${who ? `, ${esc(who)}` : ""}` : "";
+        found.push({ key: `stalled:${order2.id}`, group: "production", repeatHours: 24, text: `🐢 ${head(state, order2)} — ${ago(idle)} harakat yo‘q${where}` });
+      }
+    }
+    if (order2.kind !== "series" && order2.lines.some((line) => line.status === "ready")) {
+      const waiting = hoursSince(lastActivity(state, order2), now2);
+      if (waiting >= config.readyHours) {
+        found.push({ key: `ready:${order2.id}`, group: "delivery", repeatHours: 24, text: `✅ ${head(state, order2)} — ${ago(waiting)}dan beri tayyor, yuborilmagan` });
+      }
+    }
+  }
+  for (const report of state.reports) {
+    if (report.status !== "submitted") continue;
+    const waiting = hoursSince(report.createdAt, now2);
+    if (waiting < config.reviewHours) continue;
+    const order2 = state.orders.find((row) => row.id === report.orderId);
+    if (!order2 || order2.status === "cancelled") continue;
+    const who = state.employees.find((row) => row.id === report.employeeId)?.name ?? "—";
+    found.push({ key: `review:${report.id}`, group: "production", repeatHours: 6, text: `🔎 ${head(state, order2)} — ${esc(who)} topshirgan ish ${ago(waiting)}dan beri qabul kutmoqda` });
+  }
+  for (const shipment of state.shipments) {
+    if (shipment.status !== "shipped") continue;
+    const waiting = hoursSince(shipment.createdAt, now2);
+    if (waiting < config.transitHours) continue;
+    const order2 = shipment.orderId ? state.orders.find((row) => row.id === shipment.orderId) : null;
+    const customer = state.customers.find((row) => row.id === shipment.customerId)?.name ?? "—";
+    const label = order2 ? head(state, order2) : `Ombordan sotuv · ${esc(customer)}`;
+    found.push({ key: `transit:${shipment.id}`, group: "delivery", repeatHours: 24, text: `🚚 ${label} — ${ago(waiting)}dan beri yo‘lda, yetkazish tasdiqlanmagan` });
+  }
+  for (const customer of state.customers) {
+    const balance = customerBalance(state, customer.id);
+    if (!(balance.debt > 0)) continue;
+    const oldest = balance.obligations.filter((row) => row.outstanding > 0).map((row) => row.createdAt).sort()[0];
+    const days = hoursSince(oldest, now2) / 24;
+    if (days < config.debtDays) continue;
+    found.push({ key: `debt:${customer.id}`, group: "money", repeatHours: 72, text: `💰 ${esc(customer.name)} — qarz <b>${sum(balance.debt)}</b>, ${Math.floor(days)} kundan beri` });
+  }
+  for (const purchase of state.purchases) {
+    if (!purchase.lines.some((line) => line.qty - line.received > 1e-9)) continue;
+    const days = hoursSince(purchase.createdAt, now2) / 24;
+    if (days < config.purchaseDays) continue;
+    const supplier = state.suppliers.find((row) => row.id === purchase.supplierId)?.name ?? "—";
+    found.push({ key: `purchase:${purchase.id}`, group: "stock", repeatHours: 48, text: `🧾 <b>${esc(purchase.number)}</b> ${esc(supplier)} — ${Math.floor(days)} kundan beri to‘liq qabul qilinmagan` });
+  }
+  for (const item of state.items) {
+    if (!(item.minQty > 0)) continue;
+    const qty = stockQty(state, item.id);
+    if (qty >= item.minQty) continue;
+    found.push({ key: `stock:${item.id}`, group: "stock", repeatHours: 72, text: `📉 ${esc(item.name)} — ${qty} ${esc(item.unit)} qoldi (me’yor ${item.minQty})` });
+  }
+  const order = ["orders", "production", "delivery", "money", "stock"];
+  return found.sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group));
+}
+var GROUP_TITLE = {
+  orders: "Buyurtmalar",
+  production: "Sex",
+  delivery: "Yetkazish",
+  money: "Pul",
+  stock: "Ombor va ta’minot"
+};
+function watchDigest(findings, title = "🔔 <b>Nazorat</b>") {
+  if (!findings.length) return `${title}
+
+Hammasi joyida — e’tibor talab qiladigan narsa yo‘q.`;
+  const lines = [title];
+  for (const group of Object.keys(GROUP_TITLE)) {
+    const rows = findings.filter((row) => row.group === group);
+    if (!rows.length) continue;
+    lines.push("", `<b>${GROUP_TITLE[group]}</b>`, ...rows.slice(0, 15).map((row) => row.text));
+    if (rows.length > 15) lines.push(`…va yana ${rows.length - 15} ta`);
+  }
+  return lines.join("\n");
+}
+function dueFindings(findings, sent, nowIso) {
+  const now2 = new Date(nowIso).getTime();
+  return findings.filter((row) => {
+    const last = sent[row.key];
+    return !last || now2 - new Date(last).getTime() >= row.repeatHours * HOUR;
+  });
+}
+function isQuietHour(localHour, from = 8, to = 21) {
+  return localHour < from || localHour >= to;
+}
+
+// src/telegram-reports.ts
+var esc2 = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 var round7 = (value) => Math.round((value + Number.EPSILON) * 100) / 100;
 function uzs(value) {
   const rounded = Math.round(round7(value));
@@ -2917,6 +3066,7 @@ function uzs(value) {
 }
 var OWNER_COMMANDS = [
   { key: "hisobot", label: "📊 Umumiy hisobot", command: "/hisobot" },
+  { key: "nazorat", label: "🔔 Nazorat", command: "/nazorat" },
   { key: "kassa", label: "💵 Kassa", command: "/kassa" },
   { key: "mijoz_qarz", label: "👤 Mijozlar qarzi", command: "/mijoz_qarz" },
   { key: "taminot_qarz", label: "🚚 Taʼminot qarzi", command: "/taminot_qarz" },
@@ -2936,9 +3086,9 @@ function ownerMenuText() {
 function kassaReport(state) {
   const cash = cashBalance(state, "cash");
   const bank = cashBalance(state, "bank");
-  const customerDebt = state.customers.reduce((sum, c) => sum + Math.max(0, customerBalance(state, c.id).debt), 0);
-  const supplier = state.suppliers.reduce((sum, s) => sum + Math.max(0, supplierDebt(state, s.id)), 0);
-  const payroll = state.employees.reduce((sum, e) => sum + Math.max(0, payrollDebt(state, e.id)), 0);
+  const customerDebt = state.customers.reduce((sum2, c) => sum2 + Math.max(0, customerBalance(state, c.id).debt), 0);
+  const supplier = state.suppliers.reduce((sum2, s) => sum2 + Math.max(0, supplierDebt(state, s.id)), 0);
+  const payroll = state.employees.reduce((sum2, e) => sum2 + Math.max(0, payrollDebt(state, e.id)), 0);
   return [
     "💵 <b>Kassa holati</b>",
     "",
@@ -2954,16 +3104,16 @@ function kassaReport(state) {
 function mijozQarzReport(state) {
   const rows = state.customers.map((c) => ({ name: c.name, debt: round7(customerBalance(state, c.id).debt) })).filter((row) => row.debt > 0).sort((a, b) => b.debt - a.debt);
   if (!rows.length) return "👤 <b>Mijozlar qarzi</b>\n\nQarzdor mijoz yoʻq.";
-  const total = rows.reduce((sum, row) => sum + row.debt, 0);
-  const lines = rows.slice(0, 30).map((row, i) => `${i + 1}. ${esc(row.name)} — <b>${uzs(row.debt)}</b>`);
+  const total = rows.reduce((sum2, row) => sum2 + row.debt, 0);
+  const lines = rows.slice(0, 30).map((row, i) => `${i + 1}. ${esc2(row.name)} — <b>${uzs(row.debt)}</b>`);
   const tail = rows.length > 30 ? [`…va yana ${rows.length - 30} ta`] : [];
   return ["👤 <b>Mijozlar qarzi</b>", "", ...lines, ...tail, "", `Jami: <b>${uzs(total)}</b>`].join("\n");
 }
 function taminotQarzReport(state) {
   const rows = state.suppliers.map((s) => ({ name: s.name, debt: round7(supplierDebt(state, s.id)) })).filter((row) => row.debt > 0).sort((a, b) => b.debt - a.debt);
   if (!rows.length) return "🚚 <b>Taʼminotchilarga qarz</b>\n\nQarz yoʻq.";
-  const total = rows.reduce((sum, row) => sum + row.debt, 0);
-  const lines = rows.slice(0, 30).map((row, i) => `${i + 1}. ${esc(row.name)} — <b>${uzs(row.debt)}</b>`);
+  const total = rows.reduce((sum2, row) => sum2 + row.debt, 0);
+  const lines = rows.slice(0, 30).map((row, i) => `${i + 1}. ${esc2(row.name)} — <b>${uzs(row.debt)}</b>`);
   return ["🚚 <b>Taʼminotchilarga qarz</b>", "", ...lines, "", `Jami: <b>${uzs(total)}</b>`].join("\n");
 }
 var ACTIVE_STATUSES = ["draft", "production", "ready", "shipped"];
@@ -2985,14 +3135,14 @@ function buyurtmalarReport(state) {
 function omborReport(state) {
   const rows = state.items.map((item) => ({ name: item.name, unit: item.unit, qty: stockQty(state, item.id), min: item.minQty })).filter((row) => row.min > 0 && row.qty < row.min).sort((a, b) => a.qty - a.min - (b.qty - b.min));
   if (!rows.length) return "📦 <b>Ombor</b>\n\nTanqis material yoʻq. Barcha qoldiqlar meʼyorida.";
-  const lines = rows.slice(0, 40).map((row) => `• ${esc(row.name)}: ${row.qty} ${esc(row.unit)} (meʼyor ${row.min})`);
+  const lines = rows.slice(0, 40).map((row) => `• ${esc2(row.name)}: ${row.qty} ${esc2(row.unit)} (meʼyor ${row.min})`);
   return ["📦 <b>Toʻldirish kerak</b>", "", ...lines].join("\n");
 }
 function hisobotReport(state) {
   const cash = cashBalance(state, "cash") + cashBalance(state, "bank");
   const activeOrders = state.orders.filter((o) => ACTIVE_STATUSES.includes(o.status)).length;
-  const customerDebt = state.customers.reduce((sum, c) => sum + Math.max(0, customerBalance(state, c.id).debt), 0);
-  const supplier = state.suppliers.reduce((sum, s) => sum + Math.max(0, supplierDebt(state, s.id)), 0);
+  const customerDebt = state.customers.reduce((sum2, c) => sum2 + Math.max(0, customerBalance(state, c.id).debt), 0);
+  const supplier = state.suppliers.reduce((sum2, s) => sum2 + Math.max(0, supplierDebt(state, s.id)), 0);
   const shortage = state.items.filter((item) => item.minQty > 0 && stockQty(state, item.id) < item.minQty).length;
   return [
     "📊 <b>Umumiy hisobot</b>",
@@ -3004,8 +3154,10 @@ function hisobotReport(state) {
     `📦 Tanqis materiallar: ${shortage}`
   ].join("\n");
 }
-function ownerReport(state, key) {
+function ownerReport(state, key, today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10), nowIso = (/* @__PURE__ */ new Date()).toISOString()) {
   switch (key) {
+    case "nazorat":
+      return watchDigest(watchFindings(state, nowIso, today));
     case "kassa":
       return kassaReport(state);
     case "mijoz_qarz":
@@ -3058,8 +3210,8 @@ function ordersList(state) {
   const lines = rows.slice(0, 40).map((order) => {
     const debt = orderDebt(state, order.id);
     const tail = debt > 0 ? ` · qarz ${uzs(debt)}` : "";
-    return `/b_${orderCode(order.number)} — ${esc(order.title)}
-   ${esc(customerName(state, order))} · ${statusLabel(order.status)} · ${uzs(order.price)}${tail}`;
+    return `/b_${orderCode(order.number)} — ${esc2(order.title)}
+   ${esc2(customerName(state, order))} · ${statusLabel(order.status)} · ${uzs(order.price)}${tail}`;
   });
   const more = rows.length > 40 ? [`…va yana ${rows.length - 40} ta`] : [];
   return ["🧾 <b>Faol buyurtmalar</b>", "Kartani ochish uchun buyruqni bosing:", "", ...lines, ...more].join("\n");
@@ -3070,7 +3222,7 @@ function orderCard(state, order) {
   const stages = order.route.map((task) => {
     const who = task.executorKind === "supplier" ? state.suppliers.find((row) => row.id === task.supplierId)?.name : state.employees.find((row) => row.id === task.employeeId)?.name;
     const operation = state.operations.find((row) => row.id === task.operationId)?.name ?? "—";
-    return `• ${esc(operation)} — ${esc(who ?? "—")}: ${task.completed}/${task.planned}`;
+    return `• ${esc2(operation)} — ${esc2(who ?? "—")}: ${task.completed}/${task.planned}`;
   });
   const actions = [];
   if (order.status === "draft") actions.push(`🚀 Sexga yuborish: /sexga_${code}`);
@@ -3079,8 +3231,8 @@ function orderCard(state, order) {
   if (openShipments(state, order).length > 0) actions.push(`✅ Yetkazildi deb belgilash: /yetkazildi_${code}`);
   if (order.kind !== "series" && customerBalance(state, order.customerId).debt > 0) actions.push(`💵 Toʻlov qabul qilish: /tolov_${code}`);
   return [
-    `🧾 <b>${esc(order.number)}</b> — ${esc(order.title)}`,
-    `Mijoz: ${esc(customerName(state, order))}`,
+    `🧾 <b>${esc2(order.number)}</b> — ${esc2(order.title)}`,
+    `Mijoz: ${esc2(customerName(state, order))}`,
     `Holat: <b>${statusLabel(order.status)}</b>`,
     `Summa: ${uzs(order.price)} · qarz: ${uzs(debt)}`,
     ...stages.length ? ["", "Bosqichlar:", ...stages] : [],
@@ -3093,7 +3245,7 @@ Tasdiqlash: ${command}
 Bekor qilish: /bekor`;
 function preview(state, actor, summary, commands, confirm) {
   const problem = dryRun(state, actor, commands);
-  if (problem) return { text: `⚠️ Bajarib boʻlmaydi: ${esc(problem)}` };
+  if (problem) return { text: `⚠️ Bajarib boʻlmaydi: ${esc2(problem)}` };
   return { text: `${summary}${confirmLine(`${confirm}_r${state.revision}`)}` };
 }
 var STALE = "⚠️ Maʼlumot oʻzgargan yoki amal allaqachon bajarilgan. Kartani qayta oching.";
@@ -3118,27 +3270,27 @@ function commandsFor(state, order, action, today) {
   }
 }
 function summaryFor(state, order, action) {
-  const head = `<b>${esc(order.number)}</b> — ${esc(order.title)}`;
+  const head2 = `<b>${esc2(order.number)}</b> — ${esc2(order.title)}`;
   switch (action) {
     case "sexga":
       return `🚀 Sexga yuborilsinmi?
-${head}
+${head2}
 Materiallar band qilinadi, bosqichlar ijrochilarga ochiladi.`;
     case "berish":
       return `📦 Materiallar sexga berilsinmi?
-${head}
+${head2}
 Berilmagan pozitsiyalar: ${pendingMaterials(order)} ta — ombordan chiqim qilinadi.`;
     case "yuborish": {
       const debt = orderDebt(state, order.id);
       const note = debt > 0 ? `
 ⚠️ Toʻlanmagan qarz bilan yuboriladi: <b>${uzs(debt)}</b>` : "";
       return `🚚 Mijozga yuborilsinmi?
-${head}
+${head2}
 Tayyor pozitsiyalar toʻliq yuboriladi.${note}`;
     }
     default:
       return `✅ Yetkazilgan deb belgilansinmi?
-${head}`;
+${head2}`;
   }
 }
 var ACCOUNT = { n: "cash", b: "bank" };
@@ -3151,7 +3303,7 @@ function paymentMenu(state, order) {
   return {
     text: [
       `💵 <b>Toʻlov qabul qilish</b>`,
-      `Mijoz: ${esc(customerName(state, order))}`,
+      `Mijoz: ${esc2(customerName(state, order))}`,
       `Umumiy qarzi: <b>${uzs(debt)}</b>`,
       "",
       `Toʻliq, naqd: /naqd_${code}`,
@@ -3174,7 +3326,7 @@ Qarzdan ortigʻi (${uzs(amount - debt)}) avans boʻlib qoladi.` : "";
     state,
     actor,
     `💵 Toʻlov qabul qilinsinmi?
-Mijoz: ${esc(customerName(state, order))}
+Mijoz: ${esc2(customerName(state, order))}
 Summa: <b>${uzs(amount)}</b>
 Hisob: ${ACCOUNT_NAME[account2]}${over}`,
     [command],
@@ -3257,13 +3409,22 @@ function ownerReply(input, rawSnapshot, today = (/* @__PURE__ */ new Date()).toI
   if (target === null) return { text: `Bu buyruq tanilmadi.
 
 ${ownerMenuText()}`, keyboard };
-  return { text: ownerReport(state, target), keyboard };
+  return { text: ownerReport(state, target, today), keyboard };
 }
 function parseOwnerIds(value) {
   return (value ?? "").split(/[\s,;]+/).map((part) => part.trim()).filter((part) => /^-?\d{3,20}$/.test(part));
 }
 function ownerErrorText(message) {
-  return `⚠️ Bajarilmadi: ${esc(translateError(message))}`;
+  return `⚠️ Bajarilmadi: ${esc2(translateError(message))}`;
+}
+function watchRun(rawSnapshot, sent, nowIso, today, localHour) {
+  const snapshot = rawSnapshot;
+  const findings = watchFindings(migrateState(snapshot?.state), nowIso, today);
+  const activeKeys = findings.map((row) => row.key);
+  if (isQuietHour(localHour)) return { text: null, sentKeys: [], activeKeys };
+  const due = dueFindings(findings, sent, nowIso);
+  if (!due.length) return { text: null, sentKeys: [], activeKeys };
+  return { text: watchDigest(due, "🔔 <b>Nazorat: e’tibor bering</b>"), sentKeys: due.map((row) => row.key), activeKeys };
 }
 export {
   ownerErrorText,
@@ -3271,5 +3432,6 @@ export {
   ownerNeedsState,
   ownerReply,
   parseOwnerIds,
-  resolveOwnerInput
+  resolveOwnerInput,
+  watchRun
 };
