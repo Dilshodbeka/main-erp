@@ -1,6 +1,6 @@
 import { lineMaterials, lineRoute, shippedForLine } from '../domain';
 import { positionCost } from '../order-editor';
-import { executorLabel, stageCostText } from '../work-view';
+import { crewLabel, executorLabel, stageCostText } from '../work-view';
 import { Badge, money, num } from '../ui';
 import type { Order, State } from '../types';
 
@@ -30,7 +30,7 @@ export function OrderPositions({ state, order, busy, onIssue, onShip, onCancel }
         const item = state.items.find(row2 => row2.id === row.itemId);
         return <div className="position-row" key={row.id}><span>{item?.name}<em>{item?.customerId ? ' · mijozniki, qiymat 0' : ` · ${money(row.estimatedCost)} / dona`}</em></span><b>{num(row.qty)} {item?.unit}<em>{row.issuedQty >= row.qty ? ' · berilgan' : row.issuedQty > 0 ? ` · qisman berilgan · ${num(row.issuedQty)} / ${num(row.qty)}` : order.status === 'production' ? ' · band' : ' · berilmagan'}</em></b></div>;
       })}
-      {line.status !== 'cancelled' && tasks.map((task, i) => <div className="position-row" key={task.id}><span>{i + 1}. {task.name} · {executorLabel(state, task)} · {stageCostText(state, task)}</span><b>{num(task.completed)} / {num(task.planned)}</b></div>)}
+      {line.status !== 'cancelled' && tasks.map((task, i) => <div className="position-row" key={task.id}><span>{i + 1}. {task.name} · {executorLabel(state, task)} · {stageCostText(state, task)}{task.assembly ? ` · brigada · ${crewLabel(state, task)}` : ''}</span><b>{num(task.completed)} / {num(task.planned)}</b></div>)}
       {line.status !== 'cancelled' && (materials.length > 0 || tasks.length > 0) && (() => { const cost = positionCost(order, line); return <div className="position-cost">
         <small>Materiallar {money(cost.material)} · Ishlar {money(cost.labor)}</small>
         <b>Reja tannarxi {money(cost.total)}</b>

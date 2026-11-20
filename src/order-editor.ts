@@ -2,7 +2,7 @@ import { areaMaterialCost, lineMaterials, lineRoute, shippedForLine, stagePlanCo
 import { formatQty } from './i18n';
 import { matchesQuery } from './listview';
 import { categoryLabel } from './warehouse';
-import type { ExecutorKind, Item, Order, OrderLine, OrderLineInput, OrderLineKind, RouteTemplate, RouteTemplateStage, State, Status } from './types';
+import type { CrewMember, ExecutorKind, Item, Order, OrderLine, OrderLineInput, OrderLineKind, RouteTemplate, RouteTemplateStage, State, Status } from './types';
 
 export type PositionMaterial = { itemId: string; qty: number; issuedQty: number };
 export type PositionStage = {
@@ -17,6 +17,8 @@ export type PositionStage = {
   taskId?: string;
   locked: boolean;
   completed: number;
+  assembly?: boolean;
+  crew?: CrewMember[];
 };
 export type MaterialGroup = { category: string; items: Item[] };
 export type PositionDraft = {
@@ -99,6 +101,7 @@ export function positionsFromOrder(state: State, order: Order): PositionDraft[] 
       taskId: task.id,
       locked: startedTask(state, order, task),
       completed: task.completed,
+      ...(task.assembly ? { assembly: true, crew: (task.crew ?? []).map(member => ({ ...member })) } : {}),
     })),
   }));
 }
@@ -174,6 +177,7 @@ export function positionLines(positions: PositionDraft[]): OrderLineInput[] {
       ...(task.executorKind === 'supplier' ? { supplierCost: task.supplierCost ?? 0 } : {}),
       qty: task.qty,
       taskId: task.taskId,
+      ...(task.assembly ? { assembly: true, crew: task.crew ?? [] } : {}),
     })),
   }));
 }
@@ -191,6 +195,10 @@ export function positionIssue(positions: PositionDraft[]): string {
       return `${label}: ijrochi bilan kamida bitta bosqich qo‘shing.`;
     }
     if (position.route.some(task => task.qty <= 0)) return `${label}: bosqich miqdorini kiriting.`;
+    if (position.route.some(task => task.assembly && task.executorKind !== 'employee')) return `${label}: yig‘ishni faqat xodimlar bajaradi.`;
+    if (position.route.some(task => (task.crew ?? []).some(member => !(member.weight > 0)))) return `${label}: brigada ulushlari noldan katta bo‘lishi kerak.`;
+    if (position.route.some(task => task.assembly && (task.crew ?? []).length > 0
+      && !(task.crew ?? []).some(member => member.employeeId === task.employeeId))) return `${label}: mas’ul yig‘uvchi brigadada bo‘lishi kerak.`;
     const overWork = position.route.find(task => exceedsWork(task.completed, task.qty));
     if (overWork) return `${label}: bosqich miqdori qabul qilingan ishdan (${formatQty(overWork.completed)}) past bo‘lishi mumkin emas.`;
     if (position.unitPrice < 0) return `${label}: narxini kiriting.`;

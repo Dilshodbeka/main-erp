@@ -817,3 +817,16 @@ button.primary:active,button.secondary:active{transform:translateY(1px)}
 .company-profile-setting{display:grid;gap:10px}
 .company-profile-row{display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap}
 .company-profile-row .inline-field{flex:1 1 240px;font-size:11px}
+
+/* Yig'ish: brigada editor, Haqiqiy sarf dialogi */
+.assembly-editor{display:flex;flex-direction:column;gap:8px;padding:0 0 6px 29px;margin-top:-2px}
+.assembly-toggle{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#5c7346;cursor:pointer}
+.crew-editor{display:flex;flex-direction:column;gap:7px;border-left:2px solid #dfe7d3;padding-left:12px}
+.crew-editor>small{font-size:11px;line-height:1.6}
+.crew-row{display:grid;grid-template-columns:minmax(0,1fr) 90px 32px;gap:8px;align-items:center}
+.assembly-material{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:10px;align-items:end}
+.assembly-output{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:13px;font-weight:600;padding:10px 0}
+.assembly-output>span{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.assembly-output label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.work-actions>button.primary{flex:1 1 100%}
+@media(max-width:700px){.assembly-material{grid-template-columns:1fr}.assembly-editor{padding-left:0}.crew-row{grid-template-columns:minmax(0,1fr) 76px 32px}}

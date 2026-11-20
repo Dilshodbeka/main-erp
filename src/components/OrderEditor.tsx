@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Copy, Plus, X } from 'lucide-react';
 import { stockQty } from '../domain';
 import { draftShortage, reservedExcept, type ShortageRow } from '../shortage';
@@ -230,7 +230,11 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
     </div>
     {position.route.map((task, index) => {
       const amounts = stageAmounts(task);
-      return <div className={`editor-line route-editor${task.executorKind === 'supplier' ? ' supplier-stage' : ''}`} key={index}>
+      const crew = task.crew ?? [];
+      const crewMembers = state.employees.filter(employee => employee.active || crew.some(member => member.employeeId === employee.id));
+      const freeMember = crewMembers.find(employee => employee.id !== task.employeeId && !crew.some(member => member.employeeId === employee.id));
+      return <Fragment key={index}>
+      <div className={`editor-line route-editor${task.executorKind === 'supplier' ? ' supplier-stage' : ''}`}>
       <span className="route-index">{index + 1}</span>
       <OperationSelect ariaLabel={`Amal ${index + 1}`} value={task.operationId} disabled={task.locked} withPrice
         operations={state.operations} machines={state.machines}
@@ -244,7 +248,7 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
         <select aria-label={`Ijrochi turi ${index + 1}`} value={task.executorKind}
           disabled={task.locked}
           onChange={event => setStage(index, event.target.value === 'supplier'
-            ? { executorKind: 'supplier', employeeId: null, supplierId: state.suppliers[0]?.id ?? null, rate: 0, supplierCost: task.supplierCost ?? 0 }
+            ? { executorKind: 'supplier', employeeId: null, supplierId: state.suppliers[0]?.id ?? null, rate: 0, supplierCost: task.supplierCost ?? 0, assembly: false, crew: undefined }
             : { executorKind: 'employee', employeeId: state.employees[0]?.id ?? null, supplierId: null, supplierCost: 0, rate: state.operations.find(op => op.id === task.operationId)?.workerRate ?? task.rate })}>
           <option value="employee">Xodim</option>
           <option value="supplier">Pudratchi</option>
@@ -289,7 +293,35 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
         <button type="button" className="icon-button" aria-label={`Bosqichni pastga tushirish ${index + 1}`} disabled={index === position.route.length - 1 || task.locked || position.route[index + 1]?.locked} onClick={() => moveStage(index, 1)}>↓</button>
         <button type="button" className="icon-button" aria-label={`Bosqichni olib tashlash ${index + 1}`} disabled={task.locked} onClick={() => onChange({ route: position.route.filter((_, i) => i !== index) })}><X size={16} /></button>
       </div>
-    </div>;
+      </div>
+      <div className="assembly-editor">
+        <label className="assembly-toggle">
+          <input type="checkbox" checked={task.assembly === true} disabled={task.locked || task.executorKind === 'supplier'}
+            onChange={event => setStage(index, event.target.checked
+              ? { assembly: true, crew: task.employeeId ? [{ employeeId: task.employeeId, weight: 1 }, ...crew.filter(member => member.employeeId !== task.employeeId)] : crew }
+              : { assembly: false, crew: undefined })} />
+          <span>Yig‘ish — brigada bosqichi</span>
+        </label>
+        {task.assembly && <div className="crew-editor">
+          <small>Haqiqiy sarf «Tayyor» tugmasida kiritiladi. To‘lov brigada ulushlari nisbatida bo‘linadi.</small>
+          {crew.map((member, crewIndex) => <div className="crew-row" key={crewIndex}>
+            <select aria-label={`Brigada a’zosi ${index + 1}.${crewIndex + 1}`} value={member.employeeId} disabled={task.locked}
+              onChange={event => setStage(index, { crew: crew.map((row, i) => i === crewIndex ? { ...row, employeeId: event.target.value } : row) })}>
+              {crewMembers.filter(employee => employee.id === member.employeeId || !crew.some((other, i) => i !== crewIndex && other.employeeId === employee.id))
+                .map(employee => <option key={employee.id} value={employee.id}>{employee.name}{employee.active ? '' : ' · nofaol'}</option>)}
+            </select>
+            <input aria-label={`Ulush ${index + 1}.${crewIndex + 1}`} type="number" min="0.1" step="0.1" value={member.weight} disabled={task.locked}
+              onChange={event => setStage(index, { crew: crew.map((row, i) => i === crewIndex ? { ...row, weight: Number(event.target.value) } : row) })} />
+            <button type="button" className="icon-button" aria-label={`Brigada a’zosini olib tashlash ${index + 1}.${crewIndex + 1}`} disabled={task.locked}
+              onClick={() => setStage(index, { crew: crew.filter((_, i) => i !== crewIndex) })}><X size={16} /></button>
+          </div>)}
+          <button type="button" className="secondary small" disabled={task.locked || !freeMember}
+            onClick={() => { if (freeMember) setStage(index, { crew: [...crew, { employeeId: freeMember.id, weight: 1 }] }); }}>
+            <Plus size={14} />A’zo qo‘shish
+          </button>
+        </div>}
+      </div>
+    </Fragment>;
     })}
     {!position.route.length && <p className="subtle-note">Bosqich qo‘shmasa ham saqlash mumkin — buyurtma chernovik bo‘lib qoladi. Ishga tushirishdan oldin har pozitsiyaga kamida bitta bosqich kerak.</p>}
   </>;

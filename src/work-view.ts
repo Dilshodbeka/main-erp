@@ -9,6 +9,23 @@ export interface WorkTaskRow {
   orderId: string; taskId: string; number: string; title: string;
   operationName: string; planned: number; completed: number; defectQty: number; unit: OperationUnit;
   status: TaskStatus; dueDate: string; available: boolean; blockReason: TaskBlockReason | null; autoAccept: boolean;
+  assembly: boolean; crew: string;
+}
+
+export interface WorkMaterialRow {
+  id: string; itemId: string; name: string; unit: string; norm: number; issued: number;
+}
+
+export function assemblyMaterials(state: State, orderId: string, taskId: string): WorkMaterialRow[] {
+  const order = state.orders.find(row => row.id === orderId);
+  const task = order?.route.find(row => row.id === taskId);
+  if (!order || !task || !task.assembly) return [];
+  return order.materials
+    .filter(row => row.lineId === task.lineId)
+    .map(row => {
+      const item = state.items.find(entry => entry.id === row.itemId);
+      return { id: row.id, itemId: row.itemId, name: item?.name ?? 'Material', unit: item?.unit ?? '', norm: row.qty, issued: row.issuedQty };
+    });
 }
 
 export interface WorkHistoryRow {
@@ -46,6 +63,13 @@ export function executorLabel(state: State, task: RouteLine): string {
     : state.employees.find(row => row.id === task.employeeId)?.name ?? 'Xodim';
 }
 
+export function crewLabel(state: State, task: RouteLine): string {
+  const crew = task.crew ?? [];
+  return crew
+    .map(member => `${state.employees.find(row => row.id === member.employeeId)?.name ?? 'Xodim'} ×${member.weight}`)
+    .join(', ');
+}
+
 export function stageCostText(state: State, task: RouteLine): string {
   if (task.executorKind === 'supplier') {
     const sum = supplierStagePlan(task);
@@ -59,7 +83,8 @@ export function workTaskRows(state: State, actor: Actor): WorkTaskRow[] {
   for (const order of state.orders) {
     if (order.status !== 'production') continue;
     for (const task of order.route) {
-      if (actor.role !== 'admin' && task.employeeId !== actor.id) continue;
+      if (actor.role !== 'admin' && task.employeeId !== actor.id
+        && !(task.crew ?? []).some(member => member.employeeId === actor.id)) continue;
       if (task.status === 'submitted' || task.status === 'completed') continue;
       const operation = state.operations.find(row => row.id === task.operationId);
       const defectQty = round(state.defects
@@ -72,6 +97,8 @@ export function workTaskRows(state: State, actor: Actor): WorkTaskRow[] {
         dueDate: order.dueDate, available: availableTask(state, order.id, task.id),
         blockReason: taskBlockReason(state, order.id, task.id),
         autoAccept: operation?.autoAccept ?? false,
+        assembly: task.assembly === true,
+        crew: task.assembly ? crewLabel(state, task) : '',
       });
     }
   }
