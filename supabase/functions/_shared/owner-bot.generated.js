@@ -3443,8 +3443,9 @@ function shiftOn(schedule, today) {
   if (schedule.schedule_type !== "FIXED" && schedule.schedule_type !== "FLEXIBLE") return null;
   const cycle = schedule.schedule_cycle > 0 ? schedule.schedule_cycle : 7;
   const date = (/* @__PURE__ */ new Date(`${today}T00:00:00Z`)).getTime();
-  const index = schedule.start_date ? (Math.round((date - (/* @__PURE__ */ new Date(`${schedule.start_date}T00:00:00Z`)).getTime()) / 864e5) % cycle + cycle) % cycle : (new Date(date).getUTCDay() + 6) % 7;
-  const day = schedule.work_days.find((row) => row.day === index);
+  const weekday = (new Date(date).getUTCDay() + 6) % 7;
+  const index = schedule.start_date ? (Math.round((date - (/* @__PURE__ */ new Date(`${schedule.start_date}T00:00:00Z`)).getTime()) / 864e5) % cycle + cycle) % cycle : weekday % cycle;
+  const day = schedule.work_days.find((row) => row.day === index) ?? (schedule.work_days.length === 1 ? schedule.work_days[0] : void 0);
   const start = minutesOf(day?.start_time);
   if (!day?.is_working || start === null) return null;
   return { start, end: minutesOf(day.end_time) };
@@ -3461,7 +3462,8 @@ function readEmployee(raw) {
   const name = String(pick(row, "full_name", "name") ?? `${pick(row, "first_name") ?? ""} ${pick(row, "last_name") ?? ""}`).trim();
   const status = String(pick(row, "status") ?? "").toLowerCase();
   const active = pick(row, "is_active", "active") !== false && !["inactive", "fired", "deleted", "archived"].includes(status) && !pick(row, "deleted_at", "fired_at");
-  return { id, name: esc3(name || `#${id}`), active };
+  const named2 = (value) => (Array.isArray(value) ? value : value ? [value] : []).map((entry) => String(entry?.name ?? "")).filter(Boolean);
+  return { id, name: esc3(name || `#${id}`), active, places: [...named2(pick(row, "branches", "branch")), ...named2(pick(row, "department"))] };
 }
 function readCheck(raw) {
   const row = raw;
@@ -3475,39 +3477,68 @@ function readCheck(raw) {
   const late = Number(pick(row, "late_minutes", "late", "delay_minutes") ?? 0) || 0;
   return { employeeId, action, at, late: action === "IN" && (status === "LATE" || late > 0) ? Math.max(late, 1) : 0 };
 }
-function attendanceRows(data, today, nowMinutes, config = ATTENDANCE_DEFAULTS, hours = DEFAULT_HOURS) {
+var COMPANY_WORDS = ["aliya", "алия", "алиа"];
+function companyEmployees(data, words = COMPANY_WORDS) {
+  const all = (data.employees ?? []).map(readEmployee).filter((row) => row !== null && row.active);
+  const lower = words.map((word) => word.toLowerCase()).filter(Boolean);
+  const ours = all.filter((row) => row.places.some((place) => lower.some((word) => place.toLowerCase().includes(word))));
+  return (ours.length ? ours : all).map((row) => ({ id: row.id, name: row.name }));
+}
+function attendanceRows(data, today, nowMinutes, config = ATTENDANCE_DEFAULTS, hours = DEFAULT_HOURS, words = COMPANY_WORDS) {
   const shifts = /* @__PURE__ */ new Map();
-  const dayOff = /* @__PURE__ */ new Set();
+  let scheduled = false;
   for (const schedule of data.schedules ?? []) {
     const ids = Array.isArray(schedule?.employee_ids) ? schedule.employee_ids : [];
+    if (ids.length) scheduled = true;
     const shift = Array.isArray(schedule?.work_days) ? shiftOn(schedule, today) : null;
-    for (const id of ids) {
-      if (shift) shifts.set(Number(id), shift);
-      else if (Array.isArray(schedule?.work_days) && schedule.work_days.length) dayOff.add(Number(id));
-    }
+    if (shift) for (const id of ids) shifts.set(Number(id), shift);
   }
   const checks = (data.checks ?? []).map(readCheck).filter((row) => row !== null).sort((a, b) => a.at - b.at);
   const rows = [];
   const seen = /* @__PURE__ */ new Set();
   const sunday = (/* @__PURE__ */ new Date(`${today}T00:00:00Z`)).getUTCDay() === 0;
-  for (const raw of data.employees ?? []) {
-    const employee = readEmployee(raw);
-    if (!employee || !employee.active || seen.has(employee.id)) continue;
+  for (const employee of companyEmployees(data, words)) {
+    if (seen.has(employee.id)) continue;
     seen.add(employee.id);
     const events = checks.filter((row) => row.employeeId === employee.id);
-    if (!shifts.has(employee.id) && dayOff.has(employee.id) && !events.length) continue;
-    if (!shifts.has(employee.id) && sunday && !events.length) continue;
-    const shift = shifts.get(employee.id) ?? { start: hours.start, end: hours.end };
+    const own = shifts.get(employee.id);
+    if (!own && !events.length && (scheduled || sunday)) continue;
+    const shift = own ?? { start: hours.start, end: hours.end };
     const firstIn = events.find((row) => row.action === "IN");
     const last = events.at(-1);
-    const lateMinutes = firstIn ? firstIn.late > 0 ? firstIn.late : Math.max(0, firstIn.at - shift.start) : 0;
+    const lateMinutes = firstIn ? firstIn.late > 0 ? firstIn.late : own || scheduled ? 0 : Math.max(0, firstIn.at - shift.start) : 0;
     let state;
     if (!firstIn) state = nowMinutes >= shift.start + config.absentAfterMinutes ? "absent" : "waiting";
-    else if (last?.action === "OUT" && shift.end !== null && last.at <= shift.end - config.earlyLeaveMinutes && nowMinutes >= last.at + config.earlyLeaveGraceMinutes && nowMinutes < shift.end) state = "left_early";
+    else if (last?.action === "OUT" && (own || !scheduled) && shift.end !== null && last.at <= shift.end - config.earlyLeaveMinutes && nowMinutes >= last.at + config.earlyLeaveGraceMinutes && nowMinutes < shift.end) state = "left_early";
     else state = lateMinutes > 0 ? "late" : "on_time";
     rows.push({ employeeId: employee.id, name: employee.name, shiftStart: shift.start, shiftEnd: shift.end, firstIn: firstIn?.at ?? null, lateMinutes, lastAction: last?.action ?? null, lastAt: last?.at ?? null, state });
   }
   return rows.sort((a, b) => a.name.localeCompare(b.name));
+}
+function attendanceStructure(data, today) {
+  const people = (data.employees ?? []).map(readEmployee).filter((row) => row !== null);
+  const active = people.filter((row) => row.active);
+  const ours = new Set(companyEmployees(data).map((row) => row.id));
+  const places = /* @__PURE__ */ new Map();
+  for (const row of active) for (const place of row.places.length ? row.places : ["—"]) places.set(place, (places.get(place) ?? 0) + 1);
+  const lines = [
+    "🛠 <b>Timepay tuzilmasi</b>",
+    `Xodimlar: ${people.length} (faol ${active.length}) · nazoratda: ${ours.size}`,
+    "",
+    "<b>Filial / bo‘lim</b>",
+    ...[...places].sort((a, b) => b[1] - a[1]).slice(0, 20).map(([name, count]) => `• ${esc3(name)} — ${count}`),
+    "",
+    `<b>Smenalar (${(data.schedules ?? []).length})</b>`,
+    ...(data.schedules ?? []).slice(0, 20).map((schedule) => {
+      const ids = Array.isArray(schedule?.employee_ids) ? schedule.employee_ids.map(Number) : [];
+      const shift = Array.isArray(schedule?.work_days) ? shiftOn(schedule, today) : null;
+      const todayText = shift ? `${hhmm(shift.start)}–${shift.end !== null ? hhmm(shift.end) : "?"}` : "bugun yo‘q";
+      return `• ${esc3(String(schedule?.name ?? "?"))} · ${esc3(String(schedule?.schedule_type ?? "?"))} · sikl ${schedule?.schedule_cycle ?? "?"} · boshi ${schedule?.start_date ?? "—"} · kunlar ${Array.isArray(schedule?.work_days) ? schedule.work_days.length : 0} · xodim ${ids.length} (bizniki ${ids.filter((id) => ours.has(id)).length}) · bugun: ${todayText}`;
+    }),
+    "",
+    `Bugungi belgilar: ${(data.checks ?? []).length}`
+  ];
+  return lines.join("\n");
 }
 function attendanceDiagnostics(data) {
   const keys = (rows) => rows?.length && typeof rows[0] === "object" && rows[0] ? Object.keys(rows[0]).slice(0, 25).join(", ") : "—";
@@ -4410,7 +4441,10 @@ function resolveOwnerInput(input) {
   return parseOwnerCommand(text2);
 }
 function ownerNeedsAttendance(input) {
-  return resolveOwnerInput(input) === "davomat";
+  return resolveOwnerInput(input) === "davomat" || isTimepayProbe(input);
+}
+function isTimepayProbe(input) {
+  return input.trim().toLowerCase().replace(/^\//, "").split(/\s+/)[0] === "timepay";
 }
 function ownerNeedsState(input) {
   return resolveOwnerInput(input) !== "menu";
@@ -4419,6 +4453,7 @@ function ownerReply(input, rawSnapshot, today = (/* @__PURE__ */ new Date()).toI
   const keyboard = ownerKeyboard();
   const target = resolveOwnerInput(input);
   if (target === "menu") return { text: ownerMenuText(), keyboard };
+  if (isTimepayProbe(input) && attendance) return { text: attendanceStructure(attendance.data, today), keyboard };
   if (target === "davomat" && attendance) return { text: attendanceReport(attendance.data, today, attendance.nowMinutes), keyboard };
   const snapshot = rawSnapshot;
   const state = migrateState(snapshot?.state);
@@ -4469,6 +4504,7 @@ export {
   clockMinutes,
   fetchAttendance,
   generateVapidKeys,
+  isTimepayProbe,
   ownerErrorText,
   ownerKeyboard,
   ownerNeedsAttendance,

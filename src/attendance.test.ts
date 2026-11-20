@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { attendanceFindings, attendanceReport, attendanceRows, minutesOf, shiftOn, type AttendanceData, type TimepayCheck, type TimepaySchedule } from './attendance';
+import { attendanceFindings, attendanceReport, attendanceRows, companyEmployees, minutesOf, shiftOn, type AttendanceData, type TimepayCheck, type TimepaySchedule } from './attendance';
 import { ownerNeedsAttendance, ownerReply, watchRun } from './telegram-owner';
 import { emptyState } from './domain';
 
@@ -68,8 +68,7 @@ describe('timepay attendance', () => {
 
   it('inactive employees and days off are ignored', () => {
     const all = data([], [schedule({ employee_ids: [1, 4] })]);
-    expect(attendanceRows(all, TODAY, at('10:00')).map(row => row.employeeId)).toEqual([1, 3, 2]); // 2 and 3 have no schedule: usual hours
-    expect(attendanceRows(all, TODAY, at('10:00')).some(row => row.employeeId === 4)).toBe(false);
+    expect(attendanceRows(all, TODAY, at('10:00')).map(row => row.employeeId)).toEqual([1]); // 2 and 3 are on no shift, 4 is inactive
     expect(attendanceRows(all, '2026-11-22', at('10:00'))).toEqual([]);
   });
 
@@ -94,6 +93,50 @@ describe('timepay attendance', () => {
     expect(empty).toContain('xodimlar: 0');
     expect(empty).toContain('employee: {id, first_name, last_name}');
     expect(empty).not.toContain('Maxfiy'); // field names only, no personal data
+  });
+
+  it('two shifts of the workshop (08:00–18:00 and 09:00–19:00) stored as one-day cycles without a start date', () => {
+    const oneDay = (start: string, end: string) => [{ day: 0, is_working: true, start_time: `${start}:00`, end_time: `${end}:00` }];
+    const early = schedule({ id: 1, name: 'Smena ( 8:00 - 18:00 )', schedule_cycle: 1, start_date: null, work_days: oneDay('08:00', '18:00'), employee_ids: [1] });
+    const late = schedule({ id: 2, name: 'Smena ( 9:00 - 19:00 )', schedule_cycle: 1, start_date: null, work_days: oneDay('09:00', '19:00'), employee_ids: [2, 3] });
+    expect(shiftOn(early, TODAY)).toEqual({ start: 480, end: 1080 });
+    expect(shiftOn(late, '2026-11-18')).toEqual({ start: 540, end: 1140 });
+    const day = data([check(1, 'IN', '08:01', 1), check(2, 'IN', '08:54'), check(2, 'OUT', '17:05')], [early, late]);
+    const rows = attendanceRows(day, TODAY, at('18:30'));
+    expect(rows.map(row => [row.employeeId, row.shiftStart, row.state])).toEqual([[1, 480, 'late'], [3, 540, 'absent'], [2, 540, 'left_early']]);
+    const keys = attendanceFindings(day, TODAY, at('18:30')).map(row => row.key.split(':').slice(0, 2).join(':')).sort();
+    expect(keys).toEqual(['absent:3', 'late:1', 'left:2']);
+  });
+
+  it('takes only the firm when the Timepay account holds several branches', () => {
+    const mixed = {
+      employees: [
+        { id: 1, first_name: 'Ozoda', last_name: 'E', is_active: true, branches: [{ id: 1, name: 'Aliya Mebel' }], department: null },
+        { id: 2, first_name: 'Begona', last_name: 'F', is_active: true, branches: [{ id: 2, name: 'Boshqa firma' }], department: { id: 9, name: 'Savdo' } },
+        { id: 3, first_name: 'Kamol', last_name: 'X', is_active: true, branches: [], department: { id: 5, name: 'ALIYA mebel sexi' } },
+      ],
+      schedules: [schedule({ employee_ids: [1, 2, 3] })], checks: [],
+    } as unknown as AttendanceData;
+    expect(companyEmployees(mixed).map(row => row.id)).toEqual([1, 3]);
+    expect(attendanceRows(mixed, TODAY, at('10:00')).map(row => row.employeeId)).toEqual([3, 1]);
+    // an account with no such branch names is one firm: everybody is taken
+    expect(companyEmployees(data([])).map(row => row.id)).toEqual([1, 2, 3]);
+  });
+
+  it('people on a free schedule or on no shift are listed only when they came', () => {
+    const free = schedule({ id: 3, schedule_type: 'FREE', employee_ids: [3] });
+    const day = data([check(3, 'IN', '11:00')], [schedule({ employee_ids: [1] }), free]);
+    const rows = attendanceRows(day, TODAY, at('12:00'));
+    expect(rows.map(row => [row.employeeId, row.state])).toEqual([[1, 'absent'], [3, 'on_time']]); // no lateness without a shift
+  });
+
+  it('"/timepay" shows the structure without people\'s names', () => {
+    const text = ownerReply('/timepay', null, TODAY, false, { data: data([check(1, 'IN', '08:55')]), nowMinutes: at('10:00') }).text;
+    expect(ownerNeedsAttendance('/timepay')).toBe(true);
+    expect(text).toContain('Timepay tuzilmasi');
+    expect(text).toContain('Asosiy · FIXED · sikl 7');
+    expect(text).toContain('bugun: 09:00–18:00');
+    expect(text).not.toContain('Fayzullo');
   });
 
   it('builds the on-demand report', () => {

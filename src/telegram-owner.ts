@@ -5,7 +5,7 @@ import { translateError } from './i18n';
 import { migrateState } from './migrations';
 import { planOwnerAction } from './telegram-actions';
 import type { Actor, Command } from './types';
-import { attendanceFindings, attendanceReport, type AttendanceData } from './attendance';
+import { attendanceFindings, attendanceReport, attendanceStructure, type AttendanceData } from './attendance';
 import { dueFindings, isQuietHour, watchDigest, watchFindings, type Finding } from './watch';
 import { ownerPush, workerNotices, type PushMessage, type WorkerNotice } from './push-messages';
 import { buildInsights, insightDigest } from './insights';
@@ -40,7 +40,12 @@ export function resolveOwnerInput(input: string): ReportKey | 'menu' | null {
 
 /** True when the reply is the attendance report, which needs Timepay data instead of the ERP snapshot. */
 export function ownerNeedsAttendance(input: string): boolean {
-  return resolveOwnerInput(input) === 'davomat';
+  return resolveOwnerInput(input) === 'davomat' || isTimepayProbe(input);
+}
+
+/** "/timepay" — a service command: shows how the Timepay account is organised. */
+export function isTimepayProbe(input: string): boolean {
+  return input.trim().toLowerCase().replace(/^\//, '').split(/\s+/)[0] === 'timepay';
 }
 
 /** Only the menu is answered without ERP data. */
@@ -58,6 +63,7 @@ export function ownerReply(input: string, rawSnapshot: unknown, today = new Date
   const keyboard = ownerKeyboard();
   const target = resolveOwnerInput(input);
   if (target === 'menu') return { text: ownerMenuText(), keyboard };
+  if (isTimepayProbe(input) && attendance) return { text: attendanceStructure(attendance.data, today), keyboard };
   if (target === 'davomat' && attendance) return { text: attendanceReport(attendance.data, today, attendance.nowMinutes), keyboard };
   const snapshot = rawSnapshot as { actor?: Actor; state?: unknown } | null;
   const state = migrateState(snapshot?.state);

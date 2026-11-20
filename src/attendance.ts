@@ -40,10 +40,12 @@ export function shiftOn(schedule: TimepaySchedule, today: string): { start: numb
   const cycle = schedule.schedule_cycle > 0 ? schedule.schedule_cycle : 7;
   const date = new Date(`${today}T00:00:00Z`).getTime();
   // Without a cycle start the week is assumed to begin on Monday (index 0).
+  const weekday = (new Date(date).getUTCDay() + 6) % 7;
   const index = schedule.start_date
     ? ((Math.round((date - new Date(`${schedule.start_date}T00:00:00Z`).getTime()) / 86_400_000) % cycle) + cycle) % cycle
-    : (new Date(date).getUTCDay() + 6) % 7;
-  const day = schedule.work_days.find(row => row.day === index);
+    : weekday % cycle;
+  // A "same hours every day" shift is often stored as a single day.
+  const day = schedule.work_days.find(row => row.day === index) ?? (schedule.work_days.length === 1 ? schedule.work_days[0] : undefined);
   const start = minutesOf(day?.start_time);
   if (!day?.is_working || start === null) return null;
   return { start, end: minutesOf(day.end_time) };
@@ -66,14 +68,15 @@ const pick = (row: Loose | null | undefined, ...names: string[]): unknown => {
 };
 
 /** Timepay field names differ between API versions: read each record tolerantly. */
-function readEmployee(raw: unknown): { id: number; name: string; active: boolean } | null {
+function readEmployee(raw: unknown): { id: number; name: string; active: boolean; places: string[] } | null {
   const row = raw as Loose;
   const id = Number(pick(row, 'id', 'employee_id'));
   if (!Number.isFinite(id)) return null;
   const name = String(pick(row, 'full_name', 'name') ?? `${pick(row, 'first_name') ?? ''} ${pick(row, 'last_name') ?? ''}`).trim();
   const status = String(pick(row, 'status') ?? '').toLowerCase();
   const active = pick(row, 'is_active', 'active') !== false && !['inactive', 'fired', 'deleted', 'archived'].includes(status) && !pick(row, 'deleted_at', 'fired_at');
-  return { id, name: esc(name || `#${id}`), active };
+  const named = (value: unknown): string[] => (Array.isArray(value) ? value : value ? [value] : []).map(entry => String((entry as Loose)?.name ?? '')).filter(Boolean);
+  return { id, name: esc(name || `#${id}`), active, places: [...named(pick(row, 'branches', 'branch')), ...named(pick(row, 'department'))] };
 }
 
 function readCheck(raw: unknown): { employeeId: number; action: 'IN' | 'OUT'; at: number; late: number } | null {
@@ -89,45 +92,87 @@ function readCheck(raw: unknown): { employeeId: number; action: 'IN' | 'OUT'; at
   return { employeeId, action, at, late: action === 'IN' && (status === 'LATE' || late > 0) ? Math.max(late, 1) : 0 };
 }
 
+/** Which part of the Timepay account is this workshop: words looked for in branch and department names. */
+export const COMPANY_WORDS = ['aliya', 'алия', 'алиа'];
+
 /**
- * One row per active employee. The shift comes from the Timepay schedule when there is one for today,
- * otherwise from `hours` (the workshop's usual day). `nowMinutes` is the local time of day.
+ * The employees to control. When the Timepay account holds several firms as branches or departments,
+ * only those whose branch/department name contains one of `words` are kept; an account without such
+ * names is one firm and is taken whole.
  */
-export function attendanceRows(data: AttendanceData, today: string, nowMinutes: number, config: AttendanceConfig = ATTENDANCE_DEFAULTS, hours: WorkHours = DEFAULT_HOURS): AttendanceRow[] {
+export function companyEmployees(data: AttendanceData, words: string[] = COMPANY_WORDS): { id: number; name: string }[] {
+  const all = (data.employees ?? []).map(readEmployee).filter((row): row is NonNullable<ReturnType<typeof readEmployee>> => row !== null && row.active);
+  const lower = words.map(word => word.toLowerCase()).filter(Boolean);
+  const ours = all.filter(row => row.places.some(place => lower.some(word => place.toLowerCase().includes(word))));
+  return (ours.length ? ours : all).map(row => ({ id: row.id, name: row.name }));
+}
+
+/**
+ * One row per employee of the firm who has a shift today (FIXED/FLEXIBLE schedule from Timepay), plus
+ * anyone else of the firm who checked in. Only when Timepay gives no schedules at all are the usual
+ * `hours` applied to everybody. `nowMinutes` is the local time of day.
+ */
+export function attendanceRows(data: AttendanceData, today: string, nowMinutes: number, config: AttendanceConfig = ATTENDANCE_DEFAULTS, hours: WorkHours = DEFAULT_HOURS, words: string[] = COMPANY_WORDS): AttendanceRow[] {
   const shifts = new Map<number, { start: number; end: number | null }>();
-  const dayOff = new Set<number>();
+  let scheduled = false;
   for (const schedule of data.schedules ?? []) {
     const ids = Array.isArray(schedule?.employee_ids) ? schedule.employee_ids : [];
+    if (ids.length) scheduled = true;
     const shift = Array.isArray(schedule?.work_days) ? shiftOn(schedule, today) : null;
-    for (const id of ids) { if (shift) shifts.set(Number(id), shift); else if (Array.isArray(schedule?.work_days) && schedule.work_days.length) dayOff.add(Number(id)); }
+    if (shift) for (const id of ids) shifts.set(Number(id), shift);
   }
   const checks = (data.checks ?? []).map(readCheck).filter((row): row is NonNullable<ReturnType<typeof readCheck>> => row !== null).sort((a, b) => a.at - b.at);
   const rows: AttendanceRow[] = [];
   const seen = new Set<number>();
   const sunday = new Date(`${today}T00:00:00Z`).getUTCDay() === 0;
-  for (const raw of data.employees ?? []) {
-    const employee = readEmployee(raw);
-    if (!employee || !employee.active || seen.has(employee.id)) continue;
+  for (const employee of companyEmployees(data, words)) {
+    if (seen.has(employee.id)) continue;
     seen.add(employee.id);
     const events = checks.filter(row => row.employeeId === employee.id);
-    // A scheduled day off stays a day off unless the person actually came.
-    if (!shifts.has(employee.id) && dayOff.has(employee.id) && !events.length) continue;
-    // Without a schedule the usual hours apply; Sunday is a day off unless the person came.
-    if (!shifts.has(employee.id) && sunday && !events.length) continue;
-    const shift = shifts.get(employee.id) ?? { start: hours.start, end: hours.end };
+    const own = shifts.get(employee.id);
+    // No shift today (day off, free schedule, not on a schedule): shown only if the person came.
+    if (!own && !events.length && (scheduled || sunday)) continue;
+    const shift = own ?? { start: hours.start, end: hours.end };
     const firstIn = events.find(row => row.action === 'IN');
     const last = events.at(-1);
-    // Timepay's own lateness wins; without it the arrival is compared with the shift start.
-    const lateMinutes = firstIn ? (firstIn.late > 0 ? firstIn.late : Math.max(0, firstIn.at - shift.start)) : 0;
+    // Timepay's own lateness wins; without schedules the arrival is compared with the usual start.
+    const lateMinutes = firstIn ? (firstIn.late > 0 ? firstIn.late : own || scheduled ? 0 : Math.max(0, firstIn.at - shift.start)) : 0;
     let state: AttendanceRow['state'];
     if (!firstIn) state = nowMinutes >= shift.start + config.absentAfterMinutes ? 'absent' : 'waiting';
-    else if (last?.action === 'OUT' && shift.end !== null
+    else if (last?.action === 'OUT' && (own || !scheduled) && shift.end !== null
       && last.at <= shift.end - config.earlyLeaveMinutes && nowMinutes >= last.at + config.earlyLeaveGraceMinutes
       && nowMinutes < shift.end) state = 'left_early';
     else state = lateMinutes > 0 ? 'late' : 'on_time';
     rows.push({ employeeId: employee.id, name: employee.name, shiftStart: shift.start, shiftEnd: shift.end, firstIn: firstIn?.at ?? null, lateMinutes, lastAction: last?.action ?? null, lastAt: last?.at ?? null, state });
   }
   return rows.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * "/timepay" in the owner bot: how the Timepay account is organised — branches, departments, shifts and
+ * how many people are on each. Names of people are not printed.
+ */
+export function attendanceStructure(data: AttendanceData, today: string): string {
+  const people = (data.employees ?? []).map(readEmployee).filter((row): row is NonNullable<ReturnType<typeof readEmployee>> => row !== null);
+  const active = people.filter(row => row.active);
+  const ours = new Set(companyEmployees(data).map(row => row.id));
+  const places = new Map<string, number>();
+  for (const row of active) for (const place of row.places.length ? row.places : ['—']) places.set(place, (places.get(place) ?? 0) + 1);
+  const lines = [
+    '🛠 <b>Timepay tuzilmasi</b>',
+    `Xodimlar: ${people.length} (faol ${active.length}) · nazoratda: ${ours.size}`,
+    '', '<b>Filial / bo‘lim</b>',
+    ...[...places].sort((a, b) => b[1] - a[1]).slice(0, 20).map(([name, count]) => `• ${esc(name)} — ${count}`),
+    '', `<b>Smenalar (${(data.schedules ?? []).length})</b>`,
+    ...(data.schedules ?? []).slice(0, 20).map(schedule => {
+      const ids = Array.isArray(schedule?.employee_ids) ? schedule.employee_ids.map(Number) : [];
+      const shift = Array.isArray(schedule?.work_days) ? shiftOn(schedule, today) : null;
+      const todayText = shift ? `${hhmm(shift.start)}–${shift.end !== null ? hhmm(shift.end) : '?'}` : 'bugun yo‘q';
+      return `• ${esc(String(schedule?.name ?? '?'))} · ${esc(String(schedule?.schedule_type ?? '?'))} · sikl ${schedule?.schedule_cycle ?? '?'} · boshi ${schedule?.start_date ?? '—'} · kunlar ${Array.isArray(schedule?.work_days) ? schedule.work_days.length : 0} · xodim ${ids.length} (bizniki ${ids.filter(id => ours.has(id)).length}) · bugun: ${todayText}`;
+    }),
+    '', `Bugungi belgilar: ${(data.checks ?? []).length}`,
+  ];
+  return lines.join('\n');
 }
 
 /** What Timepay actually returned, without any personal data: only counts and field names. */
