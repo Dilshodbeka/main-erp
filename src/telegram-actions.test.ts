@@ -14,10 +14,10 @@ function run(state: State, command: Command, actor = admin): State {
 
 /** What the Edge Function does: ask the bot, run the returned commands, then render the follow-up. */
 function bot(state: State, input: string): { state: State; text: string } {
-  const answer = ownerReply(input, { actor: admin, state: structuredClone(state) }, TODAY);
+  const answer = ownerReply(input, { actor: admin, state: structuredClone(state) }, TODAY, true);
   let next = state;
   for (const command of answer.commands ?? []) next = run(next, command);
-  const tail = answer.followUp ? `\n\n${ownerReply(answer.followUp, { actor: admin, state: structuredClone(next) }, TODAY).text}` : '';
+  const tail = answer.followUp ? `\n\n${ownerReply(answer.followUp, { actor: admin, state: structuredClone(next) }, TODAY, true).text}` : '';
   return { state: next, text: answer.text + tail };
 }
 
@@ -48,6 +48,14 @@ function virtualOrder() {
 }
 
 describe('owner bot actions on a virtual order', () => {
+  it('actions are off by default: the bot stays report-only', () => {
+    const v = virtualOrder();
+    const raw = { actor: admin, state: structuredClone(v.state) };
+    expect(ownerReply(`/sexga_${v.code}`, raw, TODAY).text).toContain('tanilmadi');
+    expect(ownerReply(`/ok_sexga_${v.code}_r${v.state.revision}`, raw, TODAY).commands).toBeUndefined();
+    expect(ownerReply('/buyurtmalar', raw, TODAY).text).not.toContain('/b_');
+  });
+
   it('lists the order and opens its card with the launch action', () => {
     const v = virtualOrder();
     expect(bot(v.state, '/buyurtmalar').text).toContain(`/b_${v.code}`);

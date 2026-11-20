@@ -42,8 +42,9 @@ export function ownerNeedsState(input: string): boolean {
 /**
  * rawSnapshot is the erp_snapshot RPC result for an admin profile: { actor, state }.
  * `today` is the local date (YYYY-MM-DD) stamped on shipments created from the bot.
+ * `allowActions` turns on order cards and actions (launch, ship, payment); off = reports only.
  */
-export function ownerReply(input: string, rawSnapshot: unknown, today = new Date().toISOString().slice(0, 10)): OwnerReply {
+export function ownerReply(input: string, rawSnapshot: unknown, today = new Date().toISOString().slice(0, 10), allowActions = false): OwnerReply {
   const keyboard = ownerKeyboard();
   const target = resolveOwnerInput(input);
   if (target === 'menu') return { text: ownerMenuText(), keyboard };
@@ -51,9 +52,11 @@ export function ownerReply(input: string, rawSnapshot: unknown, today = new Date
   const state = migrateState(snapshot?.state);
   const actor = snapshot?.actor;
   if (!actor) throw new Error('owner_actor_missing');
-  // "/buyurtmalar" and its button show the actionable list instead of the plain totals.
-  const action = planOwnerAction(target === 'buyurtmalar' ? '/buyurtmalar' : input, state, actor, today);
-  if (action) return { ...action, keyboard };
+  // Reports only by default. With actions on, "/buyurtmalar" shows the actionable list instead of totals.
+  if (allowActions) {
+    const action = planOwnerAction(target === 'buyurtmalar' ? '/buyurtmalar' : input, state, actor, today);
+    if (action) return { ...action, keyboard };
+  }
   if (target === null) return { text: `Bu buyruq tanilmadi.\n\n${ownerMenuText()}`, keyboard };
   return { text: ownerReport(state, target), keyboard };
 }

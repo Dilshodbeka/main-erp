@@ -1,7 +1,8 @@
 // Telegram Bot API webhook. Deploy without platform JWT verification:
 //   supabase functions deploy telegram-webhook --no-verify-jwt
 // Secrets: TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET.
-// Optional: OWNER_TELEGRAM_IDS (comma-separated Telegram user ids) turns on the owner report bot.
+// Optional: OWNER_TELEGRAM_IDS (comma-separated Telegram user ids) turns on the owner report bot;
+// OWNER_BOT_ACTIONS=1 additionally allows order actions from the bot (off = reports only).
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import {
@@ -21,6 +22,7 @@ const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';
 const webhookSecret = Deno.env.get('TELEGRAM_WEBHOOK_SECRET') ?? '';
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 const ownerIds = parseOwnerIds(Deno.env.get('OWNER_TELEGRAM_IDS'));
+const ownerActions = Deno.env.get('OWNER_BOT_ACTIONS') === '1';
 const apiBase = (Deno.env.get('TELEGRAM_API_BASE') ?? 'https://api.telegram.org').replace(/\/+$/, '');
 
 let admin: SupabaseClient | null = null;
@@ -120,7 +122,7 @@ async function ownerAnswer(incoming: IncomingMessage): Promise<{ text: string; k
   if (!ownerNeedsState(input)) return ownerReply(input, null);
   const today = tashkentToday();
   let snapshot = await adminSnapshot();
-  const answer = ownerReply(input, snapshot, today);
+  const answer = ownerReply(input, snapshot, today, ownerActions);
   if (!answer.commands?.length) return answer;
   // A confirmed action: run its commands in order, each against the revision the previous one returned.
   const scoped = await adminClient();
@@ -136,7 +138,7 @@ async function ownerAnswer(incoming: IncomingMessage): Promise<{ text: string; k
     }
     snapshot = executed.data as OwnerSnapshot;
   }
-  const followUp = answer.followUp ? `\n\n${ownerReply(answer.followUp, snapshot, today).text}` : '';
+  const followUp = answer.followUp ? `\n\n${ownerReply(answer.followUp, snapshot, today, ownerActions).text}` : '';
   return { text: `${answer.text}${followUp}`, keyboard: answer.keyboard };
 }
 

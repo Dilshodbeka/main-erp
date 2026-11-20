@@ -3242,7 +3242,7 @@ function resolveOwnerInput(input) {
 function ownerNeedsState(input) {
   return resolveOwnerInput(input) !== "menu";
 }
-function ownerReply(input, rawSnapshot, today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10)) {
+function ownerReply(input, rawSnapshot, today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10), allowActions = false) {
   const keyboard = ownerKeyboard();
   const target = resolveOwnerInput(input);
   if (target === "menu") return { text: ownerMenuText(), keyboard };
@@ -3250,8 +3250,10 @@ function ownerReply(input, rawSnapshot, today = (/* @__PURE__ */ new Date()).toI
   const state = migrateState(snapshot?.state);
   const actor = snapshot?.actor;
   if (!actor) throw new Error("owner_actor_missing");
-  const action = planOwnerAction(target === "buyurtmalar" ? "/buyurtmalar" : input, state, actor, today);
-  if (action) return { ...action, keyboard };
+  if (allowActions) {
+    const action = planOwnerAction(target === "buyurtmalar" ? "/buyurtmalar" : input, state, actor, today);
+    if (action) return { ...action, keyboard };
+  }
   if (target === null) return { text: `Bu buyruq tanilmadi.
 
 ${ownerMenuText()}`, keyboard };
