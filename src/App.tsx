@@ -87,6 +87,7 @@ import { cashReceipt, invoice, purchaseReceipt, routeSheet } from './documents';
 import { loadCompanyProfile, NO_COMPANY, type CompanyProfile } from './company-profile';
 import { FULL_ACCESS, daysLeft, loadSubscription, planLabel, subscriptionNotice, validUntil, visibleSections, type Subscription } from './subscription';
 import { PlatformPanel } from './components/PlatformPanel';
+import { OwnerTelegramCard } from './components/OwnerTelegramCard';
 import { CompanyProfileSettings } from './components/CompanyProfileSettings';
 import { acceptedWorkQty, boardTaskLabel, executorLabel, stageCostText, taskUnit, unitLabel, workTaskRows } from './work-view';
 import { warehouseGroups } from './warehouse';
@@ -807,6 +808,7 @@ export default function App() {
           <span>Holat<b className={subscription.active ? 'positive' : 'debt'}>{subscription.blocked ? 'To‘xtatilgan' : subscription.active ? 'Faol' : 'Muddati tugagan'}</b></span>
         </div>
       </Section>}
+      {mode === 'cloud' && admin && <OwnerTelegramCard onNotice={(message, error = false) => setNotice({ message, error })} />}
       <AccessPanel cloud={mode === 'cloud'} employees={state.employees} workshops={state.workshops} />
       {mode === 'cloud' && subscription.platformAdmin && <PlatformPanel onNotice={(message, error = false) => setNotice({ message, error })} />}
       </>}

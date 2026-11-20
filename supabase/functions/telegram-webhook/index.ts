@@ -16,6 +16,7 @@ import {
   type TelegramFileRef,
 } from '../_shared/telegram.ts';
 import { clockMinutes, fetchAttendance, ownerErrorText, ownerNeedsAttendance, ownerNeedsState, ownerReply, parseOwnerIds } from '../_shared/owner-bot.generated.js';
+import { adminClientFor, adminSnapshotFor, linkOwnerChat, ownerOfChat } from '../_shared/owner-access.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -63,49 +64,13 @@ async function reply(chatId: string, text: string) {
   }
 }
 
-// ── Owner report bot ────────────────────────────────────────────────────────
-// The owner's chat is matched by Telegram id (OWNER_TELEGRAM_IDS). Reports are computed by the
-// same domain code as the web app from the admin snapshot, so the numbers cannot diverge.
-// erp_snapshot() resolves the caller through auth.uid(), so the function opens a short-lived
-// session for the company's admin profile (service-role magic link, never sent anywhere).
-let ownerSession: { token: string; expiresAt: number } | null = null;
-
-async function adminToken(): Promise<string> {
-  if (ownerSession && ownerSession.expiresAt - Date.now() > 60_000) return ownerSession.token;
-  const profile = await client().from('erp_profiles').select('id').eq('role', 'admin').limit(1).maybeSingle();
-  if (profile.error || !profile.data) throw new Error('owner_profile_missing');
-  const user = await client().auth.admin.getUserById(profile.data.id);
-  const email = user.data.user?.email;
-  if (user.error || !email) throw new Error('owner_email_missing');
-  const link = await client().auth.admin.generateLink({ type: 'magiclink', email });
-  const tokenHash = link.data.properties?.hashed_token;
-  if (link.error || !tokenHash) throw new Error('owner_link_failed');
-  const visitor = createClient(supabaseUrl, anonKey || serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const verified = await visitor.auth.verifyOtp({ token_hash: tokenHash, type: 'magiclink' });
-  const session = verified.data.session;
-  if (verified.error || !session) throw new Error('owner_session_failed');
-  ownerSession = { token: session.access_token, expiresAt: (session.expires_at ?? 0) * 1000 };
-  return ownerSession.token;
-}
+// ── Owner bot ───────────────────────────────────────────────────────────────
+// An owner chat is either listed in OWNER_TELEGRAM_IDS (the first, single-company setup) or linked
+// by a company's owner with "/ulash CODE" from the settings screen. Reports are computed by the
+// same domain code as the web app from that company's admin snapshot, so numbers cannot diverge.
+const access = { url: supabaseUrl, serviceKey, anonKey };
 
 type OwnerSnapshot = { actor?: unknown; state?: { revision?: number } } | null;
-
-async function adminClient(): Promise<SupabaseClient> {
-  const token = await adminToken();
-  return createClient(supabaseUrl, anonKey || serviceKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-}
-
-async function adminSnapshot(): Promise<OwnerSnapshot> {
-  const snapshot = await (await adminClient()).rpc('erp_snapshot');
-  if (snapshot.error) {
-    ownerSession = null;
-    throw new Error('owner_snapshot_failed');
-  }
-  return snapshot.data as OwnerSnapshot;
-}
 
 /** Stable per update and step, so a Telegram redelivery replays the same erp_execute request. */
 async function requestIdFor(incoming: IncomingMessage, step: number): Promise<string> {
@@ -119,11 +84,12 @@ async function requestIdFor(incoming: IncomingMessage, step: number): Promise<st
 
 const tashkentToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tashkent' }).format(new Date());
 
-async function ownerAnswer(incoming: IncomingMessage): Promise<{ text: string; keyboard: string[][] }> {
+async function ownerAnswer(incoming: IncomingMessage, companyId: string | null): Promise<{ text: string; keyboard: string[][] }> {
   const input = incoming.startPayload !== null ? '/start' : incoming.text;
   if (!ownerNeedsState(input)) return ownerReply(input, null);
   const today = tashkentToday();
-  if (timepayToken && ownerNeedsAttendance(input)) {
+  // Timepay is configured by one server secret, so it belongs to the legacy (platform owner's) company only.
+  if (timepayToken && companyId === null && ownerNeedsAttendance(input)) {
     const clock = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
     try {
       const data = await fetchAttendance(timepayToken, today, fetch);
@@ -133,11 +99,11 @@ async function ownerAnswer(incoming: IncomingMessage): Promise<{ text: string; k
       return { text: '🕘 Timepay javob bermadi. Token va ruxsatlarni tekshiring (xodimlar, kelish/ketish, grafiklar).', keyboard: [] };
     }
   }
-  let snapshot = await adminSnapshot();
+  let snapshot = await adminSnapshotFor(client(), access, companyId) as OwnerSnapshot;
   const answer = ownerReply(input, snapshot, today, ownerActions);
   if (!answer.commands?.length) return answer;
   // A confirmed action: run its commands in order, each against the revision the previous one returned.
-  const scoped = await adminClient();
+  const scoped = await adminClientFor(client(), access, companyId);
   for (let step = 0; step < answer.commands.length; step += 1) {
     const executed = await scoped.rpc('erp_execute', {
       p_request_id: await requestIdFor(incoming, step),
@@ -154,10 +120,10 @@ async function ownerAnswer(incoming: IncomingMessage): Promise<{ text: string; k
   return { text: `${answer.text}${followUp}`, keyboard: answer.keyboard };
 }
 
-async function handleOwner(incoming: IncomingMessage) {
+async function handleOwner(incoming: IncomingMessage, companyId: string | null) {
   let answer: { text: string; keyboard: string[][] };
   try {
-    answer = await ownerAnswer(incoming);
+    answer = await ownerAnswer(incoming, companyId);
   } catch (error) {
     console.error('Owner bot failed', error instanceof Error ? error.message : 'unknown');
     answer = { text: 'Hisobotni olishda xatolik. Birozdan keyin qayta urinib ko‘ring.', keyboard: [] };
@@ -350,8 +316,16 @@ serve(async request => {
   if (!incoming) return json({ ok: true });
 
   try {
-    if (ownerIds.includes(incoming.chatId)) {
-      await handleOwner(incoming);
+    const linkCode = /^\/ulash\s+([A-Za-z0-9]{8})$/.exec(incoming.text.trim());
+    if (linkCode) {
+      const linked = await linkOwnerChat(client(), linkCode[1], incoming.chatId);
+      if (linked) await handleOwner({ ...incoming, text: '/start', startPayload: null }, (await ownerOfChat(client(), incoming.chatId, ownerIds))?.companyId ?? null);
+      else await reply(incoming.chatId, 'Kod noto‘g‘ri yoki muddati o‘tgan. Sozlamalardan yangi kod oling.');
+      return json({ ok: true });
+    }
+    const owner = await ownerOfChat(client(), incoming.chatId, ownerIds);
+    if (owner) {
+      await handleOwner(incoming, owner.companyId);
       return json({ ok: true });
     }
     if (incoming.startPayload !== null) {
