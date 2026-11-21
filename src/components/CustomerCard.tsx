@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Printer } from 'lucide-react';
 import { customerDetail } from '../analytics';
 import { customerKindLabel } from '../customers';
@@ -7,7 +6,8 @@ import { sortRows, type SortOption, type SortState } from '../listview';
 import type { OrderProfitRow } from '../history';
 import { shipmentTotals } from '../sales';
 import type { State } from '../types';
-import { Badge, Empty, Section, date, dateTime, money, statuses } from '../ui';
+import { Badge, Empty, Section, dateTime, money } from '../ui';
+import { CustomerOrdersPrint } from './CustomerOrdersPrint';
 import { SortSelect } from './SortSelect';
 
 type CustomerOrderSort = 'date' | 'number' | 'revenue' | 'paid' | 'debt' | 'profit';
@@ -71,41 +71,7 @@ export function CustomerCard({ state, customerId, onOpenOrder, sellerName, onCla
       </table></div>
       {!orders.length && <Empty text="Bu mijozda hali buyurtma yo‘q" />}
     </Section>
-    {printing && createPortal(<div className="modal-backdrop print-overlay">
-      <div className="dialog wide print-dialog" role="dialog" aria-label="Mijoz buyurtmalari">
-        <header className="no-print">
-          <div><h2>Mijoz buyurtmalari</h2><p>A4 formatida chop etish uchun brauzer oynasi ochiladi.</p></div>
-          <div className="button-group">
-            <button className="secondary" onClick={() => setPrinting(false)}>Yopish</button>
-            <button className="primary" onClick={() => window.print()}><Printer size={16} />Chop etish</button>
-          </div>
-        </header>
-        <div className="print-root"><article className="print-page">
-          <header className="print-head">
-            <div><h1>MIJOZ BUYURTMALARI</h1></div>
-            <div className="print-head-right"><b>{detail.customer.name}</b><span>Sana: {date(new Date().toISOString().slice(0, 10))}</span></div>
-          </header>
-          <div className="print-meta">
-            <div><small>Mijoz</small><b>{detail.customer.name}</b></div>
-            <div><small>Telefon / manzil</small><b>{[detail.customer.phone, detail.customer.address].filter(Boolean).join(' · ') || '—'}</b></div>
-          </div>
-          <section className="print-section">
-            <table className="print-table">
-              <thead><tr><th>№</th><th>Buyurtma</th><th>Sana</th><th>Holat</th><th className="right">Summa</th><th className="right">To‘langan</th><th className="right">Qarz</th></tr></thead>
-              <tbody>{orders.map((row, index) => <tr key={row.order.id}>
-                <td>{index + 1}</td><td><b>{row.order.number}</b> · {row.order.title}</td><td>{date(row.date.slice(0, 10))}</td><td>{statuses[row.order.status]}</td>
-                <td className="right">{money(row.revenue)}</td><td className="right">{row.paid > 0 ? money(row.paid) : '—'}</td><td className="right">{row.debt > 0 ? money(row.debt) : '—'}</td>
-              </tr>)}</tbody>
-              <tfoot><tr><td colSpan={4}><b>{`Jami · ${orders.length} ta buyurtma`}</b></td>
-                <td className="right"><b>{money(orders.reduce((total, row) => total + row.revenue, 0))}</b></td>
-                <td className="right"><b>{money(orders.reduce((total, row) => total + row.paid, 0))}</b></td>
-                <td className="right"><b>{money(orders.reduce((total, row) => total + row.debt, 0))}</b></td></tr></tfoot>
-            </table>
-          </section>
-          <div className="print-signs"><span>Topshirdi: ____________________</span><span>Qabul qildi: ____________________</span></div>
-        </article></div>
-      </div>
-    </div>, document.body)}
+    {printing && <CustomerOrdersPrint customer={detail.customer} orders={orders} close={() => setPrinting(false)} />}
     <Section title="To‘lovlar tarixi" hint="Kassadagi mijoz va do‘kon to‘lovlari, qaytarishlar bilan">
       <div className="table-scroll cardable"><table>
         <thead><tr><th>Sana / vaqt</th><th>Kategoriya</th><th>Hisob</th><th className="right">Summa</th></tr></thead>
