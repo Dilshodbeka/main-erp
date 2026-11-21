@@ -10,7 +10,7 @@ export function PushToggle({ supabase, onNotice }: { supabase: SupabaseClient; o
   useEffect(() => { void pushStatus().then(setStatus).catch(() => setStatus('unsupported')); }, []);
   if (!status || status === 'unsupported') return null;
   if (status === 'ios-install') return <p className="push-hint"><Bell size={15} />Bildirishnomalar uchun ilovani «Bosh ekranga» o‘rnating.</p>;
-  if (status === 'blocked') return <p className="push-hint"><BellOff size={15} />Bildirishnomalar brauzerda bloklangan.</p>;
+  if (status === 'blocked') return <p className="push-hint"><BellOff size={15} />Bildirishnomalar brauzerda bloklangan. Manzil satridagi qulf belgisini bosing → «Uvedomleniya / Bildirishnomalar» → «Ruxsat berish», so‘ng sahifani yangilang.</p>;
   const toggle = async () => {
     setBusy(true);
     try {

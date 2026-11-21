@@ -160,7 +160,14 @@ export default function App() {
   const [insightMarks, setInsightMarks] = useState<InsightMarks>({});
   const [purchaseDocs, setPurchaseDocs] = useState<PurchaseDocs>({});
   const [profileMenu, setProfileMenu] = useState(false);
-  const [diagHidden, setDiagHidden] = useState(() => { try { return Number(localStorage.getItem('aliya.diag.hidden') ?? 0) > Date.now(); } catch { return false; } });
+  useEffect(() => {
+    if (!profileMenu) return;
+    const close = (event: Event) => { if (!(event.target as Element | null)?.closest?.('.sidebar-bottom')) setProfileMenu(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setProfileMenu(false); };
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', escape); };
+  }, [profileMenu]);
   const [signup, setSignup] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
   const [orderView, setOrderView] = useState<'board' | 'table'>('board');
@@ -702,7 +709,7 @@ export default function App() {
     {mode === 'demo' && <div className="demo-banner"><span><CircleAlert size={15} />Namoyish: yozuvlar faqat shu brauzerda saqlanadi. Sex ishlashi uchun umumiy bazani ulang.</span><button onClick={() => go('settings', 'baza')}>Supabase ulash<ArrowUpRight size={14} /></button></div>}
     {planNotice && <div className={`demo-banner subscription-${planNotice.tone}`}><span><CircleAlert size={15} />{planNotice.text}</span><button onClick={() => go('settings', 'kirish')}>Tarif<ArrowUpRight size={14} /></button></div>}
     {mode === 'cloud' && (!sync.online || sync.pending.length > 0) && <div className="demo-banner"><span><CircleAlert size={15} />{sync.pending.some(p => p.status === 'rejected') ? 'Konflikt bor: qayta yuborishdan oldin amalni tekshiring.' : `Oflayn navbat: ${sync.pending.length}. Ekranda faqat server tasdiqlagan qoldiqlar.`}</span><button onClick={() => show('sync')}>Sinxronizatsiya<RefreshCw size={14} /></button></div>}
-    {mode === 'cloud' && admin && diagDue && !diagHidden && <div className="demo-banner"><span><CircleAlert size={15} />Haftalik diagnostika vaqti keldi: hisobotni yuklab, mutaxassisga yuboring.</span><button onClick={() => go('settings', 'baza')}>Sozlamalar<ArrowUpRight size={14} /></button><button className="icon-button banner-close" aria-label="Yopish" title="Bir haftaga yopish" onClick={() => { try { localStorage.setItem('aliya.diag.hidden', String(Date.now() + 7 * 86_400_000)); } catch { /* private mode */ } setDiagHidden(true); }}><X size={15} /></button></div>}
+    
     {(() => {
       const standalone = isStandalone();
       const ios = isIos(navigator.userAgent);

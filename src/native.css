@@ -239,3 +239,30 @@ button:active:not(:disabled){transform:scale(.97)}
 .guide-fab span{display:none}
 .guide-fab b{position:absolute;top:-4px;right:-4px}
 .guide-fab{position:fixed}
+/* Sozlamalar · til va bildirishnomalar: panel ichida, keraksiz cho‘zilmasdan */
+.settings-prefs{padding:0 var(--panel-x,23px) 22px;grid-template-columns:repeat(auto-fit,minmax(260px,max-content));column-gap:48px;row-gap:18px}
+.settings-prefs .lang-switch{align-self:start;justify-self:start}
+.settings-prefs .lang-switch button{min-width:110px}
+.settings-prefs .push-toggle{width:auto;max-width:320px;justify-self:start}
+.settings-prefs .push-hint{margin:0;padding:9px 12px;border-radius:10px;background:#fbf3e1;color:#7a5512;font-size:12px;max-width:340px}
+@media (max-width:700px){.settings-prefs{padding-inline:16px;grid-template-columns:1fr}.settings-prefs .lang-switch,.settings-prefs .push-toggle{width:100%;max-width:none}.settings-prefs .lang-switch button{flex:1;min-width:0}}
+/* Ish maydoni: tavsif bir qatorda, menyu nomlari bir qatorda, telefonda ixcham kartochkalar va plashkalar */
+.page-heading p{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.nav-item>span,.nav-item .nav-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:700px){
+  .page-heading p{display:none}
+  .page-heading .eyebrow{display:none}
+  .metric{min-height:0;padding:11px 13px}
+  .metric strong{font-size:20px;margin:4px 0 2px}
+  .metric small{display:none}
+  .demo-banner{display:flex;align-items:center;gap:10px;padding:7px 14px;line-height:1.45}
+  .demo-banner>span{flex:1;min-width:0}
+  .demo-banner>button:not(.banner-close){white-space:nowrap;padding:0}
+}
+/* Plashka: matn chapda, tugmalar o‘ngda yonma-yon */
+.demo-banner>span{flex:1;min-width:0}
+.demo-banner>button{flex-shrink:0}
+@media (max-width:700px){
+  .metric strong,.metric.accent strong{font-size:19px;white-space:nowrap}
+  .panel-header p{display:none}
+}

@@ -25,7 +25,8 @@ export function QuickSearch({ value, onChange, result, onCustomer, onOrder }: {
   return <div className="quick-search" ref={box}>
     <label className="search"><Search size={17} /><input
       aria-label="Mijoz yoki buyurtma qidiruvi"
-      placeholder="Mijoz, telefon yoki buyurtma…"
+      placeholder="Qidirish…"
+      title="Mijoz, telefon yoki buyurtma"
       value={value}
       onChange={event => { onChange(event.target.value); setOpen(true); }}
       onFocus={() => setOpen(true)}
