@@ -113,7 +113,7 @@ describe('timepay attendance', () => {
       employees: [
         { id: 1, first_name: 'Ozoda', last_name: 'E', is_active: true, branches: [{ id: 1, name: 'Aliya Mebel' }], department: null },
         { id: 2, first_name: 'Begona', last_name: 'F', is_active: true, branches: [{ id: 2, name: 'Boshqa firma' }], department: { id: 9, name: 'Savdo' } },
-        { id: 3, first_name: 'Kamol', last_name: 'X', is_active: true, branches: [], department: { id: 5, name: 'ALIYA mebel sexi' } },
+        { id: 3, first_name: 'Kamol', last_name: 'X', is_active: true, branches: [], department: { id: 5, name: 'ALIYA mebel sehi' } },
       ],
       schedules: [schedule({ employee_ids: [1, 2, 3] })], checks: [],
     } as unknown as AttendanceData;

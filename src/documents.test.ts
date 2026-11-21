@@ -8,7 +8,7 @@ import type { Actor, CashEntry, Customer, Item, Order, Shipment, State } from '.
 
 const admin: Actor = { id: 'admin', name: 'Egasi', role: 'admin', companyId: emptyState().companyId };
 const worker: Actor = { id: 'worker', name: 'Xodim', role: 'worker', companyId: emptyState().companyId };
-const display: Actor = { id: 'display', name: 'Sex ekrani', role: 'display', companyId: emptyState().companyId };
+const display: Actor = { id: 'display', name: 'Seh ekrani', role: 'display', companyId: emptyState().companyId };
 const firm = { name: 'Mebel Aliya', phone: '+998 90 123 45 67' };
 const firmBlock = (html: string): string => html.split('Sotuvchi</small>')[1]?.split('</div>')[0] ?? '';
 

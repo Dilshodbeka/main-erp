@@ -41,6 +41,9 @@ try {
 } catch (error) { if (error.code !== 'ENOENT') throw error; }
 
 if (problems.length) throw new Error(problems.join('\n'));
+// Слово «sex» в интерфейсе заменено на «seh»: тот же перевод для нового написания.
+const seh = text => text.replace(/(?<![.\/_\-\w])([Ss])ex(?=(ga|da|dagi|lar|larni|ni|i|dan|ning)?(?![\w\-_]))/g, (_, letter) => `${letter}eh`).replace(/\bSEX\b/g, 'SEH');
+for (const [source, target] of Object.entries(dictionary)) { const next = seh(source); if (next !== source && dictionary[next] === undefined) dictionary[next] = target; }
 const sorted = Object.fromEntries(Object.entries(dictionary).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 if (process.argv[1] && process.argv[1].endsWith('build.mjs') && !process.argv.includes('--check')) {
   mkdirSync(join(here, '../../src/locales'), { recursive: true });

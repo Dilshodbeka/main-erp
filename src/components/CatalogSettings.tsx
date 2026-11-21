@@ -119,7 +119,7 @@ export function CatalogSettings({ state, busy, run, onAddEmployee, onEditEmploye
         <div className="form-body">
           <Field label="Dastgoh nomi"><input value={machine.name} onChange={event => setMachine({ ...machine, name: event.target.value })} required maxLength={120} autoFocus /></Field>
           <Field label="Soatlik tushum maqsadi, UZS"><input type="number" min="0" step="0.01" value={machine.hourlyRevenueTarget || ''} onChange={event => setMachine({ ...machine, hourlyRevenueTarget: Number(event.target.value) })} required /></Field>
-          {multiWorkshop && <Field label="Sex"><select value={machine.workshopId} onChange={event => setMachine({ ...machine, workshopId: event.target.value })}>{workshops.map(ws => <option key={ws.id} value={ws.id}>{ws.name}</option>)}</select></Field>}
+          {multiWorkshop && <Field label="Seh"><select value={machine.workshopId} onChange={event => setMachine({ ...machine, workshopId: event.target.value })}>{workshops.map(ws => <option key={ws.id} value={ws.id}>{ws.name}</option>)}</select></Field>}
           {machine.id && <label className="check-field"><input type="checkbox" checked={machine.active} onChange={event => setMachine({ ...machine, active: event.target.checked })} />Dastgoh faol</label>}
         </div>
         <footer className="form-footer">
@@ -143,7 +143,7 @@ export function CatalogSettings({ state, busy, run, onAddEmployee, onEditEmploye
               const ws = state.machines.find(row => row.id === machineId)?.workshopId;
               setOperation({ ...operation, machineId, workshopId: machineId ? (ws ?? MAIN_WORKSHOP_ID) : operation.workshopId });
             }}><option value="">Dastgohsiz</option>{state.machines.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select></Field>
-            {multiWorkshop && <Field label="Sex"><select value={operation.workshopId} onChange={event => setOperation({ ...operation, workshopId: event.target.value })}>{workshops.map(ws => <option key={ws.id} value={ws.id}>{ws.name}</option>)}</select></Field>}
+            {multiWorkshop && <Field label="Seh"><select value={operation.workshopId} onChange={event => setOperation({ ...operation, workshopId: event.target.value })}>{workshops.map(ws => <option key={ws.id} value={ws.id}>{ws.name}</option>)}</select></Field>}
           </div>
           <div className="form-section-title"><div><h3>Ruxsat berilgan xodimlar</h3><small>Bosqich faqat belgilangan xodimlarga ochiq</small></div></div>
           <div className="employee-picker">{state.employees.map(emp => <label key={emp.id}>

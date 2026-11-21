@@ -58,7 +58,7 @@ function SeriesCard({ order, state, busy, run, onGo, itemName }: {
       <span>Reja tannarxi<b>{money(estimatedCost(state, order))}</b></span>
       <span>Haqiqiy tannarx<b>{money(actualSeriesCost(state, order))}</b></span>
     </div>
-    {order.status === 'production' && issued < order.materials.length && <div className="material-warning"><Package size={17} />Materiallar band qilindi: {order.materials.length} dan {issued} berildi<button disabled={busy} onClick={() => void run({ type: 'order.issue', orderId: order.id })}>Sexga berish</button><ShortageNotice rows={orderShortage(state, order)} onGo={onGo} /></div>}
+    {order.status === 'production' && issued < order.materials.length && <div className="material-warning"><Package size={17} />Materiallar band qilindi: {order.materials.length} dan {issued} berildi<button disabled={busy} onClick={() => void run({ type: 'order.issue', orderId: order.id })}>Sehga berish</button><ShortageNotice rows={orderShortage(state, order)} onGo={onGo} /></div>}
     {ready && <div className="material-warning"><Check size={17} />Seriya qabul qilinib omborga kirim qilindi. Mijozga yuborish yaratilmaydi.</div>}
     <div className="series-material-view">{order.materials.map(line => <span key={line.id}>{itemName(line.itemId)} <b>{num(line.qty)}</b> <small>{line.issuedQty >= line.qty ? 'berilgan' : line.issuedQty > 0 ? `qisman · ${num(line.issuedQty)} / ${num(line.qty)}` : order.status === 'draft' ? 'berilmagan' : 'band'}</small></span>)}</div>
     <div className="task-list">{order.route.map((task, index) => <article className={task.completed >= task.planned ? 'task complete' : 'task'} key={task.id}>
@@ -72,9 +72,9 @@ function SeriesCard({ order, state, busy, run, onGo, itemName }: {
       <span className={`stage-chip ${stageClass(task)}`}>{boardTaskLabel(task.status)}</span>
     </article>)}</div>
     <footer>
-      {order.status === 'draft' && <button className="primary small" disabled={busy} onClick={() => void run({ type: 'order.launch', orderId: order.id })}><Factory size={14} />Sexga ishga tushirish</button>}
+      {order.status === 'draft' && <button className="primary small" disabled={busy} onClick={() => void run({ type: 'order.launch', orderId: order.id })}><Factory size={14} />Sehga ishga tushirish</button>}
       {order.status === 'draft' && <button className="text-button danger-text" onClick={() => void run({ type: 'order.cancel', orderId: order.id })}>Seriyani bekor qilish</button>}
-      <small>{ready ? 'Ombordan sotishga tayyor' : order.status === 'production' ? 'Sexda ish' : 'Band qilinmagan qoralama'}</small>
+      <small>{ready ? 'Ombordan sotishga tayyor' : order.status === 'production' ? 'Sehda ish' : 'Band qilinmagan qoralama'}</small>
     </footer>
   </article>;
 }

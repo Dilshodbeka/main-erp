@@ -3,7 +3,7 @@ export interface SectionDef { id: string; title: string; panels: Panel[] }
 export interface Route { section: string; panel: string }
 
 const productionPanels: Panel[] = [
-  { id: 'doska', title: 'Sex doskasi' },
+  { id: 'doska', title: 'Seh doskasi' },
   { id: 'brak', title: 'Brak tarixi' },
 ];
 
@@ -13,7 +13,7 @@ const registry: SectionDef[] = [
   { id: 'orders', title: 'Savdo', panels: [{ id: 'buyurtmalar', title: 'Buyurtmalar' }, { id: 'mijozlar', title: 'Mijozlar' }] },
   { id: 'history', title: 'Tarix', panels: [{ id: 'tarix', title: 'Buyurtmalar tarixi' }, { id: 'sotuv', title: 'Sotuv analitikasi' }] },
   { id: 'shops', title: 'Do‘konlar', panels: [{ id: 'hisob-kitob', title: 'Hisob-kitob' }, { id: 'yuborish', title: 'Yuborishga tayyor' }] },
-  { id: 'production', title: 'Sex', panels: productionPanels },
+  { id: 'production', title: 'Seh', panels: productionPanels },
   { id: 'warehouse', title: 'Ombor', panels: [{ id: 'tasniflagich', title: 'Tasniflagich' }, { id: 'qoldiqlar', title: 'Qoldiqlar tahlili' }, { id: 'taminot', title: 'Ta’minot ehtiyoji' }] },
   { id: 'series', title: 'Seriyalar', panels: [{ id: 'seriyalar', title: 'Seriyalar' }, { id: 'retseptlar', title: 'Retseptlar' }] },
   { id: 'purchases', title: 'Ta’minot', panels: [{ id: 'xaridlar', title: 'Xaridlar' }, { id: 'yetkazib-beruvchilar', title: 'Yetkazib beruvchilar' }, { id: 'narxlar', title: 'Narxlar tarixi' }] },

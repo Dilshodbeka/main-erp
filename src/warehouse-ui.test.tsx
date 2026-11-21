@@ -6,7 +6,7 @@ import { MAIN_WAREHOUSE_ID } from './warehouse-default';
 import { WarehouseSelect } from './components/WarehousePicker';
 import { WarehouseSettings } from './components/WarehouseSettings';
 
-const workshop = { id: 'w2', name: 'Sex ombori', active: true };
+const workshop = { id: 'w2', name: 'Seh ombori', active: true };
 
 describe('warehouse selector visibility', () => {
   it('stays hidden while the company has a single warehouse', () => {
@@ -22,7 +22,7 @@ describe('warehouse selector visibility', () => {
     }));
     expect(html).toContain('Qaysi ombordan');
     expect(html).toContain('Asosiy ombor');
-    expect(html).toContain('Sex ombori');
+    expect(html).toContain('Seh ombori');
   });
 });
 
@@ -31,7 +31,7 @@ describe('warehouse settings panel', () => {
     const state = { ...emptyState(), warehouses: [...emptyState().warehouses, workshop] };
     const html = renderToStaticMarkup(createElement(WarehouseSettings, { state, busy: false, run: async () => true }));
     expect(html).toContain('Ombor qo‘shish');
-    expect(html).toContain('Sex ombori');
+    expect(html).toContain('Seh ombori');
     expect(html).toContain('Faol');
   });
 });

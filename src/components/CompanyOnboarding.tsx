@@ -16,7 +16,7 @@ export function CompanyOnboarding({ busy, error, onSubmit, onSignOut }: CompanyO
   };
   return (
     <div className="login-shell onboarding-shell">
-      <div className="login-story"><div className="brand big"><span>A</span> ALIYA <small>ERP</small></div><h1>Korxonangiz uchun<br />alohida ish maydoni.</h1><p>Buyurtmalar, sex, ombor va pul.<br />Har bir korxona ma’lumotlari ajratilgan.</p><div className="story-stages">HISOB <span>·</span> KORXONA <span>·</span> JAMOA</div></div>
+      <div className="login-story"><div className="brand big"><span>A</span> ALIYA <small>ERP</small></div><h1>Korxonangiz uchun<br />alohida ish maydoni.</h1><p>Buyurtmalar, seh, ombor va pul.<br />Har bir korxona ma’lumotlari ajratilgan.</p><div className="story-stages">HISOB <span>·</span> KORXONA <span>·</span> JAMOA</div></div>
       <section className="login-card">
         <Building2 size={28} />
         <h2>Korxonangizni yarating</h2>

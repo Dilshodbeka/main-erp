@@ -11,7 +11,7 @@ export const PERMISSION_KEYS = [
 ] as const;
 export type Permission = (typeof PERMISSION_KEYS)[number];
 
-export type PresetKey = 'Sotuvchi' | 'Katta sotuvchi' | 'Kassir' | 'Omborchi' | 'Ishlab chiqarish ustasi' | 'Sex boshlig‘i' | 'Yetkazib beruvchi';
+export type PresetKey = 'Sotuvchi' | 'Katta sotuvchi' | 'Kassir' | 'Omborchi' | 'Ishlab chiqarish ustasi' | 'Seh boshlig‘i' | 'Yetkazib beruvchi';
 
 export const PRESETS: Record<PresetKey, Permission[]> = {
   'Sotuvchi': ['orders.view_all', 'orders.create', 'orders.edit_own', 'orders.launch', 'customers.claim', 'payments.customer', 'shipments.view'],
@@ -19,7 +19,7 @@ export const PRESETS: Record<PresetKey, Permission[]> = {
   'Kassir': ['orders.view_all', 'cash.view', 'cash.post', 'payments.customer', 'reports.view'],
   'Omborchi': ['warehouse.view', 'warehouse.count', 'warehouse.transfer', 'orders.issue_materials', 'purchases.view', 'purchases.receive', 'settings.catalog'],
   'Ishlab chiqarish ustasi': [],
-  'Sex boshlig‘i': ['production.view_all', 'work.review', 'defects.view', 'warehouse.view', 'orders.issue_materials'],
+  'Seh boshlig‘i': ['production.view_all', 'work.review', 'defects.view', 'warehouse.view', 'orders.issue_materials'],
   'Yetkazib beruvchi': ['shipments.view', 'shipments.deliver', 'orders.view_all'],
 };
 

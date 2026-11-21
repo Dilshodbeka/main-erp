@@ -47,7 +47,7 @@ export function WidgetBoard({ state, chat, onStage, onGo, onOrder, onChat }: Wid
   const customerName = (order: Order) => state.customers.find(customer => customer.id === order.customerId)?.name || 'Mijoz';
 
   return <div className="widget-board">
-    <Widget className="wide" title="Ishlab chiqarish" hint="Har bir buyurtma bosqichlar bo‘ylab" action={<WidgetLink onClick={() => onGo('production')}>Sexni ochish</WidgetLink>}>
+    <Widget className="wide" title="Ishlab chiqarish" hint="Har bir buyurtma bosqichlar bo‘ylab" action={<WidgetLink onClick={() => onGo('production')}>Sehni ochish</WidgetLink>}>
       <div className="pipeline widget-pipeline">
         {stages.map((stage, index) => <button key={stage} onClick={() => onStage(stage)}>
           <span className={`step-number stage-${stage}`}>{String(index + 1).padStart(2, '0')}</span>

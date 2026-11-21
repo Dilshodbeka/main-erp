@@ -42,7 +42,7 @@ describe('default warehouse', () => {
 
   it('keeps saved warehouses as they are', () => {
     const source = JSON.parse(JSON.stringify(emptyState())) as State;
-    source.warehouses = [{ id: MAIN_WAREHOUSE_ID, name: 'Asosiy ombor', active: true }, { id: 'w2', name: 'Sex ombori', active: true }];
+    source.warehouses = [{ id: MAIN_WAREHOUSE_ID, name: 'Asosiy ombor', active: true }, { id: 'w2', name: 'Seh ombori', active: true }];
     expect(migrateState(source).warehouses).toHaveLength(2);
   });
 
@@ -72,7 +72,7 @@ describe('warehouse stock scope', () => {
   it('counts the whole company without a warehouse and one shelf with it', () => {
     const state: State = {
       ...emptyState(),
-      warehouses: [mainWarehouse(), { id: 'w2', name: 'Sex ombori', active: true }],
+      warehouses: [mainWarehouse(), { id: 'w2', name: 'Seh ombori', active: true }],
       movements: [movement('a', MAIN_WAREHOUSE_ID, 6), movement('b', 'w2', 4)],
     };
     expect(stockQty(state, 'paint')).toBe(10);
@@ -90,8 +90,8 @@ function paintWorld(mainQty: number, workshopQty: number) {
     type: 'operation.create', name: 'Paint', unit: 'squareMeter', salePrice: 50, workerRate: 10,
     standardMinutes: 0, machineId: null, employeeIds: [state.employees[0].id], active: true, autoAccept: true, norms: [],
   });
-  state = run(state, { type: 'warehouse.create', name: 'Sex ombori' });
-  const workshopId = state.warehouses.find(row => row.name === 'Sex ombori')!.id;
+  state = run(state, { type: 'warehouse.create', name: 'Seh ombori' });
+  const workshopId = state.warehouses.find(row => row.name === 'Seh ombori')!.id;
   state = run(state, { type: 'inventory.count', itemId: state.items[0].id, qty: mainQty, note: '', warehouseId: MAIN_WAREHOUSE_ID });
   state = run(state, { type: 'inventory.count', itemId: state.items[0].id, qty: workshopQty, note: '', warehouseId: workshopId });
   return { state, workshopId };
@@ -214,7 +214,7 @@ describe('warehouse transfer', () => {
 
   it('refuses a transfer into an inactive warehouse', () => {
     const { state: base, workshopId } = paintWorld(3, 0);
-    const off = run(base, { type: 'warehouse.update', warehouseId: workshopId, name: 'Sex ombori', active: false });
+    const off = run(base, { type: 'warehouse.update', warehouseId: workshopId, name: 'Seh ombori', active: false });
     expect(() => run(off, transfer(base.items[0].id, workshopId, 1))).toThrow('Ombor nofaol');
   });
 });
@@ -223,7 +223,7 @@ describe('warehouse catalog', () => {
   it('creates shelves with unique names and keeps at least one active', () => {
     let state = emptyState();
     expect(() => run(state, { type: 'warehouse.create', name: 'Asosiy ombor' })).toThrow('Name already exists');
-    state = run(state, { type: 'warehouse.create', name: 'Sex ombori' });
+    state = run(state, { type: 'warehouse.create', name: 'Seh ombori' });
     const workshopId = state.warehouses[1].id;
     state = run(state, { type: 'warehouse.update', warehouseId: workshopId, name: 'Ikkinchi ombor', active: false });
     expect(state.warehouses[1]).toMatchObject({ name: 'Ikkinchi ombor', active: false });
@@ -233,7 +233,7 @@ describe('warehouse catalog', () => {
 
   it('refuses a new order on a closed warehouse', () => {
     const { state: base, workshopId } = paintWorld(0, 0);
-    const off = run(base, { type: 'warehouse.update', warehouseId: workshopId, name: 'Sex ombori', active: false });
+    const off = run(base, { type: 'warehouse.update', warehouseId: workshopId, name: 'Seh ombori', active: false });
     expect(() => orderFor(off, workshopId, 1)).toThrow('Ombor nofaol');
   });
 });

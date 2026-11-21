@@ -277,7 +277,7 @@ describe('дефицит считается по складу заказа', () 
 
   function world2(over: Partial<State> = {}): State {
     return world({
-      warehouses: [...emptyState().warehouses, { id: second, name: 'Sex ombori', active: true }],
+      warehouses: [...emptyState().warehouses, { id: second, name: 'Seh ombori', active: true }],
       ...over,
     });
   }
@@ -313,12 +313,12 @@ describe('дефицит считается по складу заказа', () 
 
   it('не подсказывает пустые и неактивные склады', () => {
     const state = world2({
-      warehouses: [...emptyState().warehouses, { id: second, name: 'Sex ombori', active: true }, { id: 'third', name: 'Yopiq', active: false }],
+      warehouses: [...emptyState().warehouses, { id: second, name: 'Seh ombori', active: true }, { id: 'third', name: 'Yopiq', active: false }],
       movements: [atWarehouse('paint', 2, undefined), atWarehouse('paint', 1, second), atWarehouse('paint', 5, 'third')],
       orders: [order('A', 'production', [material('m1', 'paint', 10)])],
     });
     const rows = orderShortage(state, state.orders[0]);
-    expect(rows[0].suggestedFrom).toEqual([{ warehouseId: second, name: 'Sex ombori', available: 1 }]);
+    expect(rows[0].suggestedFrom).toEqual([{ warehouseId: second, name: 'Seh ombori', available: 1 }]);
   });
 
   it('draftShortage считает по переданному складу', () => {

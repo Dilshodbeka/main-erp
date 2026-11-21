@@ -7,7 +7,7 @@ import { WorkshopTabs } from './components/WorkshopTabs';
 import { workshopTabs } from './workshop-view';
 import type { State } from './types';
 
-const second = { id: '00000000-0000-4000-8000-00000000b002', name: 'Bo‘yash sexi', active: true };
+const second = { id: '00000000-0000-4000-8000-00000000b002', name: 'Bo‘yash sehi', active: true };
 
 function twoWorkshops(over: Partial<State> = {}): State {
   return { ...emptyState(), workshops: [...emptyState().workshops, second], ...over };
@@ -23,7 +23,7 @@ describe('workshop tabs', () => {
     const tabs = workshopTabs(twoWorkshops().workshops, []);
     const html = renderToStaticMarkup(createElement(WorkshopTabs, { tabs, value: null, onChange: () => {} }));
     expect(html).toContain('Barchasi');
-    expect(html).toContain('Bo‘yash sexi');
+    expect(html).toContain('Bo‘yash sehi');
     expect(html).toContain('sex-tabs');
   });
 });
@@ -33,8 +33,8 @@ describe('workshop settings panel', () => {
     const html = renderToStaticMarkup(createElement(WorkshopSettings, {
       state: twoWorkshops(), busy: false, run: async () => true,
     }));
-    expect(html).toContain('Sexlar');
-    expect(html).toContain('Bo‘yash sexi');
-    expect(html).toContain('Sex qo‘shish');
+    expect(html).toContain('Sehlar');
+    expect(html).toContain('Bo‘yash sehi');
+    expect(html).toContain('Seh qo‘shish');
   });
 });

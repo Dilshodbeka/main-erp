@@ -48,7 +48,7 @@ describe('setup steps', () => {
 describe('demo planner', () => {
   it('creates two employees, then stops', () => {
     const state = runStep('employees', emptyState());
-    expect(state.employees.map(row => row.name)).toEqual(['Sex ustasi', 'Yig‘uvchi']);
+    expect(state.employees.map(row => row.name)).toEqual(['Seh ustasi', 'Yig‘uvchi']);
     expect(nextDemoCommand('employees', state)).toBeNull();
     expect(state.items).toHaveLength(0);
     expect(state.operations).toHaveLength(0);
@@ -56,7 +56,7 @@ describe('demo planner', () => {
 
   it('recognizes an existing worker by normalized name', () => {
     let state = emptyState();
-    state = run(state, { type: 'employee.create', name: '  sex USTASI ' });
+    state = run(state, { type: 'employee.create', name: '  seh USTASI ' });
     const next = nextDemoCommand('employees', state);
     expect(next).toEqual({ type: 'employee.create', name: 'Yig‘uvchi' });
   });

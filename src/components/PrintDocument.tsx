@@ -55,7 +55,7 @@ function RouteSheet({ data }: { data: RouteSheetModel }) {
       </table>
     </section>
     <footer className="print-signatures">
-      <div><span>Sex ustasi</span><i /></div>
+      <div><span>Seh ustasi</span><i /></div>
       <div><span>Topshirildi</span><i /></div>
       <div><span>Qabul qilindi</span><i /></div>
     </footer>

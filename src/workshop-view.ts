@@ -14,7 +14,7 @@ export function stageWorkshopId(task: RouteLine): string {
 }
 
 export function workshopName(workshops: Workshop[], id: string | undefined): string {
-  return workshops.find(workshop => workshop.id === (id ?? MAIN_WORKSHOP_ID))?.name ?? 'Sex';
+  return workshops.find(workshop => workshop.id === (id ?? MAIN_WORKSHOP_ID))?.name ?? 'Seh';
 }
 
 export function unfinishedWorkshops(order: Order): string[] {

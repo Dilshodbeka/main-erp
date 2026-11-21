@@ -22,7 +22,7 @@ describe('manual topics', () => {
   it('points to the real screen labels and guards', () => {
     const text = JSON.stringify(manualTopics);
     for (const label of [
-      'Sexga ishga tushirish', 'Materiallarni berish', 'Mijozdan qabul', 'mijozniki',
+      'Sehga ishga tushirish', 'Materiallarni berish', 'Mijozdan qabul', 'mijozniki',
       '1 m² uchun norma', '06.01', 'Alohida xizmat', 'm²',
     ]) {
       expect(text, label).toContain(label);

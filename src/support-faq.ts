@@ -8,11 +8,11 @@ export const supportFaq: SupportFaq[] = [
   {
     id: 'new-order',
     question: 'Qanday qilib yangi buyurtma yarataman?',
-    answer: '«Savdo va CRM» bo‘limida «Buyurtma qabul qilish» tugmasini bosing, mijozni tanlang va pozitsiyani to‘ldiring. Saqlangandan so‘ng buyurtmani «Sexga ishga tushirish» orqali ishlab chiqarishga bering.',
+    answer: '«Savdo va CRM» bo‘limida «Buyurtma qabul qilish» tugmasini bosing, mijozni tanlang va pozitsiyani to‘ldiring. Saqlangandan so‘ng buyurtmani «Sehga ishga tushirish» orqali ishlab chiqarishga bering.',
   },
   {
     id: 'accept-work',
-    question: 'Sexda ishni qanday qabul qilaman?',
+    question: 'Sehda ishni qanday qabul qilaman?',
     answer: '«Ishlab chiqarish» bo‘limida o‘z topshirig‘ingizni toping va «Topshiriqni qabul qilish» tugmasini bosing. Ish tugagach «Natijani topshirish» orqali miqdorni yuboring.',
   },
   {

@@ -34,7 +34,7 @@ describe('validateAccessDraft', () => {
   it('requires a name for a TV display account', () => {
     const display: AccessDraft = { ...draft, role: 'display', employeeId: '', displayName: ' ' };
     expect(validateAccessDraft(display, employees, accounts)).toBe('Ekran nomini kiriting (kamida 2 belgi)');
-    expect(validateAccessDraft({ ...display, displayName: 'Sex ekrani' }, employees, accounts)).toBe('');
+    expect(validateAccessDraft({ ...display, displayName: 'Seh ekrani' }, employees, accounts)).toBe('');
   });
 
   it('validates the email address and rejects duplicates case-insensitively', () => {
@@ -42,9 +42,9 @@ describe('validateAccessDraft', () => {
     expect(validateAccessDraft({ ...draft, email: 'OWNER@example.com' }, employees, accounts)).toBe('Bu email allaqachon ro‘yxatda');
   });
 
-  it('requires at least one workshop for the Sex boshlig‘i preset', () => {
-    const chief: AccessDraft = { ...draft, preset: 'Sex boshlig‘i', permissions: [...PRESETS['Sex boshlig‘i']] };
-    expect(validateAccessDraft(chief, employees, accounts)).toBe('Sex boshlig‘i uchun kamida bitta sex tanlang');
+  it('requires at least one workshop for the Seh boshlig‘i preset', () => {
+    const chief: AccessDraft = { ...draft, preset: 'Seh boshlig‘i', permissions: [...PRESETS['Seh boshlig‘i']] };
+    expect(validateAccessDraft(chief, employees, accounts)).toBe('Seh boshlig‘i uchun kamida bitta seh tanlang');
     expect(validateAccessDraft({ ...chief, scopeWorkshopIds: ['w2'] }, employees, accounts)).toBe('');
   });
 

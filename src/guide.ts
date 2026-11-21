@@ -60,15 +60,15 @@ export function pageGuide(state: State, page: string, actor: Actor): PageGuide {
   const base: Record<string, PageGuide> = {
     dashboard: {
       page: 'dashboard', title: titles.dashboard,
-      purpose: 'Bu yerda butun ish bir ekranda ko‘rinadi: buyurtmalar, sex, ombor va pul. Ma’lumot qo‘shilgan sari raqamlar o‘zi to‘ladi.',
+      purpose: 'Bu yerda butun ish bir ekranda ko‘rinadi: buyurtmalar, seh, ombor va pul. Ma’lumot qo‘shilgan sari raqamlar o‘zi to‘ladi.',
       steps: build([
         { id: 'customers', title: 'Mijoz qo‘shing', detail: 'Buyurtma, qarz va to‘lovlar mijoz kartasiga bog‘lanadi. Savdo bo‘limidagi «Mijoz» tugmasi orqali qo‘shiladi.', done: state.customers.length > 0, action: { kind: 'modal', modal: 'customer', label: 'Mijoz qo‘shish' } },
         { id: 'operations', title: 'Ishlab chiqarish bosqichini yarating', detail: 'Kesish, kromka, yig‘ish kabi bosqichlar tannarx va mijoz narxi bilan Sozlamalarda yaratiladi.', done: operations.length > 0, action: { kind: 'page', page: 'settings', label: 'Sozlamalarga o‘tish' } },
         { id: 'employees', title: 'Xodim qo‘shing', detail: 'Bosqichga ijrochi tanlanadi; xodimning oyligi har oy alohida belgilanadi.', done: employees.length > 0, action: { kind: 'modal', modal: 'employee', label: 'Xodim qo‘shish' } },
         { id: 'items', title: 'Material qo‘shing', detail: 'Ombor pozitsiyalari buyurtmada band qilinadi, qoldiq va tannarx shu yerdan yuritiladi.', done: ownItems.length > 0, action: { kind: 'modal', modal: 'item', label: 'Material qo‘shish' } },
-        { id: 'order', title: 'Birinchi buyurtmani qabul qiling', detail: 'Oldingi qadamlar tayyor bo‘lgach buyurtma yaratiladi, sexga tushadi va kassa hisoboti to‘ladi.', done: orders.length > 0, needs: ['customers', 'operations', 'employees'], action: { kind: 'modal', modal: 'order', label: 'Buyurtma yaratish' } },
+        { id: 'order', title: 'Birinchi buyurtmani qabul qiling', detail: 'Oldingi qadamlar tayyor bo‘lgach buyurtma yaratiladi, sehga tushadi va kassa hisoboti to‘ladi.', done: orders.length > 0, needs: ['customers', 'operations', 'employees'], action: { kind: 'modal', modal: 'order', label: 'Buyurtma yaratish' } },
       ]),
-      outcome: 'Buyurtma sexga tushgach «Ishlab chiqarish» va «Yetkazib berish» bo‘limlari ishlaydi, kassa va hisobotlar to‘ladi.',
+      outcome: 'Buyurtma sehga tushgach «Ishlab chiqarish» va «Yetkazib berish» bo‘limlari ishlaydi, kassa va hisobotlar to‘ladi.',
     },
     orders: {
       page: 'orders', title: titles.orders,
@@ -80,7 +80,7 @@ export function pageGuide(state: State, page: string, actor: Actor): PageGuide {
         { id: 'order', title: 'Buyurtma yarating', detail: 'Mijoz, narx, materiallar va marshrut bitta formada kiritiladi.', done: orders.length > 0, needs: ['customers', 'operations', 'employees'], action: { kind: 'modal', modal: 'order', label: 'Buyurtma yaratish' } },
         { id: 'payment', title: 'Mijoz to‘lovini qabul qiling', detail: 'Buyurtma kartasini oching va «To‘lovni qabul qilish» tugmasini bosing. To‘lov kassaga tushadi, qarz kamayadi.', done: sales.length > 0 },
       ]),
-      outcome: 'To‘lovdan keyin mijoz kartasi, kassa va hisobotlar yangilanadi. Buyurtma sexga tushgach ish bosqichlari paydo bo‘ladi.',
+      outcome: 'To‘lovdan keyin mijoz kartasi, kassa va hisobotlar yangilanadi. Buyurtma sehga tushgach ish bosqichlari paydo bo‘ladi.',
     },
     history: {
       page: 'history', title: titles.history,
@@ -110,8 +110,8 @@ export function pageGuide(state: State, page: string, actor: Actor): PageGuide {
       steps: build([
         { id: 'operations', title: 'Bosqichlarni yarating', detail: 'Har bir bosqichning tannarxi va mijoz narxi Sozlamalarda belgilanadi.', done: operations.length > 0, action: { kind: 'page', page: 'settings', label: 'Sozlamalarga o‘tish' } },
         { id: 'employees', title: 'Xodim qo‘shing', detail: 'Bosqich faqat tayinlangan va faol xodimga ko‘rinadi.', done: employees.length > 0, action: { kind: 'modal', modal: 'employee', label: 'Xodim qo‘shish' } },
-        { id: 'launched', title: 'Buyurtmani sexga tushiring', detail: 'Qoralamadagi buyurtma «Sexga ishga tushirish» tugmasi bilan ochiladi.', done: activeOrders.length > 0, action: { kind: 'page', page: 'orders', label: 'Buyurtmalarga o‘tish' } },
-        { id: 'materials', title: 'Materiallarni sexga bering', detail: 'Band qilingan materiallar berilmasa, natijani topshirib bo‘lmaydi.', done: state.orders.filter(order => order.status === 'production').every(order => order.materials.every(line => line.issuedQty >= line.qty)) },
+        { id: 'launched', title: 'Buyurtmani sehga tushiring', detail: 'Qoralamadagi buyurtma «Sehga ishga tushirish» tugmasi bilan ochiladi.', done: activeOrders.length > 0, action: { kind: 'page', page: 'orders', label: 'Buyurtmalarga o‘tish' } },
+        { id: 'materials', title: 'Materiallarni sehga bering', detail: 'Band qilingan materiallar berilmasa, natijani topshirib bo‘lmaydi.', done: state.orders.filter(order => order.status === 'production').every(order => order.materials.every(line => line.issuedQty >= line.qty)) },
         { id: 'submitted', title: 'Natijani qabul qiling', detail: 'Xodim miqdorni topshiradi, natija qabul qilinadi — qabul qilingan hajm buyurtma tannarxiga tushadi.', done: acceptedReports.length > 0 },
       ]),
       outcome: 'Qabul qilingan natijalar buyurtma tannarxiga tushadi; yuborish va foyda hisoboti shundan yig‘iladi.',
@@ -220,7 +220,7 @@ function workerGuide(state: State, page: string, actor: Actor): PageGuide {
     steps: build([
       { id: 'assigned', title: 'Bosqich tayinlanishini kuting', detail: 'Buyurtma marshrutida bosqich sizga tayinlangach ish shu sahifada chiqadi.', done: tasks.length > 0 },
       { id: 'started', title: 'Bosqichni boshlang', detail: 'Oldingi bosqich tugagach ish «Boshlash» tugmasi bilan ochiladi.', done: started },
-      { id: 'submitted', title: 'Natijani topshiring', detail: 'Tayyor miqdorni kiriting; qabul sex ustasi tomonidan tasdiqlanadi.', done: reports.length > 0 },
+      { id: 'submitted', title: 'Natijani topshiring', detail: 'Tayyor miqdorni kiriting; qabul seh ustasi tomonidan tasdiqlanadi.', done: reports.length > 0 },
     ]),
     outcome: 'Natija qabul qilingach buyurtma keyingi bosqichga o‘tadi. Bu sahifada faqat o‘z ishingiz ko‘rinadi.',
   };

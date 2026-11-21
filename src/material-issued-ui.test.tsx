@@ -68,7 +68,7 @@ describe('P2 partial issue in UI', () => {
     const html = renderToStaticMarkup(createElement(SeriesList, { state, busy: false, run: noop, onGo: () => {} }));
     expect(html).toContain('qisman · 3 / 5');
     expect(html).toContain('2 dan 1 berildi');
-    expect(html).toContain('Sexga berish');
+    expect(html).toContain('Sehga berish');
   });
 
   it('shows a full numeric label and lifts the minimum on a fully issued row', () => {

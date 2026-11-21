@@ -89,7 +89,7 @@ describe('склад в аналитике', () => {
 
   function split(): State {
     const state = fixture();
-    state.warehouses = [...state.warehouses, { id: second, name: 'Sex ombori', active: true }];
+    state.warehouses = [...state.warehouses, { id: second, name: 'Seh ombori', active: true }];
     state.movements = [
       state.movements[0],
       { ...state.movements[0], id: 'm4', warehouseId: second, qty: 5, createdAt: '2026-10-27T08:00:00.000Z' },

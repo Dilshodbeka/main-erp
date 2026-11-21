@@ -15,7 +15,7 @@ describe('support FAQ', () => {
   it('keeps the approved question wording', () => {
     expect(supportFaq.map(item => item.question)).toEqual([
       'Qanday qilib yangi buyurtma yarataman?',
-      'Sexda ishni qanday qabul qilaman?',
+      'Sehda ishni qanday qabul qilaman?',
       'Materialni omborga qanday qabul qilaman?',
       'Kassaga to‘lovni qanday kiritaman?',
       'Xodimga tizimga kirish huquqini qanday beraman?',

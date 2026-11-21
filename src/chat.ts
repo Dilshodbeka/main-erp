@@ -16,7 +16,7 @@ import type { Customer } from './types';
 export type { ChatMessage, ChatFileType, ChatSender };
 
 export const DEMO_FILE_LIMIT = 1024 * 1024;
-const DEMO_BOT_URL = 'https://t.me/aliya_erp_demo_bot';
+const DEMO_BOT_URL = 'https://t.me/aliya_sotuv_bot';
 const CHAT_KEY = 'aliya-erp-telegram-v1';
 const CHANGE_EVENT = 'aliya-chat-change';
 const LINK_TTL_MS = 24 * 60 * 60 * 1000;

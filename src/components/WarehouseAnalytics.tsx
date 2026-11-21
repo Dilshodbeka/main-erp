@@ -46,13 +46,13 @@ export function WarehouseAnalytics({ state, warehouseId, search }: { state: Stat
   return <>
     <Section title="Material oboroti" hint="Har bir pozitsiya bo‘yicha xarid, ishlab chiqarishga berilgan miqdor va joriy qoldiq" action={<SortSelect value={turnoverSort} onChange={setTurnoverSort} options={turnoverOptions} />}>
       <div className="table-scroll cardable"><table>
-        <thead><tr><th>Pozitsiya</th><th className="right">Narx / birligi</th><th className="right">Xarid miqdori</th><th className="right">Xarid summasi</th><th className="right">Sexga berilgan</th><th className="right">Berilgan summa</th><th className="right">Kirim / chiqim</th><th className="right">Qoldiq</th></tr></thead>
+        <thead><tr><th>Pozitsiya</th><th className="right">Narx / birligi</th><th className="right">Xarid miqdori</th><th className="right">Xarid summasi</th><th className="right">Sehga berilgan</th><th className="right">Berilgan summa</th><th className="right">Kirim / chiqim</th><th className="right">Qoldiq</th></tr></thead>
         <tbody>{turnover.map(row => <tr key={row.itemId}>
           <td data-label="Pozitsiya"><b>{row.item}</b><small>{row.unit}</small></td>
           <td data-label="Narx / birligi" className="right">{money(row.unitPrice)}</td>
           <td data-label="Xarid miqdori" className="right">{num(row.purchasedQty)}</td>
           <td data-label="Xarid summasi" className="right">{money(row.purchasedValue)}</td>
-          <td data-label="Sexga berilgan" className="right">{num(row.issuedQty)}</td>
+          <td data-label="Sehga berilgan" className="right">{num(row.issuedQty)}</td>
           <td data-label="Berilgan summa" className="right">{money(row.issuedValue)}</td>
           <td data-label="Kirim / chiqim" className="right">{num(row.inQty)} / {num(row.outQty)}</td>
           <td data-label="Qoldiq" className="right"><b>{num(row.stock)} {row.unit}</b></td>

@@ -159,7 +159,7 @@ export function AccessPanel({ cloud, employees, workshops }: { cloud: boolean; e
           </tbody>
         </table></div>}
         <div className="access-create">
-          <div className="form-section-title"><div><h3>Yangi kirish</h3><small>Xodim yoki sex televizori uchun alohida email va parol</small></div></div>
+          <div className="form-section-title"><div><h3>Yangi kirish</h3><small>Xodim yoki seh televizori uchun alohida email va parol</small></div></div>
           <div className="segmented tight access-role-switch">
             <button type="button" className={draft.role === 'worker' ? 'selected' : ''} onClick={() => setDraft({ ...draft, role: 'worker' })}><UserRound size={14} />Xodim</button>
             <button type="button" className={draft.role === 'display' ? 'selected' : ''} onClick={() => setDraft({ ...draft, role: 'display' })}><Tv size={14} />TV ekran</button>
@@ -167,7 +167,7 @@ export function AccessPanel({ cloud, employees, workshops }: { cloud: boolean; e
           <div className="form-grid">
             {draft.role === 'worker'
               ? <Field label="Xodim"><select value={draft.employeeId} onChange={event => setDraft({ ...draft, employeeId: event.target.value })}><option value="">Xodimni tanlang</option>{available.map(employee => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</select></Field>
-              : <Field label="Ekran nomi"><input value={draft.displayName} onChange={event => setDraft({ ...draft, displayName: event.target.value })} placeholder="Masalan, Sex ekrani" maxLength={120} /></Field>}
+              : <Field label="Ekran nomi"><input value={draft.displayName} onChange={event => setDraft({ ...draft, displayName: event.target.value })} placeholder="Masalan, Seh ekrani" maxLength={120} /></Field>}
             <Field label="Email"><input type="email" autoComplete="off" value={draft.email} onChange={event => setDraft({ ...draft, email: event.target.value })} placeholder="xodim@korxona.uz" maxLength={254} /></Field>
             <Field label="Parol"><input type="password" autoComplete="new-password" value={draft.password} onChange={event => setDraft({ ...draft, password: event.target.value })} placeholder="Kamida 8 belgi" /></Field>
             <Field label="Parolni qaytaring"><input type="password" autoComplete="new-password" value={draft.confirm} onChange={event => setDraft({ ...draft, confirm: event.target.value })} placeholder="Parolni qayta kiriting" /></Field>
@@ -189,8 +189,8 @@ export function AccessPanel({ cloud, employees, workshops }: { cloud: boolean; e
               ))}
             </div>
           </>}
-          {(draft.role === 'display' || draft.preset === 'Sex boshlig‘i') && activeWorkshops(workshops).length > 0 && <div className="scope-picker">
-            <div className="form-section-title"><div><h3>Sexlar</h3><small>{draft.role === 'display' ? 'Bo‘sh qoldirilsa, ekran barcha sexlarni ko‘rsatadi' : 'Boshliq faqat tanlangan sexlarni boshqaradi'}</small></div></div>
+          {(draft.role === 'display' || draft.preset === 'Seh boshlig‘i') && activeWorkshops(workshops).length > 0 && <div className="scope-picker">
+            <div className="form-section-title"><div><h3>Sehlar</h3><small>{draft.role === 'display' ? 'Bo‘sh qoldirilsa, ekran barcha sehlarni ko‘rsatadi' : 'Boshliq faqat tanlangan sehlarni boshqaradi'}</small></div></div>
             <div className="employee-picker">{activeWorkshops(workshops).map(ws => <label key={ws.id}>
               <input type="checkbox" checked={draft.scopeWorkshopIds.includes(ws.id)} onChange={event => setDraft({
                 ...draft,

@@ -157,7 +157,7 @@ function operationValues(state: State, input: OperationValuesInput, exclude = ''
   unique(norms.map(norm => norm.itemId), 'norm item');
   const workshopId = input.workshopId ?? MAIN_WORKSHOP_ID;
   const workshop = find(state.workshops, workshopId, 'Workshop');
-  check(workshop.active, 'Sex nofaol');
+  check(workshop.active, 'Seh nofaol');
   return {
     name, unit, salePrice, workerRate, standardMinutes, machineId,
     employeeIds: [...input.employeeIds], active: input.active, autoAccept: input.autoAccept, norms, workshopId,
@@ -1110,14 +1110,14 @@ function mutate(state: State, command: Command, actor: Actor): string {
       const row = find(state.workshops, command.workshopId, 'Workshop');
       check(typeof command.active === 'boolean', 'Invalid active flag');
       check(command.active || state.workshops.some(workshop => workshop.id !== row.id && workshop.active),
-        'Kamida bitta faol sex qolishi kerak');
+        'Kamida bitta faol seh qolishi kerak');
       row.name = named(state.workshops.filter(workshop => workshop.id !== row.id), command.name);
       row.active = command.active;
       return row.id;
     }
     case 'machine.create': {
       const workshopId = command.workshopId ?? MAIN_WORKSHOP_ID;
-      check(find(state.workshops, workshopId, 'Workshop').active, 'Sex nofaol');
+      check(find(state.workshops, workshopId, 'Workshop').active, 'Seh nofaol');
       const row = {
         id: uuid(), name: named(state.machines, command.name),
         hourlyRevenueTarget: money(command.hourlyRevenueTarget), active: true, workshopId,
@@ -1129,7 +1129,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
       const row = find(state.machines, command.machineId, 'Machine');
       check(typeof command.active === 'boolean', 'Invalid active flag');
       const workshopId = command.workshopId ?? row.workshopId ?? MAIN_WORKSHOP_ID;
-      check(find(state.workshops, workshopId, 'Workshop').active, 'Sex nofaol');
+      check(find(state.workshops, workshopId, 'Workshop').active, 'Seh nofaol');
       row.name = named(state.machines.filter(machine => machine.id !== row.id), command.name);
       row.hourlyRevenueTarget = money(command.hourlyRevenueTarget);
       row.active = command.active;
@@ -1387,7 +1387,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
       const issueScope = actor.workshopIds ?? [];
       if (actor.role === 'worker' && issueScope.length > 0) {
         check(order.route.some(task => issueScope.includes(task.workshopId ?? MAIN_WORKSHOP_ID)),
-          'Bu buyurtma boshqa sexga tegishli');
+          'Bu buyurtma boshqa sehga tegishli');
       }
       check(order.status === 'production', 'Only production orders can issue materials');
       const warehouseId = order.warehouseId ?? MAIN_WAREHOUSE_ID;
@@ -1530,7 +1530,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
       const workshopScope = actor.workshopIds ?? [];
       if (actor.role === 'worker' && workshopScope.length > 0) {
         check(workshopScope.includes(task.workshopId ?? operation.workshopId ?? MAIN_WORKSHOP_ID),
-          'Bu bosqich boshqa sexga tegishli');
+          'Bu bosqich boshqa sehga tegishli');
       }
       check(order.status === 'production' && lineMaterials(order, task.lineId).every(row => isIssued(row)), 'Materials must be issued before review');
       check(task.status === 'submitted', 'Task is not awaiting review');
@@ -1611,7 +1611,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
       const workshopScope = actor.workshopIds ?? [];
       if (actor.role === 'worker' && workshopScope.length > 0) {
         check(workshopScope.includes(task.workshopId ?? operation.workshopId ?? MAIN_WORKSHOP_ID),
-          'Bu bosqich boshqa sexga tegishli');
+          'Bu bosqich boshqa sehga tegishli');
       }
       check(order.status === 'production', 'Order is not in production');
       const line = orderLineOf(order, task.lineId);

@@ -81,8 +81,8 @@ export function orderCard(state: State, order: Order): string {
     return `• ${esc(operation)} — ${esc(who ?? '—')}: ${task.completed}/${task.planned}`;
   });
   const actions: string[] = [];
-  if (order.status === 'draft') actions.push(`🚀 Sexga yuborish: /sexga_${code}`);
-  if (order.status === 'production' && pendingMaterials(order) > 0) actions.push(`📦 Materiallarni sexga berish: /berish_${code}`);
+  if (order.status === 'draft') actions.push(`🚀 Sehga yuborish: /sehga_${code}`);
+  if (order.status === 'production' && pendingMaterials(order) > 0) actions.push(`📦 Materiallarni sehga berish: /berish_${code}`);
   if (readyLines(order).length > 0 && order.kind !== 'series') actions.push(`🚚 Mijozga yuborish: /yuborish_${code}`);
   if (openShipments(state, order).length > 0) actions.push(`✅ Yetkazildi deb belgilash: /yetkazildi_${code}`);
   if (order.kind !== 'series' && customerBalance(state, order.customerId).debt > 0) actions.push(`💵 Toʻlov qabul qilish: /tolov_${code}`);
@@ -108,7 +108,7 @@ const STALE = '⚠️ Maʼlumot oʻzgargan yoki amal allaqachon bajarilgan. Kart
 
 function commandsFor(state: State, order: Order, action: string, today: string): Command[] | null {
   switch (action) {
-    case 'sexga': return [{ type: 'order.launch', orderId: order.id }];
+    case 'sehga': case 'sexga': return [{ type: 'order.launch', orderId: order.id }];
     case 'berish': return [{ type: 'order.issue', orderId: order.id }];
     case 'yuborish': {
       const lines = readyLines(order);
@@ -127,8 +127,8 @@ function commandsFor(state: State, order: Order, action: string, today: string):
 function summaryFor(state: State, order: Order, action: string): string {
   const head = `<b>${esc(order.number)}</b> — ${esc(order.title)}`;
   switch (action) {
-    case 'sexga': return `🚀 Sexga yuborilsinmi?\n${head}\nMateriallar band qilinadi, bosqichlar ijrochilarga ochiladi.`;
-    case 'berish': return `📦 Materiallar sexga berilsinmi?\n${head}\nBerilmagan pozitsiyalar: ${pendingMaterials(order)} ta — ombordan chiqim qilinadi.`;
+    case 'sehga': case 'sexga': return `🚀 Sehga yuborilsinmi?\n${head}\nMateriallar band qilinadi, bosqichlar ijrochilarga ochiladi.`;
+    case 'berish': return `📦 Materiallar sehga berilsinmi?\n${head}\nBerilmagan pozitsiyalar: ${pendingMaterials(order)} ta — ombordan chiqim qilinadi.`;
     case 'yuborish': {
       const debt = orderDebt(state, order.id);
       const note = debt > 0 ? `\n⚠️ Toʻlanmagan qarz bilan yuboriladi: <b>${uzs(debt)}</b>` : '';
@@ -199,7 +199,7 @@ export function planOwnerAction(input: string, state: State, actor: Actor, today
   }
 
   // Confirmed action: /ok_<action>_<code>_r<revision>
-  const confirmed = /^\/ok_(sexga|berish|yuborish|yetkazildi)_([a-z0-9]+)_r(\d+)$/.exec(text);
+  const confirmed = /^\/ok_(sehga|sexga|berish|yuborish|yetkazildi)_([a-z0-9]+)_r(\d+)$/.exec(text);
   if (confirmed) {
     const order = findOrder(state, confirmed[2]);
     if (!order) return { text: 'Buyurtma topilmadi.' };
@@ -209,7 +209,7 @@ export function planOwnerAction(input: string, state: State, actor: Actor, today
     return { text: '✅ Bajarildi.', commands, followUp: `/b_${confirmed[2]}` };
   }
 
-  const simple = /^\/(b|sexga|berish|yuborish|yetkazildi|tolov|naqd|bank)_([a-z0-9]+)$/.exec(text);
+  const simple = /^\/(b|sehga|sexga|berish|yuborish|yetkazildi|tolov|naqd|bank)_([a-z0-9]+)$/.exec(text);
   if (!simple) return null;
   const order = findOrder(state, simple[2]);
   if (!order) return { text: 'Buyurtma topilmadi. Roʻyxat: /buyurtmalar' };

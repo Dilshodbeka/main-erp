@@ -92,7 +92,7 @@ describe('точки применения', () => {
 
   it('при нескольких складах подсказка erkin называет склад-источник', () => {
     const state = baseState();
-    state.warehouses = [...state.warehouses, { id: '00000000-0000-4000-8000-00000000a002', name: 'Sex ombori', active: true }];
+    state.warehouses = [...state.warehouses, { id: '00000000-0000-4000-8000-00000000a002', name: 'Seh ombori', active: true }];
     const html = renderToStaticMarkup(createElement(OrderEditor, {
       state, order: state.orders[0], busy: false, close: () => {}, save: async () => {},
       createCustomer: async () => null, onGo: () => {},

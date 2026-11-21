@@ -97,7 +97,7 @@ describe('defect journal', () => {
     const { state, order } = paintingRejected();
     const html = renderToStaticMarkup(createElement(DefectJournal, { state }));
     for (const text of [
-      'Brak tarixi', order.number, 'Jilolash', 'Sex ustasi', '3 m²', 'Sifat nuqsoni',
+      'Brak tarixi', order.number, 'Jilolash', 'Seh ustasi', '3 m²', 'Sifat nuqsoni',
       'Abraziv doira P120', 'Brak (m²)', 'Material qiymati', 'Eng ko‘p brak',
     ]) expect(html).toContain(text);
   });

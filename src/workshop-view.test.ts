@@ -6,7 +6,7 @@ import {
 import type { Order, RouteLine, Workshop } from './types';
 
 const WH2 = '00000000-0000-4000-8000-00000000b002';
-const workshops: Workshop[] = [mainWorkshop(), { id: WH2, name: 'Bo‘yash sexi', active: true }];
+const workshops: Workshop[] = [mainWorkshop(), { id: WH2, name: 'Bo‘yash sehi', active: true }];
 
 function stage(over: Partial<RouteLine>): RouteLine {
   return {
@@ -36,7 +36,7 @@ describe('workshop board filters', () => {
   it('counts an order in every workshop that still has an unfinished stage', () => {
     const mixed = order({ route: [stage({ id: 't1' }), stage({ id: 't2', name: 'Bo‘yash', workshopId: WH2 })] });
     const tabs = workshopTabs(workshops, [mixed]);
-    expect(tabs.map(tab => tab.name)).toEqual(['Barchasi', 'Asosiy ishlab chiqarish', 'Bo‘yash sexi']);
+    expect(tabs.map(tab => tab.name)).toEqual(['Barchasi', 'Asosiy ishlab chiqarish', 'Bo‘yash sehi']);
     expect(tabs.map(tab => tab.count)).toEqual([1, 1, 1]);
     expect(visibleInWorkshop(mixed, WH2)).toBe(true);
     expect(routeForWorkshop(mixed, WH2).map(task => task.id)).toEqual(['t2']);
@@ -55,7 +55,7 @@ describe('workshop board filters', () => {
   });
 
   it('ignores inactive workshops in the tab list', () => {
-    const rows: Workshop[] = [mainWorkshop(), { id: WH2, name: 'Bo‘yash sexi', active: false }];
+    const rows: Workshop[] = [mainWorkshop(), { id: WH2, name: 'Bo‘yash sehi', active: false }];
     expect(workshopTabs(rows, [order()])).toEqual([]);
     expect(resolveWorkshopTab(rows, WH2)).toBeNull();
     expect(resolveWorkshopTab(workshops, WH2)).toBe(WH2);
@@ -63,9 +63,9 @@ describe('workshop board filters', () => {
   });
 
   it('falls back to a readable label for an unknown workshop', () => {
-    expect(workshopName(workshops, WH2)).toBe('Bo‘yash sexi');
+    expect(workshopName(workshops, WH2)).toBe('Bo‘yash sehi');
     expect(workshopName(workshops, undefined)).toBe('Asosiy ishlab chiqarish');
-    expect(workshopName(workshops, 'gone')).toBe('Sex');
+    expect(workshopName(workshops, 'gone')).toBe('Seh');
   });
 
   it('board shows only orders of the selected workshop tab', () => {

@@ -4,7 +4,7 @@ export function WorkshopTabs({ tabs, value, onChange }: {
   tabs: WorkshopTab[]; value: string | null; onChange: (id: string | null) => void;
 }) {
   if (tabs.length < 2) return null;
-  return <div className="segmented tight sex-tabs" role="tablist" aria-label="Sex tanlovi">
+  return <div className="segmented tight sex-tabs" role="tablist" aria-label="Seh tanlovi">
     {tabs.map(tab => <button
       key={tab.id ?? 'all'}
       type="button"

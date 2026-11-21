@@ -119,7 +119,7 @@ describe('demo chat model', () => {
     const result = demoCreateLink(seed(), 'c3', { now, code });
     expect(result.link).toEqual({
       code,
-      url: `https://t.me/aliya_erp_demo_bot?start=${code}`,
+      url: `https://t.me/aliya_sotuv_bot?start=${code}`,
       expiresAt: '2026-10-31T10:00:00.000Z',
     });
     expect(result.chat.threads.c3).toMatchObject({ chatId: null, linkCode: code });

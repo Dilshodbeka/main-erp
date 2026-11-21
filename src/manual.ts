@@ -16,7 +16,7 @@ export const manualTopics: ManualTopic[] = [
   {
     id: 'boyash',
     title: 'Bo‘yash xizmati',
-    summary: 'Bo‘yashni alohida xizmat sifatida sotish: bosqich, norma, marshrut, sexga tushirish va bosqich tannarxi.',
+    summary: 'Bo‘yashni alohida xizmat sifatida sotish: bosqich, norma, marshrut, sehga tushirish va bosqich tannarxi.',
     sections: [
       {
         title: '1. Bo‘yash bosqichini yarating',
@@ -49,11 +49,11 @@ export const manualTopics: ManualTopic[] = [
         note: 'Narx va bosqich stavkasi ma’lumotnomadan avtomatik olinadi; qo‘lda o‘zgartirsangiz, faqat shu buyurtmaga ta’sir qiladi.',
       },
       {
-        title: '4. Sexga tushiring va natijani qabul qiling',
-        body: 'Buyurtma qoralamada turadi. Karta ochilgach uni sexga ishga tushiring, materiallarni bering va bosqichlarni yoping.',
+        title: '4. Sehga tushiring va natijani qabul qiling',
+        body: 'Buyurtma qoralamada turadi. Karta ochilgach uni sehga ishga tushiring, materiallarni bering va bosqichlarni yoping.',
         steps: [
-          'Buyurtma kartasida «Sexga ishga tushirish» tugmasini bosing.',
-          '«Materiallarni berish» yoki «Sexga berish» bilan ombordan sarfni chiqaring.',
+          'Buyurtma kartasida «Sehga ishga tushirish» tugmasini bosing.',
+          '«Materiallarni berish» yoki «Sehga berish» bilan ombordan sarfni chiqaring.',
           'Xodim natijani topshiradi — qabul qilingan hajm bosqich tannarxi sifatida hisobga olinadi. Jilolash va bo‘yashda qabulni usta qo‘lda tasdiqlaydi.',
         ],
         note: 'Keyingi bosqich oldingisi tugagach ochiladi. Qabul qilingan hajmni pastga tushirib bo‘lmaydi.',
@@ -142,9 +142,9 @@ export const manualTopics: ManualTopic[] = [
       },
       {
         title: '4. Chiqim va qoldiq',
-        body: 'Material sexga berilganda qoldiq kamayadi va fakt tannarx buyurtmaga yoziladi.',
+        body: 'Material sehga berilganda qoldiq kamayadi va fakt tannarx buyurtmaga yoziladi.',
         steps: [
-          'Buyurtma kartasida «Materiallarni berish» yoki «Sexga berish» tugmasini bosing.',
+          'Buyurtma kartasida «Materiallarni berish» yoki «Sehga berish» tugmasini bosing.',
           'Sarf smetadan farq qilsa, materialni berishdan oldin qator miqdorini tuzating.',
           'Ombor → Qoldiqlar bo‘limida qoldiq va harakatni tekshiring.',
         ],

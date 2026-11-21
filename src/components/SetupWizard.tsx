@@ -40,7 +40,7 @@ export function SetupWizard({ state, busy, online, close, runDemo, manual }: {
           </article>;
         })}
       </div>
-      <p className="subtle-note">Demo faqat yetishmayotgan yozuvlarni qo‘shadi: mavjud ma’lumotlar o‘zgarmaydi, buyurtma esa sexga ishga tushirilmaydi.</p>
+      <p className="subtle-note">Demo faqat yetishmayotgan yozuvlarni qo‘shadi: mavjud ma’lumotlar o‘zgarmaydi, buyurtma esa sehga ishga tushirilmaydi.</p>
     </div>
     <footer className="form-footer"><button className="secondary" type="button" disabled={running !== null} onClick={close}>Yopish</button></footer>
   </Dialog>;

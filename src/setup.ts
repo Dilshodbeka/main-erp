@@ -11,13 +11,13 @@ export interface SetupStep {
 }
 
 export const setupSteps: SetupStep[] = [
-  { id: 'employees', title: 'Xodimlar', description: 'Sex ustasi va yig‘uvchi kabi ishchilarni qo‘shing.', done: state => state.employees.some(row => row.active) },
+  { id: 'employees', title: 'Xodimlar', description: 'Seh ustasi va yig‘uvchi kabi ishchilarni qo‘shing.', done: state => state.employees.some(row => row.active) },
   { id: 'materials', title: 'Materiallar', description: 'Bo‘yoq, qotiruvchi, abraziv va fasad pozitsiyalarini kiriting.', done: state => state.items.some(row => row.customerId === null) },
   { id: 'operations', title: 'Operatsiyalar', description: 'Jilolash va bo‘yash kabi ish turlarini bosqich tannarxi va normalar bilan sozlang.', done: state => state.operations.some(row => row.active) },
   { id: 'order', title: 'Birinchi buyurtma', description: 'Mijoz va bo‘yash buyurtmasini yarating — tizim qanday ishlashini ko‘ring.', done: state => state.orders.length > 0 },
 ];
 
-const demoEmployees = ['Sex ustasi', 'Yig‘uvchi'] as const;
+const demoEmployees = ['Seh ustasi', 'Yig‘uvchi'] as const;
 const demoItems = [
   { name: 'Fasad · eman', unit: 'dona', minQty: 0, category: '01.07' },
   { name: 'Fasad · oq', unit: 'dona', minQty: 0, category: '01.07' },

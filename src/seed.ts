@@ -8,7 +8,7 @@ export function createDemo(actor: Actor): State {
   run({ type: 'customer.create', name: '«Issiq uy» qahvaxonasi', phone: '+998 91 555 12 12', address: 'Toshkent, Chilonzor, 8', kind: 'customer' });
   run({ type: 'customer.create', name: '«Mo‘ljal» mebel saloni', phone: '+998 71 200 30 40', address: 'Toshkent, Bobur ko‘chasi, 15', kind: 'shop' });
   run({ type: 'supplier.create', name: 'Plita materiallari', phone: '+998 90 777 00 11' });
-  run({ type: 'employee.create', name: 'Sex ustasi' });
+  run({ type: 'employee.create', name: 'Seh ustasi' });
   run({ type: 'employee.create', name: 'Yig‘uvchi' });
   run({ type: 'machine.create', name: 'Formatlash dastgohi', hourlyRevenueTarget: 200000 });
   const machineId = state.machines[0].id;

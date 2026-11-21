@@ -90,7 +90,7 @@ export function watchFindings(state: State, nowIso: string, today: string, confi
     if (order.status === 'draft') {
       const waiting = hoursSince(order.createdAt, now);
       if (waiting >= config.draftHours) {
-        found.push({ key: `draft:${order.id}`, group: 'orders', repeatHours: 24, text: `📝 ${head(state, order)} — ${ago(waiting)}dan beri qoralama, sexga yuborilmagan` });
+        found.push({ key: `draft:${order.id}`, group: 'orders', repeatHours: 24, text: `📝 ${head(state, order)} — ${ago(waiting)}dan beri qoralama, sehga yuborilmagan` });
       }
       continue;
     }
@@ -99,7 +99,7 @@ export function watchFindings(state: State, nowIso: string, today: string, confi
       const pending = order.materials.filter(row => row.qty - row.issuedQty > 1e-9).length;
       const sinceLaunch = hoursSince(launchedAt(state, order), now);
       if (pending > 0 && sinceLaunch >= config.issueHours) {
-        found.push({ key: `issue:${order.id}`, group: 'production', repeatHours: 12, text: `📦 ${head(state, order)} — materiallar sexga berilmagan (${pending} ta), ${ago(sinceLaunch)}` });
+        found.push({ key: `issue:${order.id}`, group: 'production', repeatHours: 12, text: `📦 ${head(state, order)} — materiallar sehga berilmagan (${pending} ta), ${ago(sinceLaunch)}` });
       }
       const idle = hoursSince(lastActivity(state, order), now);
       if (idle >= config.stalledHours) {
@@ -169,7 +169,7 @@ export function watchFindings(state: State, nowIso: string, today: string, confi
 }
 
 const GROUP_TITLE: Record<WatchGroup, string> = {
-  staff: 'Xodimlar davomati', orders: 'Buyurtmalar', production: 'Sex', delivery: 'Yetkazish', money: 'Pul', stock: 'Ombor va ta’minot',
+  staff: 'Xodimlar davomati', orders: 'Buyurtmalar', production: 'Seh', delivery: 'Yetkazish', money: 'Pul', stock: 'Ombor va ta’minot',
 };
 
 /** Telegram message for a set of findings; an empty set yields the "all clear" text. */

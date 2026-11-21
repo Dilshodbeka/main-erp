@@ -22,7 +22,7 @@ function operation(over: Partial<Operation> = {}): Operation {
 function world(over: Partial<State> = {}): State {
   return {
     ...emptyState(),
-    workshops: [mainWorkshop(), { id: WH2, name: 'Bo‘yash sexi', active: true }],
+    workshops: [mainWorkshop(), { id: WH2, name: 'Bo‘yash sehi', active: true }],
     employees: [{ id: 'e1', name: 'Ali', active: true }],
     operations: [operation()],
     customers: [{ id: 'c1', name: 'Mijoz', phone: '', address: '', kind: 'customer', employeeId: null }],
@@ -143,7 +143,7 @@ describe('цех этапа', () => {
 
 describe('приёмка начальником цеха', () => {
   const chief = (workshopIds: string[]): Actor => ({
-    id: 'chief', name: 'Sex boshlig‘i', role: 'worker', companyId: DEMO_COMPANY_ID,
+    id: 'chief', name: 'Seh boshlig‘i', role: 'worker', companyId: DEMO_COMPANY_ID,
     permissions: ['work.review', 'production.view_all', 'orders.issue_materials'], workshopIds,
   });
 

@@ -338,6 +338,6 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
       </div>
     </Fragment>;
     })}
-    {!position.route.length && <p className="order-empty-line">Bosqich yo‘q — qoralama sifatida saqlanadi. Sexga tushirish uchun kamida bitta bosqich kerak.</p>}
+    {!position.route.length && <p className="order-empty-line">Bosqich yo‘q — qoralama sifatida saqlanadi. Sehga tushirish uchun kamida bitta bosqich kerak.</p>}
   </>;
 }

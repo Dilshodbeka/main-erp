@@ -51,8 +51,8 @@ describe('owner bot actions on a virtual order', () => {
   it('actions are off by default: the bot stays report-only', () => {
     const v = virtualOrder();
     const raw = { actor: admin, state: structuredClone(v.state) };
-    expect(ownerReply(`/sexga_${v.code}`, raw, TODAY).text).toContain('tanilmadi');
-    expect(ownerReply(`/ok_sexga_${v.code}_r${v.state.revision}`, raw, TODAY).commands).toBeUndefined();
+    expect(ownerReply(`/sehga_${v.code}`, raw, TODAY).text).toContain('tanilmadi');
+    expect(ownerReply(`/ok_sehga_${v.code}_r${v.state.revision}`, raw, TODAY).commands).toBeUndefined();
     expect(ownerReply('/buyurtmalar', raw, TODAY).text).not.toContain('/b_');
   });
 
@@ -60,14 +60,14 @@ describe('owner bot actions on a virtual order', () => {
     const v = virtualOrder();
     expect(bot(v.state, '/buyurtmalar').text).toContain(`/b_${v.code}`);
     const card = bot(v.state, `/b_${v.code}`).text;
-    expect(card).toContain(`/sexga_${v.code}`);
+    expect(card).toContain(`/sehga_${v.code}`);
     expect(card).toContain('TEST &lt;mijoz&gt;');
     expect(card).not.toContain('/yuborish_');
   });
 
   it('a preview changes nothing; only the confirm runs the command', () => {
     const v = virtualOrder();
-    const preview = bot(v.state, `/sexga_${v.code}`);
+    const preview = bot(v.state, `/sehga_${v.code}`);
     expect(preview.state).toBe(v.state);
     expect(preview.state.orders[0].status).toBe('draft');
     const done = bot(v.state, confirmOf(preview.text));
@@ -78,7 +78,7 @@ describe('owner bot actions on a virtual order', () => {
     const v = virtualOrder();
     let state = v.state;
 
-    state = bot(state, confirmOf(bot(state, `/sexga_${v.code}`).text)).state;
+    state = bot(state, confirmOf(bot(state, `/sehga_${v.code}`).text)).state;
     expect(stockQty(state, v.itemId)).toBe(1000);
 
     const issued = bot(state, confirmOf(bot(state, `/berish_${v.code}`).text));
@@ -113,7 +113,7 @@ describe('owner bot actions on a virtual order', () => {
   it('a confirm cannot run twice: the second tap is rejected as stale', () => {
     const v = virtualOrder();
     let state = v.state;
-    for (const step of ['sexga', 'berish']) state = bot(state, confirmOf(bot(state, `/${step}_${v.code}`).text)).state;
+    for (const step of ['sehga', 'berish']) state = bot(state, confirmOf(bot(state, `/${step}_${v.code}`).text)).state;
     const taskId = state.orders[0].route[0].id;
     for (const type of ['work.accept', 'work.start'] as const) state = run(state, { type, orderId: v.orderId, taskId }, v.worker);
     state = run(state, { type: 'work.submit', orderId: v.orderId, taskId, qty: 1, note: '' }, v.worker);
@@ -128,7 +128,7 @@ describe('owner bot actions on a virtual order', () => {
 
   it('custom typed payment is previewed with the typed amount', () => {
     const v = virtualOrder();
-    let state = bot(v.state, confirmOf(bot(v.state, `/sexga_${v.code}`).text)).state;
+    let state = bot(v.state, confirmOf(bot(v.state, `/sehga_${v.code}`).text)).state;
     const preview = bot(state, `tolov ${v.code} 20000 bank`).text;
     expect(preview).toContain('20 000 so‘m');
     expect(preview).toContain('Bank / karta');
@@ -140,7 +140,7 @@ describe('owner bot actions on a virtual order', () => {
     const v = virtualOrder();
     expect(bot(v.state, `/yuborish_${v.code}`).text).toContain('mavjud emas');
     expect(bot(v.state, '/b_ord9999').text).toContain('topilmadi');
-    expect(bot(v.state, `/ok_sexga_${v.code}_r0`).text).toContain('oʻzgargan');
+    expect(bot(v.state, `/ok_sehga_${v.code}_r0`).text).toContain('oʻzgargan');
     expect(bot(v.state, '/bekor').text).toContain('Bekor qilindi');
   });
 });

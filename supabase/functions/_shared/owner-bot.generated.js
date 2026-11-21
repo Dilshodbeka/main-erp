@@ -833,7 +833,7 @@ function operationValues(state, input, exclude = "") {
   unique(norms.map((norm) => norm.itemId), "norm item");
   const workshopId = input.workshopId ?? MAIN_WORKSHOP_ID;
   const workshop = find(state.workshops, workshopId, "Workshop");
-  check(workshop.active, "Sex nofaol");
+  check(workshop.active, "Seh nofaol");
   return {
     name,
     unit,
@@ -1716,7 +1716,7 @@ function mutate(state, command, actor) {
       check(typeof command.active === "boolean", "Invalid active flag");
       check(
         command.active || state.workshops.some((workshop) => workshop.id !== row.id && workshop.active),
-        "Kamida bitta faol sex qolishi kerak"
+        "Kamida bitta faol seh qolishi kerak"
       );
       row.name = named(state.workshops.filter((workshop) => workshop.id !== row.id), command.name);
       row.active = command.active;
@@ -1724,7 +1724,7 @@ function mutate(state, command, actor) {
     }
     case "machine.create": {
       const workshopId = command.workshopId ?? MAIN_WORKSHOP_ID;
-      check(find(state.workshops, workshopId, "Workshop").active, "Sex nofaol");
+      check(find(state.workshops, workshopId, "Workshop").active, "Seh nofaol");
       const row = {
         id: uuid(),
         name: named(state.machines, command.name),
@@ -1739,7 +1739,7 @@ function mutate(state, command, actor) {
       const row = find(state.machines, command.machineId, "Machine");
       check(typeof command.active === "boolean", "Invalid active flag");
       const workshopId = command.workshopId ?? row.workshopId ?? MAIN_WORKSHOP_ID;
-      check(find(state.workshops, workshopId, "Workshop").active, "Sex nofaol");
+      check(find(state.workshops, workshopId, "Workshop").active, "Seh nofaol");
       row.name = named(state.machines.filter((machine) => machine.id !== row.id), command.name);
       row.hourlyRevenueTarget = money(command.hourlyRevenueTarget);
       row.active = command.active;
@@ -2048,7 +2048,7 @@ function mutate(state, command, actor) {
       if (actor.role === "worker" && issueScope.length > 0) {
         check(
           order.route.some((task) => issueScope.includes(task.workshopId ?? MAIN_WORKSHOP_ID)),
-          "Bu buyurtma boshqa sexga tegishli"
+          "Bu buyurtma boshqa sehga tegishli"
         );
       }
       check(order.status === "production", "Only production orders can issue materials");
@@ -2219,7 +2219,7 @@ function mutate(state, command, actor) {
       if (actor.role === "worker" && workshopScope.length > 0) {
         check(
           workshopScope.includes(task.workshopId ?? operation.workshopId ?? MAIN_WORKSHOP_ID),
-          "Bu bosqich boshqa sexga tegishli"
+          "Bu bosqich boshqa sehga tegishli"
         );
       }
       check(order.status === "production" && lineMaterials(order, task.lineId).every((row) => isIssued(row)), "Materials must be issued before review");
@@ -2323,7 +2323,7 @@ function mutate(state, command, actor) {
       if (actor.role === "worker" && workshopScope.length > 0) {
         check(
           workshopScope.includes(task.workshopId ?? operation.workshopId ?? MAIN_WORKSHOP_ID),
-          "Bu bosqich boshqa sexga tegishli"
+          "Bu bosqich boshqa sehga tegishli"
         );
       }
       check(order.status === "production", "Order is not in production");
@@ -3004,7 +3004,7 @@ function watchFindings(state, nowIso, today, config = WATCH_DEFAULTS) {
     if (order2.status === "draft") {
       const waiting = hoursSince(order2.createdAt, now2);
       if (waiting >= config.draftHours) {
-        found.push({ key: `draft:${order2.id}`, group: "orders", repeatHours: 24, text: `📝 ${head(state, order2)} — ${ago(waiting)}dan beri qoralama, sexga yuborilmagan` });
+        found.push({ key: `draft:${order2.id}`, group: "orders", repeatHours: 24, text: `📝 ${head(state, order2)} — ${ago(waiting)}dan beri qoralama, sehga yuborilmagan` });
       }
       continue;
     }
@@ -3012,7 +3012,7 @@ function watchFindings(state, nowIso, today, config = WATCH_DEFAULTS) {
       const pending = order2.materials.filter((row) => row.qty - row.issuedQty > 1e-9).length;
       const sinceLaunch = hoursSince(launchedAt(state, order2), now2);
       if (pending > 0 && sinceLaunch >= config.issueHours) {
-        found.push({ key: `issue:${order2.id}`, group: "production", repeatHours: 12, text: `📦 ${head(state, order2)} — materiallar sexga berilmagan (${pending} ta), ${ago(sinceLaunch)}` });
+        found.push({ key: `issue:${order2.id}`, group: "production", repeatHours: 12, text: `📦 ${head(state, order2)} — materiallar sehga berilmagan (${pending} ta), ${ago(sinceLaunch)}` });
       }
       const idle = hoursSince(lastActivity(state, order2), now2);
       if (idle >= config.stalledHours) {
@@ -3074,7 +3074,7 @@ function watchFindings(state, nowIso, today, config = WATCH_DEFAULTS) {
 var GROUP_TITLE = {
   staff: "Xodimlar davomati",
   orders: "Buyurtmalar",
-  production: "Sex",
+  production: "Seh",
   delivery: "Yetkazish",
   money: "Pul",
   stock: "Ombor va ta’minot"
@@ -3277,8 +3277,8 @@ function orderCard(state, order) {
     return `• ${esc2(operation)} — ${esc2(who ?? "—")}: ${task.completed}/${task.planned}`;
   });
   const actions = [];
-  if (order.status === "draft") actions.push(`🚀 Sexga yuborish: /sexga_${code}`);
-  if (order.status === "production" && pendingMaterials(order) > 0) actions.push(`📦 Materiallarni sexga berish: /berish_${code}`);
+  if (order.status === "draft") actions.push(`🚀 Sehga yuborish: /sehga_${code}`);
+  if (order.status === "production" && pendingMaterials(order) > 0) actions.push(`📦 Materiallarni sehga berish: /berish_${code}`);
   if (readyLines(order).length > 0 && order.kind !== "series") actions.push(`🚚 Mijozga yuborish: /yuborish_${code}`);
   if (openShipments(state, order).length > 0) actions.push(`✅ Yetkazildi deb belgilash: /yetkazildi_${code}`);
   if (order.kind !== "series" && customerBalance(state, order.customerId).debt > 0) actions.push(`💵 Toʻlov qabul qilish: /tolov_${code}`);
@@ -3303,6 +3303,7 @@ function preview(state, actor, summary, commands, confirm) {
 var STALE = "⚠️ Maʼlumot oʻzgargan yoki amal allaqachon bajarilgan. Kartani qayta oching.";
 function commandsFor(state, order, action, today) {
   switch (action) {
+    case "sehga":
     case "sexga":
       return [{ type: "order.launch", orderId: order.id }];
     case "berish":
@@ -3324,12 +3325,13 @@ function commandsFor(state, order, action, today) {
 function summaryFor(state, order, action) {
   const head2 = `<b>${esc2(order.number)}</b> — ${esc2(order.title)}`;
   switch (action) {
+    case "sehga":
     case "sexga":
-      return `🚀 Sexga yuborilsinmi?
+      return `🚀 Sehga yuborilsinmi?
 ${head2}
 Materiallar band qilinadi, bosqichlar ijrochilarga ochiladi.`;
     case "berish":
-      return `📦 Materiallar sexga berilsinmi?
+      return `📦 Materiallar sehga berilsinmi?
 ${head2}
 Berilmagan pozitsiyalar: ${pendingMaterials(order)} ta — ombordan chiqim qilinadi.`;
     case "yuborish": {
@@ -3403,7 +3405,7 @@ function planOwnerAction(input, state, actor, today) {
     const command = { type: "customer.pay", customerId: order2.customerId, amount: Number(paid[3]), account: ACCOUNT[paid[2]] };
     return { text: `✅ Toʻlov qabul qilindi: ${uzs(Number(paid[3]))}`, commands: [command], followUp: `/b_${paid[1]}` };
   }
-  const confirmed = /^\/ok_(sexga|berish|yuborish|yetkazildi)_([a-z0-9]+)_r(\d+)$/.exec(text2);
+  const confirmed = /^\/ok_(sehga|sexga|berish|yuborish|yetkazildi)_([a-z0-9]+)_r(\d+)$/.exec(text2);
   if (confirmed) {
     const order2 = findOrder(state, confirmed[2]);
     if (!order2) return { text: "Buyurtma topilmadi." };
@@ -3412,7 +3414,7 @@ function planOwnerAction(input, state, actor, today) {
     if (!commands2) return { text: STALE };
     return { text: "✅ Bajarildi.", commands: commands2, followUp: `/b_${confirmed[2]}` };
   }
-  const simple = /^\/(b|sexga|berish|yuborish|yetkazildi|tolov|naqd|bank)_([a-z0-9]+)$/.exec(text2);
+  const simple = /^\/(b|sehga|sexga|berish|yuborish|yetkazildi|tolov|naqd|bank)_([a-z0-9]+)$/.exec(text2);
   if (!simple) return null;
   const order = findOrder(state, simple[2]);
   if (!order) return { text: "Buyurtma topilmadi. Roʻyxat: /buyurtmalar" };
@@ -3804,7 +3806,7 @@ var INSIGHT_TEXTS = {
   deadAdvice: "{0}% chegirma bilan sotilsa {1} qaytadi. Yoki shu materialni joriy buyurtmalarda ishlating, yoki yetkazib beruvchiga qaytaring.",
   deadDetail: "{0} {1} · {2} · {3} kun",
   needTitle: "{0} yetishmaydi",
-  needFacts: "Sexdagi {0} ta buyurtmaga {1} yetishmaydi. Eng yaqin muddat: {2}.",
+  needFacts: "Sehdagi {0} ta buyurtmaga {1} yetishmaydi. Eng yaqin muddat: {2}.",
   needAdvice: "Bugun xarid qiling: taxminan {0}. Aks holda bu buyurtmalar to‘xtab qoladi.",
   runoutTitle: "{0} — zaxira {1} kunga yetadi",
   runoutFacts: "Oxirgi 30 kunda kuniga o‘rtacha {0} sarflangan, bo‘sh qoldiq {1}.",
@@ -3817,9 +3819,9 @@ var INSIGHT_TEXTS = {
   riskTitle: "{0} — muddatga ulgurmaslik xavfi",
   riskFactsHours: "Muddatgacha {0} kun, qolgan ish taxminan {1} soat ({2} ta bosqich). Hozir: «{3}», {4}.",
   riskFactsStages: "Muddatgacha {0} kun, {1} ta bosqich qolgan. Hozir: «{2}», {3}.",
-  riskFactsDraft: "Muddatgacha {0} kun, buyurtma hali sexga tushirilmagan ({1} ta bosqich).",
+  riskFactsDraft: "Muddatgacha {0} kun, buyurtma hali sehga tushirilmagan ({1} ta bosqich).",
   riskAdvice: "«{0}» bosqichini birinchi navbatga qo‘ying yoki ishni ikki kishiga bo‘ling.",
-  riskAdviceDraft: "Bugun sexga tushiring yoki mijoz bilan muddatni qayta kelishing.",
+  riskAdviceDraft: "Bugun sehga tushiring yoki mijoz bilan muddatni qayta kelishing.",
   queueTitle: "«{0}» bosqichida navbat: {1} ta topshiriq",
   queueFacts: "Ijrochilar: {0}. Eng yaqin muddat: {1}.",
   queueFactsHours: "Ijrochilar: {0}. Taxminan {1} soat ish. Eng yaqin muddat: {2}.",
