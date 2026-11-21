@@ -1,3 +1,4 @@
+import { unitLabel } from '../work-view';
 import { Fragment, useState } from 'react';
 import { Copy, Plus, X } from 'lucide-react';
 import { stockQty } from '../domain';
@@ -188,6 +189,7 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
   const sourceWarehouse = multiWarehouse ? state.warehouses.find(row => row.id === warehouseId)?.name : null;
   const describeMaterial = (item: { id: string; unit: string; kind: string; customerId: string | null }) =>
     `erkin ${num(stockQty(state, item.id, warehouseId) - reservedExcept(state, item.id, orderId, warehouseId))} ${item.unit}${item.kind === 'blank' ? ' · zagotovka' : ''}${item.customerId ? ' · mijozniki' : ''}${sourceWarehouse ? ` · ${sourceWarehouse}` : ''}`;
+  const stageUnit = (task: PositionStage): string => { const operation = state.operations.find(row => row.id === task.operationId); return operation ? unitLabel(operation.unit) : ''; };
   const setStage = (index: number, changes: Partial<PositionStage>) => onChange({ route: position.route.map((task, i) => i === index ? { ...task, ...changes } : task) });
   const moveStage = (index: number, offset: number) => {
     const next = [...position.route];
@@ -245,9 +247,9 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
       const crewMembers = state.employees.filter(employee => employee.active || crew.some(member => member.employeeId === employee.id));
       const freeMember = crewMembers.find(employee => employee.id !== task.employeeId && !crew.some(member => member.employeeId === employee.id));
       return <Fragment key={index}>
-      <div className={`editor-line route-editor${task.executorKind === 'supplier' ? ' supplier-stage' : ''}`}>
+      <div className={`editor-line route-editor route-card${task.executorKind === 'supplier' ? ' supplier-stage' : ''}`}>
       <span className="route-index">{index + 1}</span>
-      <OperationSelect ariaLabel={`Amal ${index + 1}`} value={task.operationId} disabled={task.locked} withPrice
+      <label className="rf rf-stage"><small>Bosqich</small><OperationSelect ariaLabel={`Amal ${index + 1}`} value={task.operationId} disabled={task.locked} withPrice
         operations={state.operations} machines={state.machines}
         onChange={operationId => {
           const operation = state.operations.find(op => op.id === operationId);
@@ -258,17 +260,17 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
                 ...(operation && task.employeeId && !operation.employeeIds.includes(task.employeeId) && !task.assembly
                   ? { employeeId: state.employees.find(employee => employee.active && operation.employeeIds.includes(employee.id))?.id ?? null }
                   : {}) });
-        }} />
+        }} /></label>
       <div className="route-executor">
-        <select aria-label={`Ijrochi turi ${index + 1}`} value={task.executorKind}
+        <label className="rf"><small>Kim bajaradi</small><select aria-label={`Ijrochi turi ${index + 1}`} value={task.executorKind}
           disabled={task.locked}
           onChange={event => setStage(index, event.target.value === 'supplier'
             ? { executorKind: 'supplier', employeeId: null, supplierId: state.suppliers[0]?.id ?? null, rate: 0, supplierCost: task.supplierCost ?? 0, assembly: false, crew: undefined }
             : { executorKind: 'employee', employeeId: state.employees[0]?.id ?? null, supplierId: null, supplierCost: 0, rate: state.operations.find(op => op.id === task.operationId)?.workerRate ?? task.rate })}>
           <option value="employee">Xodim</option>
           <option value="supplier">Pudratchi</option>
-        </select>
-        {task.executorKind === 'employee'
+        </select></label>
+        <label className="rf"><small>{task.executorKind === 'employee' ? 'Ijrochi' : 'Pudratchi'}</small>{task.executorKind === 'employee'
           ? <select aria-label={`Ijrochi ${index + 1}`} required value={task.employeeId ?? ''} disabled={task.locked} onChange={event => setStage(index, { employeeId: event.target.value || null })}>
             <option value="">Ijrochi</option>
             {stageEmployees(state, task, position.route).map(employee => <option key={employee.id} value={employee.id}>{employee.name}{employee.active ? '' : ' · nofaol'}</option>)}
@@ -278,10 +280,10 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
             onChange={event => setStage(index, { supplierId: event.target.value || null })}>
             <option value="">Pudratchini tanlang</option>
             {state.suppliers.map(supplier => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
-          </select>}
+          </select>}</label>
       </div>
-      <input aria-label={`Bosqich miqdori ${index + 1}`} className="route-qty" type="number" min={task.completed > 0 ? task.completed : 0.001} step="0.001"
-        value={task.qty} required onChange={event => setStage(index, { qty: Number(event.target.value) })} title="Ishning o‘z hajmi: varaqlar, metr, teshik yoki dona" />
+      <label className="rf rf-qty"><small>{`Hajm${stageUnit(task) ? `, ${stageUnit(task)}` : ''}`}</small><input aria-label={`Bosqich miqdori ${index + 1}`} className="route-qty" type="number" min={task.completed > 0 ? task.completed : 0.001} step="0.001"
+        value={task.qty} required onChange={event => setStage(index, { qty: Number(event.target.value) })} title="Ishning o‘z hajmi: varaqlar, metr, teshik yoki dona" /></label>
       {task.executorKind === 'supplier'
         ? <label className="route-amount route-supplier-cost" title="Pudratchiga to‘lanadigan qat’iy summa. Stavka × miqdor qo‘llanmaydi.">
             <small>Pudratchi summasi</small>
@@ -291,12 +293,12 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
           </label>
         : <>
           <span className="route-rate" title="Operatsiya narxi — 1 birlik uchun, mijoz fakturasiga shu tushadi.">
+            <small>{`Narx, 1 ${stageUnit(task) || 'birlik'}${task.locked ? ` · bajarilgan ${num(task.completed)}` : ''}`}</small>
             {money(task.salePrice ?? 0)}
-            <small>1 birlik{task.locked ? ` · bajarilgan ${num(task.completed)}` : ''}</small>
           </span>
           <b className="route-amount" title="Summa = operatsiya narxi × bosqich miqdori">
+            <small>Summa</small>
             {money(amounts.price)}
-            <small>summa</small>
           </b>
         </>}
       {(() => {
@@ -315,7 +317,7 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
             onChange={event => setStage(index, event.target.checked
               ? { assembly: true, crew: task.employeeId ? [{ employeeId: task.employeeId, weight: 1 }, ...crew.filter(member => member.employeeId !== task.employeeId)] : crew }
               : { assembly: false, crew: undefined })} />
-          <span>Yig‘ish — brigada bosqichi</span>
+          <span>Bu bosqichni brigada bajaradi (yig‘ish)</span>
         </label>
         {task.assembly && <div className="crew-editor">
           <small>Haqiqiy sarf «Tayyor» tugmasida kiritiladi. To‘lov brigada ulushlari nisbatida bo‘linadi.</small>

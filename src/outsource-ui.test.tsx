@@ -118,8 +118,9 @@ describe('route editor wording', () => {
   it('keeps the per-unit price and sum, dropping the tannarx label', () => {
     const state = createDemo(admin);
     const html = editorHtml(state, state.orders[0].id);
-    expect(html).toContain('1 birlik');
-    expect(html).toContain('<small>summa</small>');
+    expect(html).toContain('<small>Narx, 1 ');
+    expect(html).toContain('<small>Summa</small>');
+    expect(html).toContain('<small>Kim bajaradi</small>');
     expect(html).not.toContain('tannarx ');
   });
 });

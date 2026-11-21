@@ -396,3 +396,8 @@ Mahsulot / material	Изделие / материал
 xarid qilinmagan	не закупался
 Material tannarxi xarid qabulidan o‘zi hisoblanadi ({0} ta material hali xarid qilinmagan). m² bosqich normasi operatsiyani tahrirlash oynasida kiritiladi.	Себестоимость материала считается сама по приходу закупки (ещё не закупалось материалов: {0}). Норма на м² вводится в окне редактирования операции.
 {0} ta narx saqlandi.	Сохранено цен: {0}.
+Kim bajaradi	Кто выполняет
+Hajm, {0}	Объём, {0}
+Narx, 1 {0}	Цена за 1 {0}
+Narx, 1 {0} · bajarilgan {1}	Цена за 1 {0} · выполнено {1}
+Bu bosqichni brigada bajaradi (yig‘ish)	Этот этап выполняет бригада (сборка)
