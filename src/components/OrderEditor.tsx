@@ -105,7 +105,8 @@ export function OrderEditor({ state, order, close, save, busy, createCustomer, o
       void save({ type: 'order.create', input: { kind: 'composite', customerId, overhead, markup, dueDate, advance: number(form, 'advance'), account: text(form, 'account') as 'cash' | 'bank', lines, warehouseId } });
     }}>
       <div className="form-body order-form">
-        <div className="form-grid">
+        <section className="order-block"><header className="order-block-head"><span>1</span><h3>Mijoz va muddat</h3></header>
+        <div className="form-grid order-grid-3">
           <Field label="Mijoz"><CustomerPicker customers={state.customers} value={customerId} disabled={editing} orderKind={orderKind} onChange={id => {
             setCustomerId(id);
             setPositions(list => list.map(position => ({ ...position, materials: position.materials.filter(row => !state.items.find(item => item.id === row.itemId)?.customerId) })));
@@ -114,6 +115,8 @@ export function OrderEditor({ state, order, close, save, busy, createCustomer, o
           <WarehouseSelect warehouses={state.warehouses} value={warehouseId} onChange={setWarehouseId} disabled={lockedWarehouse} label="Qaysi ombordan" />
         </div>
         {lockedWarehouse && <p className="subtle-note">Materiallar berilgan — omborni o‘zgartirib bo‘lmaydi.</p>}
+        </section>
+        <section className="order-block"><header className="order-block-head"><span>2</span><h3>Pozitsiyalar</h3><small>Har bir mahsulot va xizmat — alohida pozitsiya: materiallari va marshruti bilan</small></header>
         <div className="order-positions">
           <div className="position-list">
             {positions.map((position, index) => <button type="button" key={position.id ?? `new-${index}`}
@@ -127,19 +130,21 @@ export function OrderEditor({ state, order, close, save, busy, createCustomer, o
               <button type="button" className="secondary small" disabled={!current} onClick={copyPosition}><Copy size={14} />Nusxa</button>
               <button type="button" className="icon-button" disabled={!current || !!current.id} aria-label="Pozitsiyani olib tashlash" onClick={removePosition}><X size={16} /></button>
             </div>
-            <p className="subtle-note">Saqilingan pozitsiyani bu yerdan o‘chirib bo‘lmaydi — uni buyurtma kartasida bekor qiling.</p>
+            {editing && <p className="subtle-note">Saqlangan pozitsiya buyurtma kartasida bekor qilinadi.</p>}
           </div>
           <div className="position-detail">{current
             ? <PositionForm state={state} position={current} customerId={customerId} orderId={order?.id ?? null} warehouseId={warehouseId} onTransfer={setTransfer} onChange={changes => patch(active, changes)} shortage={shortage} onGo={onGo} />
             : <Empty text="Chapdan pozitsiya tanlang yoki yangisini qo‘shing" />}</div>
         </div>
-        <div className="form-grid">
-          <Field label="Boshqa reja xarajatlari, UZS"><input type="number" min="0" step="0.01" value={overhead} onChange={event => setOverhead(Number(event.target.value))} /></Field>
+        </section>
+        <section className="order-block"><header className="order-block-head"><span>3</span><h3>Hisob-kitob</h3><small>Natsenka qo‘shiladi, chegirma ayiriladi — % yoki so‘m</small></header>
+        <div className="form-grid order-grid-5">
+          <Field label="Boshqa xarajatlar (reja)"><input type="number" min="0" step="0.01" value={overhead} onChange={event => setOverhead(Number(event.target.value))} /></Field>
           <AdjustmentField label="Natsenka" value={markupValue} mode={markupMode} onValue={setMarkupValue} onMode={setMarkupMode} />
           <AdjustmentField label="Chegirma" value={discountValue} mode={discountMode} onValue={setDiscountValue} onMode={setDiscountMode} />
-          {!editing && <><Field label="Hozirgi avans, UZS"><input name="advance" type="number" min="0" max={totals.price} step="0.01" defaultValue={0} required /></Field><AccountField /></>}
+          {!editing && <><Field label="Avans"><input name="advance" type="number" min="0" max={totals.price} step="0.01" defaultValue={0} required /></Field><AccountField /></>}
         </div>
-        <p className="subtle-note">Natsenka pozitsiyalar summasiga qo‘shiladi, chegirma ayiriladi — % yoki so‘m bilan kiriting.</p>
+        </section>
         {editing && <div className="info-note">Mahsulot miqdori va bosqich hajmlari alohida: qabul qilingan bosqichni kamaytirib, mahsulot miqdorini esa o‘zgartirsa bo‘ladi. Yuborilgan pozitsiya miqdori va bajarilgan bosqich hajmi pastga tushirilmaydi. Narxni pasaytirsangiz, ortiqcha to‘lov mijoz avansiga o‘tadi.</div>}
         <div className="estimate-bar">
           <div><small>Pozitsiyalar / birliklar</small><b>{positions.length} / {num(totals.qty)}</b></div>
@@ -213,7 +218,7 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
       <button type="button" className="secondary small" onClick={() => onChange({ unitPrice: suggestedUnitPrice(position) })}>Shu narxni qo‘yish</button>
     </p>}
     <div className="form-section-title">
-      <div><h3>Materiallar</h3><small>Shu pozitsiyaning umumiy miqdori, bitta birlikka emas</small></div>
+      <div><h3>Materiallar</h3><small>Butun pozitsiya uchun jami miqdor</small></div>
       <button type="button" className="secondary small" onClick={() => onChange({ materials: [...position.materials, { itemId: '', qty: 1, issuedQty: 0 }] })}><Plus size={14} />Qator</button>
     </div>
     <ShortageNotice rows={shortage} onGo={onGo} onTransfer={onTransfer} />
@@ -226,9 +231,9 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
       {row.issuedQty > 0 && <small className="route-rate">{row.issuedQty >= row.qty ? `Berilgan ${num(row.issuedQty)} · to‘liq` : `Berilgan ${num(row.issuedQty)} · Kerak ${num(row.qty)}`}</small>}
       {shortageChip(row.itemId)}
     </div>)}
-    {!position.materials.length && <p className="subtle-note">Ombor chiqimini talab qilmaydigan pozitsiya materialsiz ham bo‘lishi mumkin.</p>}
+    {!position.materials.length && <p className="order-empty-line">Material qo‘shilmagan — ombordan chiqim bo‘lmaydi.</p>}
     <div className="form-section-title">
-      <div><h3>Ishlab chiqarish marshrut</h3><small>Har bosqichda hajm alohida. Narx — operatsiya (stanok) bahosi, 1 birlik uchun: summa = narx × miqdor. Pudratchiga qat’iy summani shu yerda kiritasiz.</small></div>
+      <div><h3>Ishlab chiqarish marshrut</h3><small>Bosqich summasi = narx × hajm. Pudratchiga — qat’iy summa</small></div>
       <div className="button-group">
         {applicableTemplates(state, position.kind).length > 0 && <select aria-label="Shablon" value="" onChange={event => { if (event.target.value) applyShablon(event.target.value); }}><option value="">Shablon…</option>{applicableTemplates(state, position.kind).map(template => <option key={template.id} value={template.id}>{template.name}</option>)}</select>}
         <button type="button" className="secondary small" onClick={() => onChange({ route: [...position.route, { operationId: '', executorKind: 'employee', employeeId: state.employees[0]?.id || null, supplierId: null, rate: 0, supplierCost: 0, salePrice: 0, qty: position.qty, locked: false, completed: 0 }] })}><Plus size={14} />Bosqich</button>
@@ -333,6 +338,6 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
       </div>
     </Fragment>;
     })}
-    {!position.route.length && <p className="subtle-note">Bosqich qo‘shmasa ham saqlash mumkin — buyurtma chernovik bo‘lib qoladi. Ishga tushirishdan oldin har pozitsiyaga kamida bitta bosqich kerak.</p>}
+    {!position.route.length && <p className="order-empty-line">Bosqich yo‘q — qoralama sifatida saqlanadi. Sexga tushirish uchun kamida bitta bosqich kerak.</p>}
   </>;
 }

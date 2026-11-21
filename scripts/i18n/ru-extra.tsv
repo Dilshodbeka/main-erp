@@ -332,3 +332,34 @@ Mijoz, telefon yoki buyurtma	Клиент, телефон или заказ
 Tarix	История
 Seriyalar	Серии
 Moliya	Финансы
+Mijoz va muddat	Клиент и срок
+Pozitsiyalar	Позиции
+Har bir mahsulot va xizmat — alohida pozitsiya: materiallari va marshruti bilan	Каждое изделие и услуга — отдельная позиция, со своими материалами и маршрутом
+Saqlangan pozitsiya buyurtma kartasida bekor qilinadi.	Сохранённая позиция отменяется в карточке заказа.
+Hisob-kitob	Расчёт
+Natsenka qo‘shiladi, chegirma ayiriladi — % yoki so‘m	Наценка прибавляется, скидка вычитается — % или сумы
+Boshqa xarajatlar (reja)	Прочие расходы (план)
+Avans	Аванс
+Butun pozitsiya uchun jami miqdor	Общее количество на всю позицию
+Material qo‘shilmagan — ombordan chiqim bo‘lmaydi.	Материалы не добавлены — списания со склада не будет.
+Bosqich summasi = narx × hajm. Pudratchiga — qat’iy summa	Сумма этапа = цена × объём. Подрядчику — фиксированная сумма
+Bosqich yo‘q — qoralama sifatida saqlanadi. Sexga tushirish uchun kamida bitta bosqich kerak.	Этапов нет — сохранится как черновик. Для запуска в цех нужен хотя бы один этап.
+Qayerda ishlatilgan	Где использован
+Qoldiq:	Остаток:
+Hali buyurtmada ishlatilmagan	В заказах пока не использовался
+Retseptlarda ishlatilmagan	В рецептах не используется
+Ishtirokchilar	Участники
+Chat ishtirokchilari	Участники чата
+egasi	владелец
+mijoz · Telegram ulangan	клиент · Telegram подключён
+mijoz · ulanmagan	клиент · не подключён
+Boshqarish	Управление
+Ulash	Подключить
+Xodim chatga bosqichga tayinlanganda qo‘shiladi, ijrochi almashtirilsa chiqadi. Mijoz Telegram havolasi orqali ulanadi	Сотрудник попадает в чат, когда назначен на этап, и выходит при смене исполнителя. Клиент подключается по ссылке Telegram
+— «Ulash» tugmasini bosing	— нажмите «Подключить»
+Tarkib va sex	Состав и цех
+To‘lovlar	Оплаты
+Chat	Чат
+To‘lovlar hali yo‘q.	Оплат пока нет.
+Guruh	Группа
+Material guruhi	Группа материалов

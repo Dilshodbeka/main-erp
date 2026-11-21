@@ -106,9 +106,9 @@ export function SupplierCard({ state, supplierId, onOpenOrder, onPay }: {
           <td data-label="Batafsil"><button className="icon-button" aria-label={`${row.name} qayerda ishlatilgan`} onClick={() => setSelected(selected === row.itemId ? null : row.itemId)}><ChevronRight size={16} style={{ transform: selected === row.itemId ? 'rotate(90deg)' : undefined }} /></button></td>
         </tr>)}</tbody>
       </table></div> : <Empty text="Bu yetkazib beruvchida materiallar yo‘q" />}
-      {material && <div className="statement-detail">
-        <div className="statement-head"><h4>{material.name} · qayerda ishlatilgan</h4><span>Qoldiq: {num(material.stock)} {material.unit}</span></div>
-        <div><h4>Buyurtmalar</h4>
+      {material && <div className="statement-detail usage-detail">
+        <div className="usage-head"><div><small>Qayerda ishlatilgan</small><b>{material.name}</b></div><span className="usage-stock">Qoldiq: <b>{num(material.stock)} {material.unit}</b></span></div>
+        <div className="usage-block"><h4>Buyurtmalar</h4>
           {material.uses.length ? <div className="table-scroll cardable"><table>
             <thead><tr><th>Sana / vaqt</th><th>Buyurtma</th><th className="right">Miqdor</th></tr></thead>
             <tbody>{material.uses.map(row => <tr key={row.orderId}>
@@ -116,16 +116,16 @@ export function SupplierCard({ state, supplierId, onOpenOrder, onPay }: {
               <td data-label="Buyurtma"><button className="row-link" onClick={() => onOpenOrder(row.orderId)}>{row.number} · {row.title}</button></td>
               <td data-label="Miqdor" className="right">{num(row.qty)} {material.unit}</td>
             </tr>)}</tbody>
-          </table></div> : <Empty text="Hali buyurtmada ishlatilmagan" />}
+          </table></div> : <p className="usage-empty">Hali buyurtmada ishlatilmagan</p>}
         </div>
-        <div><h4>Retseptlar</h4>
+        <div className="usage-block"><h4>Retseptlar</h4>
           {material.recipes.length ? <div className="table-scroll cardable"><table>
             <thead><tr><th>Retsept</th><th>Mahsulot</th></tr></thead>
             <tbody>{material.recipes.map(row => <tr key={row.recipeId}>
               <td data-label="Retsept">{row.name}</td>
               <td data-label="Mahsulot">{row.output}</td>
             </tr>)}</tbody>
-          </table></div> : <Empty text="Retseptlarda ishlatilmagan" />}
+          </table></div> : <p className="usage-empty">Retseptlarda ishlatilmagan</p>}
         </div>
       </div>}
     </Section>

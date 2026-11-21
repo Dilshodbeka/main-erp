@@ -293,3 +293,87 @@ button:active:not(:disabled){transform:scale(.97)}
   .section-tools{display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;width:100%}
   .section-tools select{width:auto;flex:1 1 130px;min-width:0;min-height:40px;font-size:13px}
 }
+
+/* Material qayerda ishlatilgan — ixcham blok */
+.usage-detail{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;margin:12px var(--panel-x,23px) 20px;padding:16px;border:1px solid var(--border);border-radius:14px;background:#fafbf7}
+.usage-head{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.usage-head small{display:block;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.usage-head b{font-size:15px;color:#1d3129}
+.usage-stock{font-size:12px;color:var(--muted);padding:6px 10px;border-radius:999px;background:#fff;border:1px solid var(--border);white-space:nowrap}
+.usage-stock b{font-size:13px;color:#1d3129}
+.usage-block h4{margin:0 0 8px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.usage-empty{margin:0;padding:12px;border-radius:10px;background:#fff;border:1px dashed var(--border);font-size:12px;color:var(--muted);text-align:center}
+@media (max-width:700px){.usage-detail{grid-template-columns:1fr;margin-inline:12px}}
+
+/* ── Buyurtma formasi: raqamlangan bloklar, ixcham maydonlar, pastda yopishqoq jami ── */
+.order-form{display:flex;flex-direction:column;gap:14px}
+.order-block{border:1px solid var(--border);border-radius:14px;background:#fff;padding:14px 16px 16px}
+.order-block-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.order-block-head>span{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--green);color:#fff;font-size:11px;font-weight:800;align-self:center}
+.order-block-head h3{margin:0;font-size:14px;letter-spacing:-.01em}
+.order-block-head small{font-size:11px;color:var(--muted)}
+.order-form .form-grid{gap:12px}
+.order-grid-3{grid-template-columns:2fr 1fr 1fr}
+.order-grid-5{grid-template-columns:repeat(5,minmax(0,1fr))}
+.order-form input,.order-form select{min-height:40px;font-size:13px}
+.order-form .field>span,.order-form label>span{font-size:11px}
+.order-form .order-positions{grid-template-columns:220px minmax(0,1fr);gap:16px}
+.order-form .position-list{background:#fafbf7;border:1px solid var(--border);border-radius:12px;padding:8px;top:0}
+.order-form .position-detail{padding-left:16px;gap:14px}
+.order-form .form-section-title{padding-top:14px;border-top:1px dashed var(--border)}
+.order-form .form-section-title h3{font-size:13px}
+.order-form .form-section-title small{font-size:11px}
+.order-empty-line{margin:0;padding:10px 12px;border-radius:10px;border:1px dashed var(--border);background:#fafbf7;font-size:12px;color:var(--muted)}
+.order-form .estimate-bar{position:sticky;bottom:0;z-index:2;padding:12px 16px;gap:12px;box-shadow:0 -6px 16px rgba(20,40,30,.06)}
+.order-form .estimate-bar small{font-size:10px}
+.order-form .estimate-bar b{font-size:15px}
+@media (max-width:900px){.order-grid-5{grid-template-columns:repeat(3,minmax(0,1fr))}.order-grid-3{grid-template-columns:1fr 1fr}.order-grid-3>:first-child{grid-column:1/-1}}
+@media (max-width:700px){
+  .order-block{padding:12px}
+  .order-grid-5,.order-grid-3{grid-template-columns:1fr 1fr}
+  .order-form .order-positions{grid-template-columns:1fr}
+  .order-form .position-detail{padding-left:0}
+  .order-form .estimate-bar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+/* ── Buyurtma kartasi: bo‘limlar tablari ── */
+.drawer-tabs{display:flex;gap:4px;padding:4px;margin:14px 0 16px;border:1px solid var(--border);border-radius:12px;background:#fafbf7;overflow-x:auto;scrollbar-width:none;position:sticky;top:0;z-index:3}
+.drawer-tabs::-webkit-scrollbar{display:none}
+.drawer-tabs button{flex:1 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;padding:7px 12px;border-radius:9px;font-size:12px;font-weight:700;color:#55655b;white-space:nowrap}
+.drawer-tabs button.selected{background:var(--green);color:#fff}
+.drawer-tabs .tab-count{font-size:10px;padding:1px 6px;border-radius:999px;background:#b3473b;color:#fff}
+/* ── Chat: ishtirokchilar ── */
+.order-chat{border:1px solid var(--border);border-radius:14px;padding:14px;background:#fff}
+.order-chat-head h3{font-size:14px;margin:2px 0 0}
+.chat-people{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 6px}
+.chat-person{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;border:1px solid var(--border);background:#fafbf7;font-size:12px;font-weight:700;color:#22392f}
+.chat-person i{width:7px;height:7px;border-radius:50%;background:#1f7a63}
+.chat-person small{font-weight:600;color:var(--muted);font-size:11px}
+.chat-person.manager i{background:var(--green)}
+.chat-person.client{background:#eaf3f1;border-color:#b9d5cf}
+.chat-person.client.off{background:#fbf3e1;border-color:#ead9ae}
+.chat-person.client.off i{background:#a8741a}
+.chat-person .text-button{font-size:11px;padding:0 0 0 4px;min-height:0;color:var(--green);text-decoration:underline}
+.chat-people-note{margin:0 0 10px;font-size:11px;line-height:1.5;color:var(--muted)}
+/* ── Kanban ustunlari tugmalari va ombor guruhi tanlovi — faqat telefonda ── */
+.kanban-jump,.warehouse-tree-select{display:none}
+@media (max-width:700px){
+  .kanban-jump{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:0 16px 10px}
+  .kanban-jump::-webkit-scrollbar{display:none}
+  .kanban-jump button{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:6px 11px;border-radius:999px;border:1px solid var(--border);background:#fff;font-size:12px;font-weight:700;color:#55655b}
+  .kanban-jump b{font-size:11px;padding:0 6px;border-radius:999px;background:#eef2ea}
+  .kanban{scroll-snap-type:x mandatory}.kanban-col{scroll-snap-align:start;scroll-margin-left:16px}
+  .warehouse-tree-select{display:grid;gap:5px;margin:0 16px 12px;font-size:11px;font-weight:700;color:var(--muted)}
+  .warehouse-tree-select select{min-height:42px;font-size:13px;width:100%}
+  .warehouse-tree{display:none}
+  /* Amal tugmalari tablar qatori bilan bir qatorda emas — lekin ixcham: bitta qatorda suriladi */
+  .page-heading{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -16px 10px;padding:0 16px}
+  .page-heading::-webkit-scrollbar{display:none}
+  .page-heading button{flex:0 0 auto;min-height:38px;padding:8px 12px;font-size:12px}
+}
+/* Kompyuter: amal tugmalari tablar qatoriga ko‘tariladi — alohida qator yo‘q */
+@media (min-width:701px){
+  .panel-bar+.page-heading{margin-top:-62px;margin-bottom:22px;position:relative;z-index:21;pointer-events:none;padding-right:6px;min-height:40px}
+  .panel-bar+.page-heading>*{pointer-events:auto}
+  .panel-bar+.page-heading button{min-height:34px;padding:7px 12px;font-size:12px}
+}

@@ -40,6 +40,21 @@ export function orderAuthorLabel(kind: OrderAuthorKind): string {
   return 'Mijoz';
 }
 
+/** Workers of an order's chat: everyone assigned to a stage (or in its crew), with their part in the order. */
+export function orderChatPeople(
+  route: { name: string; executorKind: string; employeeId: string | null; crew?: { employeeId: string }[] }[],
+  employees: { id: string; name: string }[],
+): { name: string; role: string }[] {
+  const stages = new Map<string, string[]>();
+  for (const task of route) {
+    if (task.executorKind === 'supplier') continue;
+    for (const id of [task.employeeId, ...(task.crew ?? []).map(member => member.employeeId)]) {
+      if (id) stages.set(id, [...(stages.get(id) ?? []), task.name]);
+    }
+  }
+  return [...stages].map(([id, names]) => ({ name: employees.find(row => row.id === id)?.name ?? '—', role: orderRoleTitle(names) }));
+}
+
 const ROLE_BY_STAGE: [RegExp, string][] = [
   [/o[‘'’`]?lchov|zamer|замер|o[‘'’`]?lcham/i, 'Zamerchi'],
   [/o[‘'’`]?rnat|montaj|ustanov|установ|монтаж/i, 'O‘rnatuvchi'],

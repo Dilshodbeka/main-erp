@@ -17,8 +17,8 @@ describe('Order chat UI', () => {
     const html = render(admin);
     expect(html).toContain('BUYURTMA CHATI');
     expect(html).toContain('Menejer');
-    expect(html).toContain('Ijrochilar');
-    expect(html).toContain('Mijoz');
+    expect(html).toContain('Ishtirokchilar');
+    expect(html).toContain('Menejer');
     expect(html).toContain('Xabar yozing');
   });
 

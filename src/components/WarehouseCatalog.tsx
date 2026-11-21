@@ -61,6 +61,20 @@ export function WarehouseCatalog({ state, warehouseId, search, onEdit, onCount }
   return <>
     <Section title="Ombor tuzilmasi" hint={hint} action={<div className="section-tools"><div className="segmented tight warehouse-tabs">{tabs.map(([key, label]) => <button key={key} className={tab === key ? 'selected' : ''} onClick={() => selectTab(key)}>{label}</button>)}</div><select aria-label="Zaxira filtri" value={stockFilter} onChange={event => setStockFilter(event.target.value)}><option value="all">Barcha qoldiqlar</option><option value="low">Minimaldan past</option><option value="out">Tugagan</option><option value="ok">Yetarli</option></select><SortSelect value={stockSort} onChange={setStockSort} options={sortOptions} /></div>}>
       <div className={tab === 'materials' ? 'warehouse-layout' : ''}>
+        {tab === 'materials' && <label className="warehouse-tree-select"><span>Guruh</span><select aria-label="Material guruhi" value={uncategorized ? 'none' : leaf ?? group ?? ''} onChange={event => {
+          const value = event.target.value;
+          if (!value) selectGroup(null);
+          else if (value === 'none') { setGroup(null); setLeaf(null); setUncategorized(true); }
+          else if (value.includes('.')) selectLeaf(value.slice(0, 2), value);
+          else selectGroup(value);
+        }}>
+          <option value="">Barcha materiallar ({searched.length})</option>
+          {warehouseGroups.map(row => <optgroup key={row.code} label={`${row.code} · ${row.name}`}>
+            <option value={row.code}>{row.code} · {row.name} — hammasi ({count(row.code)})</option>
+            {row.children.map(child => <option key={child.code} value={child.code}>{child.code} · {child.name} ({count(row.code, child.code)})</option>)}
+          </optgroup>)}
+          {uncategorizedCount > 0 && <option value="none">Tasniflanmagan ({uncategorizedCount})</option>}
+        </select></label>}
         {tab === 'materials' && <aside className="warehouse-tree" aria-label="Materiallar tasniflagichi">
           <button className={`tree-root ${!group && !uncategorized ? 'active' : ''}`} onClick={() => selectGroup(null)}>
             <Package size={15} /><span>Barcha materiallar</span><b>{searched.length}</b>

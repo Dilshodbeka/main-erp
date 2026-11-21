@@ -25,6 +25,10 @@ interface OrderChatProps {
   onChanged: () => void;
   /** The sender's part in this order (stage names), shown next to the name. */
   authorTitle?: string;
+  /** Workers who take part: everyone assigned to a stage of this order. */
+  people?: { name: string; role: string }[];
+  clientLinked?: boolean;
+  onConnectClient?: () => void;
 }
 
 const describe = (error: unknown): string =>
@@ -67,7 +71,7 @@ function Attachment({ message }: { message: OrderChatMessage }) {
   return <a className="chat-file" href={url} target="_blank" rel="noreferrer" download={message.file.name}><FileText size={18} /><span><b>{message.file.name}</b><small>{sizeText(message.file.size)}</small></span><Download size={16} /></a>;
 }
 
-export function OrderChat({ actor, orderId, customerId, customerName, refreshKey, onChanged, authorTitle = '' }: OrderChatProps) {
+export function OrderChat({ actor, orderId, customerId, customerName, refreshKey, onChanged, authorTitle = '', people = [], clientLinked = false, onConnectClient }: OrderChatProps) {
   const [recording, setRecording] = useState(false);
   const recorder = useRef<MediaRecorder | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -193,14 +197,20 @@ export function OrderChat({ actor, orderId, customerId, customerName, refreshKey
     <header className="order-chat-head">
       <div>
         <span className="eyebrow">BUYURTMA CHATI</span>
-        <h3>Menejer · Ijrochilar · Mijoz</h3>
-        <small>{customerName ? `Klient: ${customerName} · Telegram orqali` : 'Klient Telegram orqali yozadi'}</small>
+        <h3>Ishtirokchilar</h3>
       </div>
       <div className="order-chat-tools">
         {mode === 'demo' && <button type="button" className="secondary small" onClick={() => void simulate()}><MessageCircle size={14} />Kiruvchi (demo)</button>}
         {actorRole === 'admin' && messages.length > 0 && <button type="button" className="icon-button" aria-label="Chatni o‘chirish" title="Chatni o‘chirish" onClick={() => void removeChat()}><Trash2 size={16} /></button>}
       </div>
     </header>
+    <div className="chat-people" aria-label="Chat ishtirokchilari">
+      <span className="chat-person manager"><i />Menejer<small>egasi</small></span>
+      {people.map((person, index) => <span className="chat-person" key={index}><i />{person.name}{person.role && <small>{person.role}</small>}</span>)}
+      {customerName && <span className={clientLinked ? 'chat-person client' : 'chat-person client off'}><i />{customerName}<small>{clientLinked ? 'mijoz · Telegram ulangan' : 'mijoz · ulanmagan'}</small>
+        {onConnectClient && <button type="button" className="text-button" onClick={onConnectClient}>{clientLinked ? 'Boshqarish' : 'Ulash'}</button>}</span>}
+    </div>
+    {actorRole === 'admin' && <p className="chat-people-note">Xodim chatga bosqichga tayinlanganda qo‘shiladi, ijrochi almashtirilsa chiqadi. Mijoz Telegram havolasi orqali ulanadi{clientLinked ? '' : ' — «Ulash» tugmasini bosing'}.</p>}
 
     {problem && <div className="order-chat-problem"><CircleAlert size={16} /><span>{problem}</span></div>}
 
