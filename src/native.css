@@ -447,3 +447,42 @@ button:active:not(:disabled){transform:scale(.97)}
 .staff-rules{display:flex;flex-direction:column;gap:10px;padding:4px 14px 14px}
 .staff-save{display:flex;align-items:flex-end}
 @media(max-width:700px){.staff-advances article{grid-template-columns:minmax(0,1fr) auto}.staff-advances article>.staff-status{grid-column:1 / -1;justify-self:start}}
+
+/* Mijozlar ro‘yxati va mijoz buyurtmalari — ixcham jadval */
+.customer-table td,.customer-orders td{vertical-align:middle}
+.customer-table td small,.customer-orders td small{display:block;font-size:11px;line-height:1.45;color:var(--muted)}
+.customer-table td:nth-child(3){max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.customer-table .button-group{justify-content:flex-end;flex-wrap:nowrap}
+.customer-orders td.right,.customer-orders th.right,.customer-table td.right{white-space:nowrap}
+.customer-orders td:first-child{min-width:150px}
+.customer-orders td:first-child small:first-of-type{color:#253932;font-size:12px}
+.print-signs{display:flex;justify-content:space-between;gap:24px;margin-top:28px;font-size:12px}
+.print-table tfoot td{border-top:2px solid #253932}
+@media(max-width:700px){.customer-table td:nth-child(3){max-width:none;white-space:normal}}
+
+.settings-facts.customer-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:0;border:0}
+.settings-facts.customer-facts>span{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:9px 12px;border:1px solid #e6ebdf;border-radius:10px;background:#fcfdfa;font-size:11px}
+.settings-facts.customer-facts>span>b{font-size:14px;white-space:nowrap}
+.customer-orders th,.customer-orders td{padding-left:10px;padding-right:10px}
+.customer-orders td:first-child,.customer-orders th:first-child{padding-left:16px}
+.customer-orders td:last-child,.customer-orders th:last-child{padding-right:16px}
+@media(max-width:700px){.settings-facts.customer-facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){
+  /* Mijozlar telefonda: bitta mijoz — ikki qator */
+  .table-scroll.cardable .customer-table tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center;padding:10px 12px;margin-bottom:8px}
+  .table-scroll.cardable .customer-table td{padding:0;border:0}
+  .table-scroll.cardable .customer-table td::before{display:none}
+  .table-scroll.cardable .customer-table td:nth-child(1){grid-column:1;grid-row:1;padding:0}
+  .table-scroll.cardable .customer-table td:nth-child(2){grid-column:1;grid-row:2;font-size:12px;color:var(--muted)}
+  .table-scroll.cardable .customer-table td:nth-child(3),.table-scroll.cardable .customer-table td:nth-child(4){display:none}
+  .table-scroll.cardable .customer-table td:nth-child(5){grid-column:2;grid-row:2;text-align:right;font-size:12px;font-weight:700}
+  .table-scroll.cardable .customer-table td:nth-child(6){grid-column:2;grid-row:1}
+  /* Mijoz buyurtmalari telefonda */
+  .table-scroll.cardable .customer-orders tr{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 10px;padding:10px 12px}
+  .table-scroll.cardable .customer-orders td{padding:0;border:0}
+  .table-scroll.cardable .customer-orders td:nth-child(1){grid-column:1 / span 2;padding:0}
+  .table-scroll.cardable .customer-orders td:nth-child(1)::before,.table-scroll.cardable .customer-orders td:nth-child(2)::before{display:none}
+  .table-scroll.cardable .customer-orders td:nth-child(2){grid-column:3;justify-self:end}
+  .table-scroll.cardable .customer-orders td:nth-child(n+3){font-size:12px;font-weight:700}
+  .table-scroll.cardable .customer-orders td:nth-child(6){display:none}
+}
