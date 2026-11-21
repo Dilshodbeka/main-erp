@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { FileUp } from 'lucide-react';
-import { decodeReport, matchCutRows, numberColumns, parseCutTable, parseCutText, readCutNames, readSpreadsheet, rememberCutNames, unitMismatch, type CutMatch, type QtyColumn } from '../cut-import';
+import { decodeReport, matchCutRows, matchWorks, numberColumns, parseCutTable, parseCutText, parseCutWorks, readCutNames, readSpreadsheet, rememberCutNames, rememberWorkNames, unitMismatch, type CutMatch, type QtyColumn, type WorkMatch } from '../cut-import';
+import type { Operation } from '../types';
 import type { Item } from '../types';
 import { errorText, num } from '../ui';
 
 // Raskroy hisobotidan (BAZIS, SketchCut, Excel) materiallarni pozitsiyaga qo‘shish.
-export function CutImport({ items, companyId, onApply, close }: {
-  items: Item[]; companyId: string; onApply: (matches: CutMatch[]) => void; close: () => void;
+export function CutImport({ items, operations, companyId, onApply, close }: {
+  items: Item[]; operations: Operation[]; companyId: string; onApply: (matches: CutMatch[], works: WorkMatch[]) => void; close: () => void;
 }) {
   const [text, setText] = useState('');
   const [column, setColumn] = useState<QtyColumn>('last');
@@ -16,6 +17,10 @@ export function CutImport({ items, companyId, onApply, close }: {
   const rows = useMemo(() => file ? parseCutTable(file.table) : parseCutText(text), [text, file]);
   const matches = useMemo(() => matchCutRows(rows, items, column, readCutNames(companyId)).map((row, index) => ({ ...row, ...edits[index] })), [rows, items, column, companyId, edits]);
   const chosen = matches.filter(row => row.itemId && row.qty > 0);
+  const [workEdits, setWorkEdits] = useState<Record<number, Partial<WorkMatch>>>({});
+  const works = useMemo(() => file ? matchWorks(parseCutWorks(file.table), operations, readCutNames(companyId)).map((row, index) => ({ ...row, ...workEdits[index] })) : [],
+    [file, operations, companyId, workEdits]);
+  const chosenWorks = works.filter(row => row.operationId && row.qty > 0);
   const columns = numberColumns(rows);
   const edit = (index: number, patch: Partial<CutMatch>) => setEdits(old => ({ ...old, [index]: { ...old[index], ...patch } }));
   const open = async (picked: File | undefined) => {
@@ -32,7 +37,7 @@ export function CutImport({ items, companyId, onApply, close }: {
       <div><b>Raskroy hisobotidan</b><small>BAZIS-Mebelshchik hisobotini (Excel) oching yoki jadvalni nusxalab shu yerga qo‘ying. «Наименование» va «Кол-во» ustunlari o‘zi topiladi.</small></div>
       <label className="secondary small cut-file"><FileUp size={14} />Excel / CSV<input type="file" accept=".xlsx,.xls,.ods,.csv,.txt,.tsv" onChange={event => { void open(event.target.files?.[0]); event.target.value = ''; }} /></label>
     </div>
-    {file ? <p className="cut-file-name"><b>{file.name}</b><button type="button" className="text-button" onClick={() => { setFile(null); setEdits({}); }}>Boshqa</button></p> : <textarea aria-label="Raskroy hisoboti" rows={4} value={text} placeholder={'ЛДСП Egger 16 мм\t5\nКромка ПВХ 0.4\t86,5'} onChange={event => { setText(event.target.value); setEdits({}); setError(''); }} />}
+    {file ? <p className="cut-file-name"><b>{file.name}</b><button type="button" className="text-button" onClick={() => { setFile(null); setEdits({}); setWorkEdits({}); }}>Boshqa</button></p> : <textarea aria-label="Raskroy hisoboti" rows={4} value={text} placeholder={'ЛДСП Egger 16 мм\t5\nКромка ПВХ 0.4\t86,5'} onChange={event => { setText(event.target.value); setEdits({}); setError(''); }} />}
     {error && <p className="warning">{error}</p>}
     {rows.length > 0 && <>
       {columns > 1 && <label className="cut-column"><span>Miqdor qaysi ustunda</span><select value={String(column)} onChange={event => { setColumn(event.target.value === 'last' ? 'last' : Number(event.target.value)); setEdits({}); }}>
@@ -43,12 +48,21 @@ export function CutImport({ items, companyId, onApply, close }: {
         <select aria-label={`Material: ${row.name}`} value={row.itemId ?? ''} onChange={event => edit(index, { itemId: event.target.value || null })}>
           <option value="">— o‘tkazib yuborish —</option>{items.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
       </div>)}</div>
+      {works.length > 0 && <>
+        <b className="cut-subhead">{`Ishlar → marshrut bosqichlari (${chosenWorks.length} / ${works.length})`}</b>
+        <div className="cut-rows">{works.map((row, index) => <div className={row.operationId ? 'cut-row' : 'cut-row unmatched'} key={`w${index}`}>
+          <span title={row.name}>{row.name}<small>{row.unit}</small></span>
+          <input aria-label={`Hajm: ${row.name}`} type="number" min="0" step="0.001" value={row.qty || ''} onChange={event => setWorkEdits(old => ({ ...old, [index]: { ...old[index], qty: Number(event.target.value) } }))} />
+          <select aria-label={`Operatsiya: ${row.name}`} value={row.operationId ?? ''} onChange={event => setWorkEdits(old => ({ ...old, [index]: { ...old[index], operationId: event.target.value || null } }))}>
+            <option value="">— qo‘shmaslik —</option>{operations.filter(operation => operation.active).map(operation => <option key={operation.id} value={operation.id}>{operation.name}</option>)}</select>
+        </div>)}</div>
+      </>}
       <small className="cut-note">{`Topildi: ${num(chosen.length)} / ${num(matches.length)}. Topilmaganini ro‘yxatdan tanlang — keyingi safar tizim o‘zi eslab qoladi.`}</small>
     </>}
     {(text.trim() !== '' || file) && !rows.length && <p className="info-note">Jadval o‘qilmadi: har bir qatorda material nomi va miqdor bo‘lishi kerak.</p>}
     <div className="button-group">
       <button type="button" className="secondary small" onClick={close}>Yopish</button>
-      <button type="button" className="primary small" disabled={!chosen.length} onClick={() => { rememberCutNames(companyId, chosen); onApply(chosen); close(); }}>{chosen.length ? `Qo‘shish (${chosen.length})` : 'Qo‘shish'}</button>
+      <button type="button" className="primary small" disabled={!chosen.length && !chosenWorks.length} onClick={() => { rememberCutNames(companyId, chosen); rememberWorkNames(companyId, chosenWorks); onApply(chosen, chosenWorks); close(); }}>{chosen.length + chosenWorks.length ? `Qo‘shish (${chosen.length + chosenWorks.length})` : 'Qo‘shish'}</button>
     </div>
   </div>;
 }

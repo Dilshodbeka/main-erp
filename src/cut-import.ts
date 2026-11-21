@@ -38,36 +38,132 @@ function cells(line: string): string[] {
 }
 
 // ── Header detection ─────────────────────────────────────────────────────────────────────────────
+// BAZIS «Смета» (xls) is several tables one under another: «Таблица Общая», «Листовые», «Фурнитура» —
+// the last two repeat rows of the first — then the works («Наименование операции»). Every header row
+// starts a block; a block ends at the next header. Materials are taken from «Общая» when the report
+// has it (no doubles), works likewise.
 const HEAD = {
   name: /(наименован|название|материал|nomi|nom\b|material|изделие|номенклатур)/i,
-  qty: /(кол-?во|количеств|кол\.|к-во|miqdor|soni|qty|расход|всего)/i,
+  qty: /(кол-?во|количеств|кол\.|к-во|miqdor|soni|qty|расход)/i,
   unit: /(ед\.?\s*изм|единиц|ед\.|o.lchov|birlik|unit)/i,
   article: /(артикул|код|artikul|kod|article)/i,
+  work: /наименование\s+(операции|работ)/i,
+  volume: /(объем|объём|hajm)/i,
 };
-interface Columns { name: number; qty: number; unit: number; article: number }
+interface Columns { name: number; qty: number; unit: number; unitAlt: number; article: number }
+
+/** Among several quantity columns «в заказе» wins (the whole order), then «в изделии», then the first one. */
+function pickColumn(row: string[], pattern: RegExp, skip: number[]): number {
+  const all = row.map((cell, index) => ({ cell, index })).filter(entry => !skip.includes(entry.index) && pattern.test(entry.cell));
+  return (all.find(entry => /в\s*заказе/i.test(entry.cell)) ?? all.find(entry => /в\s*изделии/i.test(entry.cell)) ?? all[0])?.index ?? -1;
+}
 
 function headerOf(row: string[]): Columns | null {
-  const find = (pattern: RegExp, skip: number[] = []) => row.findIndex((cell, index) => !skip.includes(index) && pattern.test(cell));
-  const name = find(HEAD.name);
-  const qty = find(HEAD.qty, [name]);
-  if (name < 0 || qty < 0) return null;
-  return { name, qty, unit: find(HEAD.unit, [name, qty]), article: find(HEAD.article, [name, qty]) };
+  if (row.some(cell => HEAD.work.test(cell))) return null;
+  const name = row.findIndex(cell => HEAD.name.test(cell));
+  if (name < 0) return null;
+  const qty = pickColumn(row, HEAD.qty, [name]);
+  if (qty < 0) return null;
+  // «Ед. изм.» of the report may be blank while «Ед. изм. с модели» is filled: keep both.
+  const units = row.map((cell, index) => ({ cell, index })).filter(entry => entry.index !== name && entry.index !== qty && HEAD.unit.test(entry.cell));
+  const plain = units.find(entry => !/модел/i.test(entry.cell)) ?? units[0];
+  const alt = units.find(entry => entry !== plain);
+  const article = row.findIndex((cell, index) => index !== name && index !== qty && HEAD.article.test(cell));
+  return { name, qty, unit: plain?.index ?? -1, unitAlt: alt?.index ?? -1, article };
+}
+
+interface Block<T> { title: string; rows: T[] }
+const titleOf = (row: string[]): string | null => /^таблица\s+(.+)$/i.exec(row.find(cell => cell) ?? '')?.[1].trim().toLowerCase() ?? null;
+/** «Общая» blocks when the report has them, otherwise every block; rows repeated across blocks counted once. */
+function pick<T extends { name: string }>(blocks: Block<T>[], key: (row: T) => string): T[] {
+  const general = blocks.filter(block => /^общ/.test(block.title));
+  const chosen = general.length ? general : blocks;
+  const seen = new Set<string>();
+  return chosen.flatMap(block => block.rows).filter(row => { const id = key(row); if (seen.has(id)) return false; seen.add(id); return true; });
 }
 
 function fromTable(table: string[][]): CutRow[] | null {
-  const at = table.slice(0, 30).findIndex(row => headerOf(row) !== null);
-  if (at < 0) return null;
-  const columns = headerOf(table[at])!;
-  const rows: CutRow[] = [];
-  for (const row of table.slice(at + 1)) {
+  const blocks: Block<CutRow>[] = [];
+  let title = '';
+  let columns: Columns | null = null;
+  let current: Block<CutRow> | null = null;
+  for (const row of table) {
+    const named = titleOf(row);
+    if (named !== null) { title = named; columns = null; continue; }
+    const header = headerOf(row);
+    if (header) { columns = header; current = { title, rows: [] }; blocks.push(current); continue; }
+    if (row.some(cell => HEAD.work.test(cell))) { columns = null; continue; }
+    if (!columns || !current) continue;
     const name = (row[columns.name] ?? '').trim();
     const qty = numberOf(row[columns.qty] ?? '');
     if (!name || TOTAL.test(name) || qty === null || qty <= 0 || !/\p{L}{2,}/u.test(name)) continue;
-    const unit = columns.unit >= 0 ? (row[columns.unit] ?? '').trim() : '';
+    const unit = (columns.unit >= 0 ? row[columns.unit] ?? '' : '').trim() || (columns.unitAlt >= 0 ? row[columns.unitAlt] ?? '' : '').trim();
     const article = columns.article >= 0 ? (row[columns.article] ?? '').trim() : '';
-    rows.push({ name, numbers: [qty], qty, ...(unit ? { unit } : {}), ...(article ? { article } : {}) });
+    const rounded = Math.round(qty * 1000) / 1000;
+    current.rows.push({ name, numbers: [rounded], qty: rounded, ...(unit ? { unit } : {}), ...(article ? { article } : {}) });
   }
-  return rows;
+  if (!blocks.length) return null;
+  return pick(blocks, row => `${row.article ?? ''}|${row.name}`);
+}
+
+// ── Works (route stages) from the same report ────────────────────────────────────────────────────
+export interface WorkRow { name: string; unit: string; qty: number; rate: number }
+export interface WorkMatch extends WorkRow { operationId: string | null; sure: boolean }
+
+/** «Наименование операции | Ед. изм. | … | Расценка | Объем в заказе» blocks → works; group rows and totals skipped. */
+export function parseCutWorks(table: string[][]): WorkRow[] {
+  const clean = table.map(row => row.map(cell => String(cell ?? '').trim()));
+  const blocks: Block<WorkRow>[] = [];
+  let title = '';
+  let columns: { name: number; unit: number; qty: number; rate: number } | null = null;
+  let current: Block<WorkRow> | null = null;
+  for (const row of clean) {
+    const named = titleOf(row);
+    if (named !== null) { title = named; columns = null; continue; }
+    const at = row.findIndex(cell => HEAD.work.test(cell));
+    if (at >= 0) {
+      const qty = pickColumn(row, HEAD.volume, [at]);
+      columns = qty < 0 ? null : { name: at, qty, unit: row.findIndex(cell => HEAD.unit.test(cell)), rate: row.findIndex(cell => /расценк|stavka/i.test(cell)) };
+      current = columns ? { title, rows: [] } : null;
+      if (current) blocks.push(current);
+      continue;
+    }
+    if (headerOf(row)) { columns = null; continue; }
+    if (!columns || !current) continue;
+    const name = row[columns.name] ?? '';
+    const qty = numberOf(row[columns.qty] ?? '');
+    if (!name || TOTAL.test(name) || qty === null || qty <= 0 || !/\p{L}{2,}/u.test(name)) continue;
+    current.rows.push({ name, unit: columns.unit >= 0 ? row[columns.unit] ?? '' : '', qty: Math.round(qty * 1000) / 1000, rate: columns.rate >= 0 ? numberOf(row[columns.rate] ?? '') ?? 0 : 0 });
+  }
+  return pick(blocks, row => row.name);
+}
+
+/** Operation units of the system → report unit keys. */
+const operationUnit = (unit: string): string => ({ sheet: 'sheet', squareMeter: 'm2', meter: 'm', piece: 'piece', hole: 'piece' } as Record<string, string>)[unit] ?? unit;
+
+/** Works → the company's operations, by words and unit; remembered choices win. */
+export function matchWorks(rows: WorkRow[], operations: { id: string; name: string; unit: string; active?: boolean }[], remembered: Record<string, string> = {}): WorkMatch[] {
+  const index = operations.filter(row => row.active !== false).map(row => ({ id: row.id, words: matchWords(row.name), unit: operationUnit(row.unit) }));
+  return rows.map(row => {
+    const saved = remembered[`work:${keyOf(row.name)}`];
+    if (saved && operations.some(operation => operation.id === saved)) return { ...row, operationId: saved, sure: true };
+    const words = matchWords(row.name);
+    const unit = unitKey(row.unit);
+    const scored = index.map(item => {
+      const common = item.words.filter(word => words.includes(word)).length;
+      if (!common) return { id: item.id, score: 0 };
+      return { id: item.id, score: common / Math.max(item.words.length, words.length) + (unit && item.unit ? (unit === item.unit ? 0.2 : -0.1) : 0) };
+    }).filter(entry => entry.score > 0).sort((left, right) => right.score - left.score);
+    const best = scored[0];
+    const clear = best && best.score >= 0.5 && (!scored[1] || best.score - scored[1].score >= 0.15);
+    return { ...row, operationId: clear ? best.id : null, sure: Boolean(clear && best.score >= 0.99) };
+  });
+}
+
+export function rememberWorkNames(companyId: string, matches: WorkMatch[], storage: Pick<Storage, 'getItem' | 'setItem'> = localStorage): void {
+  const names = readCutNames(companyId, storage);
+  for (const match of matches) if (match.operationId) names[`work:${keyOf(match.name)}`] = match.operationId;
+  try { storage.setItem(`aliya.cut-names.${companyId}`, JSON.stringify(names)); } catch { /* nothing to remember */ }
 }
 
 function fromLines(table: string[][]): CutRow[] {
@@ -118,12 +214,16 @@ const SYNONYMS: Record<string, string> = {
   beliy: 'oq', belyy: 'oq', belaya: 'oq', beloe: 'oq', white: 'oq', ak: 'oq',
   cherniy: 'qora', chernyy: 'qora', chernaya: 'qora', black: 'qora', kora: 'qora',
   seriy: 'kulrang', seryy: 'kulrang', seraya: 'kulrang', grey: 'kulrang', gray: 'kulrang',
-  hdf: 'xdf', dvp: 'xdf', ldstp: 'ldsp', dsp: 'ldsp', lmdf: 'mdf',
+  hdf: 'xdf', dvp: 'xdf', dvpo: 'xdf', orgalit: 'xdf', ldstp: 'ldsp', dsp: 'ldsp', lmdf: 'mdf',
   shagren: 'shagren', shagreni: 'shagren', shagrin: 'shagren', shagrenevaya: 'shagren',
-  kromochnaya: 'kromka', kromki: 'kromka', krom: 'kromka', edge: 'kromka',
+  kamen: 'kamen', kamni: 'kamen', tosh: 'kamen', kromochnaya: 'kromka', kromki: 'kromka', krom: 'kromka', edge: 'kromka',
   mm: '', sm: '', list: '', listov: '', sht: '', dona: '', kvm: '', kv: '', m2: '', mp: '',
   petli: 'petlya', petlya: 'petlya', ruchki: 'ruchka', ruchka: 'ruchka',
   napravlyayushie: 'tandem', napravlyayushaya: 'tandem',
+  sverlovka: 'teshish', prisadka: 'teshish', otverstiya: 'teshish', teshik: 'teshish', rezka: 'raskroy', raspil: 'raskroy', raskroi: 'raskroy',
+  kromlenie: 'kromka', kromkovanie: 'kromka', oblitsovka: 'kromka', obklejka: 'kromka', frezerovanie: 'frezerovka', frezer: 'frezerovka',
+  sborka: 'sborka', yigish: 'sborka', montazh: 'ornatish', ustanovka: 'ornatish', pokraska: 'boyash', okraska: 'boyash', boyash: 'boyash',
+  upakovka: 'qadoqlash', dostavka: 'yetkazib', pazovanie: 'paz', paza: 'paz',
   akril: 'akril', akrill: 'akril', akrilovaya: 'akril', ploskiy: '', tolshina: '',
 };
 /** Words of a name for comparison: transliterated, numbers split off ("16mm" → "16"), synonyms folded. */
@@ -159,7 +259,9 @@ export function matchCutRows(rows: CutRow[], items: Pick<Item, 'id' | 'name' | '
     const base = { name: row.name, qty, ...(row.unit ? { unit: row.unit } : {}) };
     const saved = remembered[keyOf(row.name)];
     if (saved && items.some(item => item.id === saved)) return { ...base, itemId: saved, sure: true };
-    const article = (row.article ?? '').replace(/\D/g, '') || articleOf(row.name) || (/\b(\d{4,6})\b/.exec(row.name)?.[1] ?? '');
+    // Only a real numeric article (4+ digits) is trusted: «LDSP/16-L/GS» is not one.
+    const digits = (row.article ?? '').replace(/\D/g, '');
+    const article = (digits.length >= 4 ? digits : '') || articleOf(row.name) || (/\b(\d{4,6})\b/.exec(row.name)?.[1] ?? '');
     const byArticle = article ? index.filter(item => item.article === article) : [];
     if (byArticle.length === 1) return { ...base, itemId: byArticle[0].id, sure: true };
     const words = matchWords(row.name);

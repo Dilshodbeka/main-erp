@@ -229,9 +229,19 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
         <button type="button" className="secondary small" onClick={() => onChange({ materials: [...position.materials, { itemId: '', qty: 1, issuedQty: 0 }] })}><Plus size={14} />Qator</button>
       </div>
     </div>
-    {cutOpen && <CutImport companyId={state.companyId} close={() => setCutOpen(false)}
+    {cutOpen && <CutImport companyId={state.companyId} close={() => setCutOpen(false)} operations={state.operations}
       items={state.items.filter(item => item.kind === 'material' && (item.customerId === null || item.customerId === customerId))}
-      onApply={matches => onChange({ materials: mergeCut(position.materials, matches, (itemId, qty) => ({ itemId, qty, issuedQty: 0 })) })} />}
+      onApply={(matches, works) => onChange({
+        materials: mergeCut(position.materials, matches, (itemId, qty) => ({ itemId, qty, issuedQty: 0 })),
+        // Hisobotdagi ishlar marshrut oxiriga qo‘shiladi: tizimdagi stavka va narx bilan, ruxsati bor birinchi xodimga.
+        route: [...position.route, ...works.flatMap(work => {
+          const operation = state.operations.find(row => row.id === work.operationId);
+          if (!operation) return [];
+          const employeeId = state.employees.find(employee => employee.active && operation.employeeIds.includes(employee.id))?.id ?? state.employees.find(employee => employee.active)?.id ?? null;
+          return [{ operationId: operation.id, executorKind: 'employee' as const, employeeId, supplierId: null, rate: operation.workerRate, supplierCost: 0,
+            salePrice: operation.salePrice, qty: Math.round(work.qty * 1000) / 1000, locked: false, completed: 0 }];
+        })],
+      })} />}
     <ShortageNotice rows={shortage} onGo={onGo} onTransfer={onTransfer} />
     {position.materials.map((row, index) => <div className="editor-line material-editor" key={index}>
       <MaterialPicker label={`Material ${index + 1}`} value={row.itemId} disabled={row.issuedQty > 0} qty={row.qty}

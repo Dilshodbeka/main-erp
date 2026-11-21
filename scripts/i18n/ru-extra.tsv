@@ -513,3 +513,5 @@ BAZIS-Mebelshchik hisobotini (Excel) oching yoki jadvalni nusxalab shu yerga qo�
 PDF o‘qilmaydi: BAZIS’da hisobotni Excel’ga saqlang yoki jadvalni nusxalang.	PDF не читается: сохраните отчёт в БАЗИСе в Excel или скопируйте таблицу.
 Fayl o‘qilmadi: {0}	Файл не прочитан: {0}
 ombordagi o‘lchov: {0} — miqdorni tekshiring	на складе в ед.: {0} — проверьте количество
+Ishlar → marshrut bosqichlari ({0} / {1})	Работы → этапы маршрута ({0} / {1})
+— qo‘shmaslik —	— не добавлять —

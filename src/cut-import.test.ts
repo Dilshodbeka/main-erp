@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeReport, matchCutRows, matchWords, mergeCut, numberColumns, parseCutTable, parseCutText, qtyOf, readCutNames, readSpreadsheet, rememberCutNames, unitKey, unitMismatch } from './cut-import';
+import { decodeReport, matchCutRows, matchWorks, matchWords, mergeCut, numberColumns, parseCutTable, parseCutText, parseCutWorks, qtyOf, readCutNames, readSpreadsheet, rememberCutNames, unitKey, unitMismatch } from './cut-import';
 
 // Names as they are on the real stock of the company (21.11.2026).
 const items = [
@@ -104,5 +104,40 @@ describe('matching with the real stock', () => {
       { name: 'a', qty: 3, itemId: 'xdf', sure: true }, { name: 'b', qty: 80.5, itemId: 'edge-2', sure: true },
       { name: 'c', qty: 4, itemId: null, sure: false }, { name: 'd', qty: 0, itemId: 'mdf', sure: true }], blank))
       .toEqual([{ itemId: 'xdf', qty: 5, issuedQty: 0 }, { itemId: 'edge-2', qty: 80.5, issuedQty: 0 }]);
+  });
+});
+
+// The structure of a real BAZIS-Mebelshchik «Смета» export (xls), 21.11.2026: several tables one under another.
+const head = (title: string) => [['Расчет стоимости материалов и комплектую'], [`Таблица ${title}`], ['Заказ'], ['Изделие', 'Прихожая 1000х400х1900'], ['Артикул изделия'], ['Заказчик'], ['Разработчик'], ['Количество изделий в заказе', '1']];
+const MATERIALS = ['Артикул', 'Наименование материала', 'Ед. изм. с модели', 'Расчетное количество', 'Коэф-т', 'Ед. изм.', 'Количество в изделии', 'Количество в заказе', 'Цена', 'Стоимость в изделии', 'Стоимость в заказе', 'Примечание'];
+const WORKS = ['Наименование операции', 'Ед. изм.', 'Норма выработки', 'Расценка', 'Объем в изделии', 'Объем в заказе', 'Трудоемкость в изделии', 'Трудоемкость в заказе', 'Стоимость нормо-часа', 'Стоимость в изделии', 'Стоимость в заказе', 'Примечание', 'Группа'];
+const smeta: string[][] = [
+  ...head('Общая'), MATERIALS,
+  ['', 'ДВПО 3.2мм белый', 'кв.м', '1.808736', '1', '', '1.808736', '1.808736', '0', '0', '0', ''],
+  ['EK-7x50', 'Евровинт 7х50', 'шт', '56', '1', 'шт', '56', '112', '400', '22400', '22400', ''],
+  ['LDSP/16-L/GS', 'ЛДСП 16мм, Серый камень', 'кв.м', '5.074452', '1', 'кв.м.', '5.074452', '5.074452', '90000', '456700.68', '456700.68', ''],
+  ['', '', '', '', '', '', '', '', '', '479100.68', '479100.68', ''],
+  ...head('Листовые'), MATERIALS, ['LDSP/16-L/GS', 'ЛДСП 16мм, Серый камень', 'кв.м', '5.074452', '1', 'кв.м.', '5.074452', '5.074452', '90000', '456700.68', '456700.68', ''],
+  ...head('Фурнитура'), MATERIALS, ['EK-7x50', 'Евровинт 7х50', 'шт', '56', '1', 'шт', '56', '112', '400', '22400', '22400', ''],
+  ...head('Общая'), WORKS, ['Lamarty 16мм'], ['Резка под углом на ФРС', 'м', '1', '5000', '5.074452', '5.074452', '5.074452', '5.074452', '5000', '25372.26', '25372.26', '', 'Lamarty 16мм'],
+  ['01 Листовой материал'], ['Сверловка', 'шт', '1', '800', '100', '100', '100', '100', '800', '80000', '80000', '', '01 Листовой материал'],
+  ['', '', '', '', '', '', '105.074452', '105.074452', '', '105372.26', '105372.26', ''],
+  ...head('Сверловка и Фрезеровка'), WORKS, ['Сверловка', 'шт', '1', '800', '100', '100', '100', '100', '800', '80000', '80000', '', '01 Листовой материал'],
+  [['Расчет стоимости заказа на 21.11.2026']].flat(), ['Наименование статьи затрат', 'Стоимость в изделии', 'Стоимость в заказе', 'Примечание'], ['Narx', '584472.94', '584472.94', ''],
+];
+
+describe('BAZIS «Смета»', () => {
+  it('takes materials once, from «Общая», with the quantity for the whole order', () => {
+    const rows = parseCutTable(smeta);
+    expect(rows.map(row => [row.name, row.qty, unitKey(row.unit)])).toEqual([
+      ['ДВПО 3.2мм белый', 1.809, 'm2'], ['Евровинт 7х50', 112, 'piece'], ['ЛДСП 16мм, Серый камень', 5.074, 'm2']]);
+    expect(matchCutRows(rows, items, 'last').map(row => row.itemId)).toEqual(['xdf-m2', null, null]);
+  });
+
+  it('reads the works once and matches them with the operations', () => {
+    const works = parseCutWorks(smeta);
+    expect(works).toEqual([{ name: 'Резка под углом на ФРС', unit: 'м', qty: 5.074, rate: 5000 }, { name: 'Сверловка', unit: 'шт', qty: 100, rate: 800 }]);
+    const operations = [{ id: 'nest', name: 'Nesting raskroy', unit: 'sheet' }, { id: 'drill', name: 'teshish', unit: 'hole' }, { id: 'edge', name: 'Kromka 1 lik', unit: 'meter' }];
+    expect(matchWorks(works, operations).map(row => [row.operationId, row.sure])).toEqual([[null, false], ['drill', true]]);
   });
 });
