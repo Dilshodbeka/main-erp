@@ -4879,20 +4879,42 @@ function advanceForDirector(request, balance) {
     ...request.reason ? [`Sabab: ${request.reason}`] : [],
     ...balance ? [balance] : [],
     "",
-    `✅ Naqd berildi: /avans_naqd_${request.code}`,
-    `✅ Kartaga o‘tkazildi: /avans_bank_${request.code}`,
-    `❌ Rad etish: /avans_yoq_${request.code}`
+    ...advanceLinks(request.code, true)
   ].join("\n");
 }
+function advanceLinks(code, withLater) {
+  return [
+    `✅ Naqd berildi: /avans_naqd_${code}`,
+    `✅ Kartaga o‘tkazildi: /avans_bank_${code}`,
+    ...withLater ? [`🕓 Tasdiqlayman, keyin beraman: /avans_keyin_${code}`] : [],
+    `❌ Rad etish: /avans_yoq_${code}`
+  ];
+}
+function advanceList(rows) {
+  if (!rows.length) return "💵 Ochiq avans so‘rovi yo‘q.";
+  const sorted = [...rows].sort((left, right) => Number(right.status === "promised") - Number(left.status === "promised") || left.createdAt.localeCompare(right.createdAt));
+  const owed = rows.filter((row) => row.status === "promised").reduce((total, row) => total + row.amount, 0);
+  return [
+    `💵 <b>Avanslar</b>${owed ? ` · va’da qilingan: ${sum2(owed)}` : ""}`,
+    "",
+    ...sorted.map((row) => [
+      `<b>${row.name}</b> — ${sum2(row.amount)} · ${row.status === "promised" ? "tasdiqlangan, berilmagan" : "javob kutilmoqda"}${row.reason ? ` · ${row.reason}` : ""}`,
+      ...advanceLinks(row.code, row.status === "pending"),
+      ""
+    ].join("\n"))
+  ].join("\n").trim();
+}
 function parseAdvanceDecision(text2) {
-  const match = /^\/avans_(naqd|bank|yoq)_([a-z0-9]{4,12})$/.exec(text2.trim().toLowerCase());
-  return match ? { action: match[1] === "naqd" ? "cash" : match[1] === "bank" ? "bank" : "reject", code: match[2] } : null;
+  const match = /^\/avans_(naqd|bank|keyin|yoq)_([a-z0-9]{4,12})$/.exec(text2.trim().toLowerCase());
+  if (!match) return null;
+  const action = { naqd: "cash", bank: "bank", keyin: "later", yoq: "reject" }[match[1]];
+  return { action, code: match[2] };
 }
 function shortCode(random = Math.random) {
   const alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
   return Array.from({ length: 6 }, () => alphabet[Math.floor(random() * alphabet.length)]).join("");
 }
-var isStaffDirectorCommand = (text2) => parseDecision(text2) !== null || parseAdvanceDecision(text2) !== null || /^\/?kpi$/i.test(text2.trim());
+var isStaffDirectorCommand = (text2) => parseDecision(text2) !== null || parseAdvanceDecision(text2) !== null || /^\/?(kpi|avans|avanslar)$/i.test(text2.trim());
 
 // src/telegram-owner.ts
 function ownerKeyboard() {
@@ -4982,6 +5004,8 @@ export {
   STAFF_DEFAULTS,
   WORKER_MENU,
   advanceForDirector,
+  advanceLinks,
+  advanceList,
   allowedPushEndpoint,
   attendanceRows,
   clockMinutes,

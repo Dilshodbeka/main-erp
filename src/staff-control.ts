@@ -355,14 +355,34 @@ export interface AdvanceRequest { code: string; name: string; amount: number; re
 export function advanceForDirector(request: AdvanceRequest, balance: string): string {
   return [`💵 <b>Avans so‘rovi</b>`, `<b>${request.name}</b> — ${sum(request.amount)}`,
     ...(request.reason ? [`Sabab: ${request.reason}`] : []), ...(balance ? [balance] : []), '',
-    `✅ Naqd berildi: /avans_naqd_${request.code}`, `✅ Kartaga o‘tkazildi: /avans_bank_${request.code}`, `❌ Rad etish: /avans_yoq_${request.code}`,
+    ...advanceLinks(request.code, true),
   ].join('\n');
 }
 
-/** "/avans_naqd_CODE" | "/avans_bank_CODE" | "/avans_yoq_CODE" */
-export function parseAdvanceDecision(text: string): { action: 'cash' | 'bank' | 'reject'; code: string } | null {
-  const match = /^\/avans_(naqd|bank|yoq)_([a-z0-9]{4,12})$/.exec(text.trim().toLowerCase());
-  return match ? { action: match[1] === 'naqd' ? 'cash' : match[1] === 'bank' ? 'bank' : 'reject', code: match[2] } : null;
+/** The answers to a request; «later» is offered only while it is still undecided. */
+export function advanceLinks(code: string, withLater: boolean): string[] {
+  return [`✅ Naqd berildi: /avans_naqd_${code}`, `✅ Kartaga o‘tkazildi: /avans_bank_${code}`,
+    ...(withLater ? [`🕓 Tasdiqlayman, keyin beraman: /avans_keyin_${code}`] : []), `❌ Rad etish: /avans_yoq_${code}`];
+}
+
+export interface OpenAdvance { code: string; name: string; amount: number; reason: string; status: 'pending' | 'promised'; createdAt: string }
+
+/** "/avans" for the director: every request not paid yet, the promised ones first. */
+export function advanceList(rows: OpenAdvance[]): string {
+  if (!rows.length) return '💵 Ochiq avans so‘rovi yo‘q.';
+  const sorted = [...rows].sort((left, right) => Number(right.status === 'promised') - Number(left.status === 'promised') || left.createdAt.localeCompare(right.createdAt));
+  const owed = rows.filter(row => row.status === 'promised').reduce((total, row) => total + row.amount, 0);
+  return [`💵 <b>Avanslar</b>${owed ? ` · va’da qilingan: ${sum(owed)}` : ''}`, '',
+    ...sorted.map(row => [`<b>${row.name}</b> — ${sum(row.amount)} · ${row.status === 'promised' ? 'tasdiqlangan, berilmagan' : 'javob kutilmoqda'}${row.reason ? ` · ${row.reason}` : ''}`,
+      ...advanceLinks(row.code, row.status === 'pending'), ''].join('\n'))].join('\n').trim();
+}
+
+/** "/avans_naqd_CODE" | "/avans_bank_CODE" | "/avans_keyin_CODE" | "/avans_yoq_CODE" */
+export function parseAdvanceDecision(text: string): { action: 'cash' | 'bank' | 'later' | 'reject'; code: string } | null {
+  const match = /^\/avans_(naqd|bank|keyin|yoq)_([a-z0-9]{4,12})$/.exec(text.trim().toLowerCase());
+  if (!match) return null;
+  const action = ({ naqd: 'cash', bank: 'bank', keyin: 'later', yoq: 'reject' } as const)[match[1] as 'naqd' | 'bank' | 'keyin' | 'yoq'];
+  return { action, code: match[2] };
 }
 
 /** Six characters without look-alikes, for links the director taps. */
@@ -372,4 +392,4 @@ export function shortCode(random: () => number = Math.random): string {
 }
 
 export const isStaffDirectorCommand = (text: string): boolean =>
-  parseDecision(text) !== null || parseAdvanceDecision(text) !== null || /^\/?kpi$/i.test(text.trim());
+  parseDecision(text) !== null || parseAdvanceDecision(text) !== null || /^\/?(kpi|avans|avanslar)$/i.test(text.trim());

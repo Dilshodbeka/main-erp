@@ -5,7 +5,7 @@
 // (table erp_integrations, set from the settings screen).
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import {
-  BTN, STAFF_DEFAULTS, WORKER_MENU, advanceForDirector, attendanceRows, directorDecision, fetchChecks, fetchPeople, kpiOwn, kpiReport,
+  BTN, STAFF_DEFAULTS, WORKER_MENU, advanceForDirector, advanceLinks, advanceList, attendanceRows, directorDecision, fetchChecks, fetchPeople, kpiOwn, kpiReport,
   matchPeople, ownerErrorText, parseAdvanceDecision, parseAmount, parseDecision, shortCode, staffBalanceLine, staffTick, sum, workerAnswer,
 } from './owner-bot.generated.js';
 import { adminClientFor, adminSnapshotFor, ownerTargets, platformCompanyId, type AccessConfig } from './owner-access.ts';
@@ -250,7 +250,8 @@ export async function handleDirectorStaff(service: SupabaseClient, config: Acces
   const decision = parseDecision(text);
   const advance = parseAdvanceDecision(text);
   const wantsKpi = /^\/?kpi$/i.test(text.trim());
-  if (!decision && !advance && !wantsKpi) return false;
+  const wantsAdvances = /^\/?(avans|avanslar)$/i.test(text.trim());
+  if (!decision && !advance && !wantsKpi && !wantsAdvances) return false;
   const companyId = company?.id ?? null;
   const settings = companyId ? await staffSettings(service, companyId) : null;
   if (!companyId || !settings) { await send(chatId, 'Davomat nazorati hali yoqilmagan (bazada jadval yo‘q).'); return true; }
@@ -260,6 +261,14 @@ export async function handleDirectorStaff(service: SupabaseClient, config: Acces
     const link = await service.from('erp_staff_links').select('chat_id').eq('company_id', companyId).eq('employee_id', employeeId).maybeSingle();
     return link.data?.chat_id ?? null;
   };
+
+  if (wantsAdvances) {
+    const open = await service.from('erp_advance_requests').select('code, employee_name, amount, reason, status, created_at').eq('company_id', companyId)
+      .in('status', ['pending', 'promised']).order('created_at', { ascending: true }).limit(30);
+    await send(chatId, advanceList((open.data ?? []).map(row => ({ code: row.code, name: row.employee_name, amount: Number(row.amount), reason: row.reason ?? '',
+      status: row.status as 'pending' | 'promised', createdAt: String(row.created_at) }))));
+    return true;
+  }
 
   if (wantsKpi) {
     const today = tashkent();
@@ -289,15 +298,28 @@ export async function handleDirectorStaff(service: SupabaseClient, config: Acces
 
   const request = await service.from('erp_advance_requests').select('*').eq('company_id', companyId).eq('code', advance!.code).maybeSingle();
   if (!request.data) { await send(chatId, 'Bunday avans so‘rovi topilmadi.'); return true; }
-  if (request.data.status !== 'pending') {
+  const promised = request.data.status === 'promised';
+  if (request.data.status !== 'pending' && !promised) {
     await send(chatId, `Bu so‘rov bo‘yicha qaror allaqachon berilgan: ${request.data.status === 'approved' ? 'berilgan' : 'rad etilgan'}.`);
     return true;
   }
+  if (promised && advance!.action === 'later') { await send(chatId, 'Bu avans allaqachon tasdiqlangan, berilishi kutilmoqda.'); return true; }
   const amount = Number(request.data.amount);
   const name = request.data.employee_name as string;
   const chat = await workerChat(request.data.employee_id);
+  if (advance!.action === 'later') {
+    // Approved, the money is given later: nothing goes to the cash book yet.
+    const saved = await service.from('erp_advance_requests').update({ status: 'promised', decided_by: chatId, decided_at: new Date().toISOString() })
+      .eq('id', request.data.id).eq('status', 'pending').select('id');
+    if (saved.error) { await send(chatId, 'Holat saqlanmadi: bazaga 15-avans-later.sql qo‘llanmagan bo‘lishi mumkin.'); return true; }
+    if (!saved.data?.length) { await send(chatId, 'Qaror allaqachon berilgan.'); return true; }
+    if (chat) await send(chat, `🕓 Avans so‘rovingiz (${sum(amount)}) tasdiqlandi. Pul keyinroq beriladi — berilganda xabar keladi.`, WORKER_MENU);
+    const note = `🕓 <b>${name}</b> — avans ${sum(amount)} tasdiqlandi, keyin beriladi.\nBerganingizda:\n${advanceLinks(request.data.code, false).slice(0, 2).join('\n')}\nBarcha ochiq avanslar: /avans`;
+    await Promise.all([send(chatId, note), ...others.map(id => send(id, note))]);
+    return true;
+  }
   if (advance!.action === 'reject') {
-    await service.from('erp_advance_requests').update({ status: 'rejected', decided_by: chatId, decided_at: new Date().toISOString() }).eq('id', request.data.id).eq('status', 'pending');
+    await service.from('erp_advance_requests').update({ status: 'rejected', decided_by: chatId, decided_at: new Date().toISOString() }).eq('id', request.data.id).in('status', ['pending', 'promised']);
     if (chat) await send(chat, `❌ Avans so‘rovingiz (${sum(amount)}) rad etildi.`, WORKER_MENU);
     const note = `❌ <b>${name}</b> — avans ${sum(amount)} rad etildi.`;
     await Promise.all([send(chatId, note), ...others.map(id => send(id, note))]);
@@ -314,15 +336,19 @@ export async function handleDirectorStaff(service: SupabaseClient, config: Acces
       p_command: { type: 'salary.pay', employeeId: request.data.employee_id, amount, account: advance!.action, kind: 'advance',
         note: `Avans (Telegram so‘rovi)${request.data.reason ? `: ${String(request.data.reason).slice(0, 150)}` : ''}`, allowPrepay: true },
     });
-    if (executed.error) { await send(chatId, `${ownerErrorText(executed.error.message ?? '')}\nSo‘rov ochiq qoldi.`); return true; }
+    if (executed.error) {
+      // Typically there is not enough money in that account: offer to approve now and pay later.
+      await send(chatId, `${ownerErrorText(executed.error.message ?? '')}\nTo‘lov yozilmadi, so‘rov ochiq qoldi.${promised ? '' : `\nTasdiqlab, keyin berish: /avans_keyin_${request.data.code}`}`);
+      return true;
+    }
   } catch {
     await send(chatId, 'To‘lovni yozib bo‘lmadi. Birozdan keyin qayta urinib ko‘ring — so‘rov ochiq qoldi.');
     return true;
   }
   await service.from('erp_advance_requests').update({ status: 'approved', account: advance!.action, decided_by: chatId, decided_at: new Date().toISOString() })
-    .eq('id', request.data.id).eq('status', 'pending');
+    .eq('id', request.data.id).in('status', ['pending', 'promised']);
   const how = advance!.action === 'cash' ? 'naqd' : 'kartaga';
-  if (chat) await send(chat, `✅ Avans tasdiqlandi: ${sum(amount)} (${how}).`, WORKER_MENU);
+  if (chat) await send(chat, promised ? `✅ Avans berildi: ${sum(amount)} (${how}).` : `✅ Avans tasdiqlandi: ${sum(amount)} (${how}).`, WORKER_MENU);
   const note = `✅ <b>${name}</b> — avans ${sum(amount)} ${how} berildi, kassaga yozildi.`;
   await Promise.all([send(chatId, note), ...others.map(id => send(id, note))]);
   return true;

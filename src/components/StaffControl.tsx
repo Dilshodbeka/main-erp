@@ -2,18 +2,24 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { Copy, Link2, Unlink } from 'lucide-react';
 import { kpiOf, statusLabel, type StaffCase, type StaffSettings } from '../staff-control';
-import { decideCase, loadStaffOverview, previousMonth, saveStaffSettings, staffLink, staffUnlink, timepaySave, timepayStatus, type StaffOverview, type TimepayStatus } from '../staff-store';
+import { decideCase, loadStaffOverview, markAdvance, previousMonth, saveStaffSettings, staffLink, staffUnlink, timepaySave, timepayStatus, type AdvanceRow, type StaffOverview, type TimepayStatus } from '../staff-store';
 import { duration } from '../attendance';
 import { Empty, Field, Section, date, errorText, money, num } from '../ui';
 import type { State } from '../types';
 
 const hhmm = (minutes: number): string => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+const advanceLabel = (row: AdvanceRow): string => row.status === 'approved' ? (row.account === 'bank' ? 'Kartaga berildi' : 'Naqd berildi')
+  : row.status === 'rejected' ? 'Rad etildi' : row.status === 'promised' ? 'Tasdiqlangan, berilmagan' : 'Kutilmoqda';
 const kindLabel = (row: StaffCase): string => row.kind === 'early' ? `Erta ketgan · ${hhmm(row.atMinutes)}`
   : row.kind === 'no_out' ? 'Ketishni belgilamagan' : row.final ? 'Kechikkan' : 'Kelmagan';
 const open = (row: StaffCase): boolean => (row.status === 'asked' || row.status === 'claimed') && row.kind !== 'no_out';
 
 // Davomat va KPI: Telegram-bot yig‘gan holatlar, oy hisobi, avans so‘rovlari va qoidalar.
-export function StaffControl({ state, supabase, today }: { state: State; supabase: SupabaseClient | null; today: string }) {
+export function StaffControl({ state, supabase, today, pay }: {
+  state: State; supabase: SupabaseClient | null; today: string;
+  /** Payout through the salary command: the cash book and the employee's balance change together. */
+  pay?: (employeeId: string, amount: number, account: 'cash' | 'bank', note: string) => Promise<boolean>;
+}) {
   const current = today.slice(0, 7);
   const [month, setMonth] = useState(current);
   const [data, setData] = useState<StaffOverview | null>(null);
@@ -37,6 +43,17 @@ export function StaffControl({ state, supabase, today }: { state: State; supabas
     try { await job(); await load(); setError(''); } catch (e) { setError(errorText(e)); } finally { setBusy(false); }
   };
 
+  const giveAdvance = async (row: AdvanceRow, account: 'cash' | 'bank') => {
+    if (!pay || !supabase || busy) return;
+    setBusy(true);
+    try {
+      // Avval kassa: pul yetmasa to‘lov yozilmaydi va so‘rov ochiq qoladi.
+      if (await pay(row.employeeId, row.amount, account, `Avans (Telegram so‘rovi)${row.reason ? `: ${row.reason.slice(0, 150)}` : ''}`)) {
+        await markAdvance(supabase, row.id, 'approved', account);
+      }
+      await load();
+    } catch (e) { setError(errorText(e)); } finally { setBusy(false); }
+  };
   const employees = useMemo(() => state.employees.filter(row => row.active), [state.employees]);
   if (!supabase) return <Section title="Davomat va KPI"><Empty text="Bu bo‘lim umumiy bazada ishlaydi: Telegram-bot va Timepay ulangan korxona uchun." /></Section>;
   if (!data) return <Section title="Davomat va KPI"><Empty text={error ? `Ma’lumot olinmadi: ${error}` : 'Yuklanmoqda…'} /></Section>;
@@ -99,7 +116,13 @@ export function StaffControl({ state, supabase, today }: { state: State; supabas
         {data.advances.length ? <div className="staff-advances">{data.advances.map(row => <article key={row.id}>
           <div><b>{row.name}</b><small>{date(row.createdAt.slice(0, 10))}{row.reason ? ` · ${row.reason}` : ''}</small></div>
           <b>{money(row.amount)}</b>
-          <span className={`staff-status ${row.status === 'approved' ? 'approved' : row.status === 'rejected' ? 'fined' : 'asked'}`}>{row.status === 'approved' ? (row.account === 'bank' ? 'Kartaga berildi' : 'Naqd berildi') : row.status === 'rejected' ? 'Rad etildi' : 'Kutilmoqda'}</span>
+          <span className={`staff-status ${row.status === 'approved' ? 'approved' : row.status === 'rejected' ? 'fined' : row.status === 'promised' ? 'warned' : 'asked'}`}>{advanceLabel(row)}</span>
+          {(row.status === 'pending' || row.status === 'promised') && <span className="button-group staff-advance-actions">
+            {pay && <><button type="button" className="secondary small" disabled={busy} onClick={() => void giveAdvance(row, 'cash')}>Naqd berish</button>
+              <button type="button" className="secondary small" disabled={busy} onClick={() => void giveAdvance(row, 'bank')}>Kartaga</button></>}
+            {row.status === 'pending' && <button type="button" className="secondary small" disabled={busy} onClick={() => void act(() => markAdvance(supabase, row.id, 'promised'))}>Keyin beraman</button>}
+            <button type="button" className="text-button" disabled={busy} onClick={() => { if (window.confirm('So‘rov rad etilsinmi?')) void act(() => markAdvance(supabase, row.id, 'rejected')); }}>Rad etish</button>
+          </span>}
         </article>)}</div> : <Empty text="So‘rov yo‘q." />}
       </Section>
       <Section title="Qoidalar" hint="Bot shu qoidalar bo‘yicha so‘raydi va hisoblaydi.">

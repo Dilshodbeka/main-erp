@@ -541,3 +541,5 @@ button:active:not(:disabled){transform:scale(.97)}
 .cut-file-name{display:flex;align-items:center;gap:10px;font-size:13px}
 .cut-subhead{font-size:12px;margin-top:4px}
 .cut-row>span small.cut-conv{color:#2f5f7a;white-space:normal}
+.staff-advance-actions{grid-column:1 / -1;justify-content:flex-end;flex-wrap:wrap}
+.staff-advances article{grid-template-columns:minmax(0,1fr) auto auto}

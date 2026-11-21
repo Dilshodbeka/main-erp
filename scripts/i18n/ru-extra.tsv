@@ -516,3 +516,9 @@ ombordagi o‘lchov: {0} — miqdorni tekshiring	на складе в ед.: {0}
 Ishlar → marshrut bosqichlari ({0} / {1})	Работы → этапы маршрута ({0} / {1})
 — qo‘shmaslik —	— не добавлять —
 {0} {1} → {2} {3} (list {4} m²)	{0} {1} → {2} {3} (лист {4} м²)
+Naqd berish	Выдать наличными
+Kartaga	На карту
+Keyin beraman	Выдам позже
+Rad etish	Отказать
+So‘rov rad etilsinmi?	Отказать в запросе?
+Tasdiqlangan, berilmagan	Одобрен, не выдан

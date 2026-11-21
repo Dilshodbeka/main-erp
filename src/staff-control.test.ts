@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { attendanceRows, type AttendanceData } from './attendance';
 import {
   BTN, STAFF_DEFAULTS, advanceForDirector, directorDecision, forgotOutcome, kpiOf, kpiReport, matchPeople, nameWords, parseAdvanceDecision,
-  parseAmount, parseDecision, staffTick, workerAnswer, type StaffCase, type StaffPerson, type TickOutput,
+  parseAmount, parseDecision, advanceList, staffTick, workerAnswer, type StaffCase, type StaffPerson, type TickOutput,
 } from './staff-control';
 
 const TODAY = '2026-11-23'; // Monday
@@ -267,5 +267,20 @@ describe('commands and amounts', () => {
     expect(text).toContain('/avans_naqd_abc234');
     expect(text).toContain('/avans_bank_abc234');
     expect(text).toContain('/avans_yoq_abc234');
+  });
+});
+
+describe('advance paid later', () => {
+  it('parses the «later» answer and lists open requests, promised first', () => {
+    expect(parseAdvanceDecision('/avans_keyin_abc234')).toEqual({ action: 'later', code: 'abc234' });
+    const text = advanceList([
+      { code: 'aaa111', name: 'Sardor', amount: 300000, reason: '', status: 'pending', createdAt: '2026-11-20' },
+      { code: 'bbb222', name: 'Fayzullo', amount: 500000, reason: 'to‘y', status: 'promised', createdAt: '2026-11-21' },
+    ]);
+    expect(text).toContain('va’da qilingan: 500 000 so‘m');
+    expect(text.indexOf('Fayzullo')).toBeLessThan(text.indexOf('Sardor'));
+    expect(text).toContain('/avans_keyin_aaa111');
+    expect(text).not.toContain('/avans_keyin_bbb222');
+    expect(advanceList([])).toContain('yo‘q');
   });
 });

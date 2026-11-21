@@ -5,7 +5,7 @@ import { STAFF_DEFAULTS, type StaffCase, type StaffSettings } from './staff-cont
 export const STAFF_BOT_URL = 'https://t.me/aliya_sotuv_bot';
 
 export interface StaffLinkRow { employeeId: string; linked: boolean; timepayId: number | null }
-export interface AdvanceRow { id: string; employeeId: string; name: string; amount: number; reason: string; status: 'pending' | 'approved' | 'rejected'; account: 'cash' | 'bank' | null; createdAt: string }
+export interface AdvanceRow { id: string; employeeId: string; name: string; amount: number; reason: string; status: 'pending' | 'promised' | 'approved' | 'rejected'; account: 'cash' | 'bank' | null; createdAt: string }
 export interface StaffOverview { settings: StaffSettings; saved: boolean; links: StaffLinkRow[]; cases: StaffCase[]; advances: AdvanceRow[] }
 
 const list = (value: unknown): Record<string, unknown>[] => Array.isArray(value) ? value.filter(row => row && typeof row === 'object') as Record<string, unknown>[] : [];
@@ -32,7 +32,7 @@ export function parseOverview(raw: unknown): StaffOverview {
     })),
     advances: list(data.advances).map(row => ({
       id: String(row.id), employeeId: String(row.employeeId), name: String(row.name ?? ''), amount: number(row.amount), reason: String(row.reason ?? ''),
-      status: (['approved', 'rejected'].includes(String(row.status)) ? row.status : 'pending') as AdvanceRow['status'],
+      status: (['approved', 'rejected', 'promised'].includes(String(row.status)) ? row.status : 'pending') as AdvanceRow['status'],
       account: row.account === 'cash' || row.account === 'bank' ? row.account : null, createdAt: String(row.createdAt ?? ''),
     })),
   };
@@ -85,5 +85,11 @@ export async function timepayStatus(supabase: SupabaseClient): Promise<TimepaySt
 /** `token`: null keeps the stored one, '' disconnects. `words` — parts of branch/department names, comma separated. */
 export async function timepaySave(supabase: SupabaseClient, token: string | null, words: string): Promise<void> {
   const reply = await supabase.rpc('erp_timepay_set', { p_token: token, p_words: words.split(/[,;]+/).map(word => word.trim()).filter(Boolean) });
+  if (reply.error) throw new Error(reply.error.message);
+}
+
+/** Decision on an advance request from the system screen; the payout itself goes through the cash command first. */
+export async function markAdvance(supabase: SupabaseClient, id: string, status: 'promised' | 'approved' | 'rejected', account: 'cash' | 'bank' | null = null): Promise<void> {
+  const reply = await supabase.rpc('erp_advance_mark', { p_id: id, p_status: status, p_account: account });
   if (reply.error) throw new Error(reply.error.message);
 }
