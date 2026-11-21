@@ -266,3 +266,30 @@ button:active:not(:disabled){transform:scale(.97)}
   .metric strong,.metric.accent strong{font-size:19px;white-space:nowrap}
   .panel-header p{display:none}
 }
+
+/* Sahifa sarlavhasi: shior va tavsif yo‘q — bo‘lim nomi yuqori qatorda va tablarda; faqat amal tugmalari qoladi */
+.page-heading{margin-bottom:16px;justify-content:flex-end;align-items:center}
+.page-heading>div:first-child{display:none}
+.page-heading:not(:has(>:nth-child(2))){display:none}
+/* Raqamli kartochkalar: telefonda bitta ixcham qator, gorizontal suriladi */
+@media (max-width:700px){
+  .page-heading{margin-bottom:12px;flex-direction:row;justify-content:flex-start;flex-wrap:wrap}
+  .metrics{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -16px 16px;padding:0 16px;scroll-snap-type:x mandatory}
+  .metrics::-webkit-scrollbar{display:none}
+  .metrics .metric{flex:0 0 auto;min-width:148px;max-width:220px;padding:10px 12px;scroll-snap-align:start}
+  .metrics .metric-top{font-size:10px}
+  .metrics .metric-top svg{display:none}
+  .metric strong,.metric.accent strong{font-size:17px}
+}
+.nav-item{padding-block:10px;padding-inline:12px;gap:10px}
+/* Telefon: yordamchi maslahat qatori yashirin (dumaloq «?» tugmasi bor), sex bosqichlari nomlari bir qatorda */
+@media (max-width:700px){
+  .guide-hint{display:none}
+  .widget-pipeline button{min-width:0;padding-inline:6px}
+  .widget-pipeline small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:9px}
+}
+/* Telefon: filtrlar bitta qatorda, kerak bo‘lsa keyingi qatorga o‘tadi */
+@media (max-width:700px){
+  .section-tools{display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;width:100%}
+  .section-tools select{width:auto;flex:1 1 130px;min-width:0;min-height:40px;font-size:13px}
+}
