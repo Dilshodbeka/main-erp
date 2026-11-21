@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { dateLocale } from '../i18n';
-import { CircleAlert, Download, FileText, MessageCircle, Mic, Paperclip, Send, Square, Trash2 } from 'lucide-react';
+import { CircleAlert, Download, FileText, MessageCircle, Mic, Paperclip, Send, Square, Trash2, Video } from 'lucide-react';
 import { ChatError, chatErrorText } from '../chat';
 import {
   orderAuthorLabel,
@@ -71,6 +71,7 @@ export function OrderChat({ actor, orderId, customerId, customerName, refreshKey
   const [recording, setRecording] = useState(false);
   const recorder = useRef<MediaRecorder | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const videoInput = useRef<HTMLInputElement>(null);
   const [messages, setMessages] = useState<OrderChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [problem, setProblem] = useState('');
@@ -192,7 +193,7 @@ export function OrderChat({ actor, orderId, customerId, customerName, refreshKey
     <header className="order-chat-head">
       <div>
         <span className="eyebrow">BUYURTMA CHATI</span>
-        <h3>Menejer · Ispolateli · Klient</h3>
+        <h3>Menejer · Ijrochilar · Mijoz</h3>
         <small>{customerName ? `Klient: ${customerName} · Telegram orqali` : 'Klient Telegram orqali yozadi'}</small>
       </div>
       <div className="order-chat-tools">
@@ -231,6 +232,8 @@ export function OrderChat({ actor, orderId, customerId, customerName, refreshKey
       />
       {mode !== 'demo' && <>
         <input ref={fileInput} type="file" hidden accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.dwg,.dxf,.zip,.rar,.txt" onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void sendFile(file, file.name); }} />
+        <input ref={videoInput} type="file" hidden accept="video/*" capture="environment" onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void sendFile(file, file.name || `video-${Date.now()}.mp4`); }} />
+        <button type="button" className="secondary chat-tool" aria-label="Video yozish yoki tanlash" title="Video yozish yoki tanlash" disabled={sending || recording} onClick={() => videoInput.current?.click()}><Video size={17} /></button>
         <button type="button" className="secondary chat-tool" aria-label="Fayl, rasm yoki video biriktirish" title="Fayl, rasm yoki video biriktirish" disabled={sending || recording} onClick={() => fileInput.current?.click()}><Paperclip size={17} /></button>
         <button type="button" className={recording ? 'secondary chat-tool recording' : 'secondary chat-tool'} aria-label={recording ? 'Yozishni to‘xtatish va yuborish' : 'Ovozli xabar yozish'} title={recording ? 'Yozishni to‘xtatish va yuborish' : 'Ovozli xabar yozish'} disabled={sending && !recording} onClick={() => void toggleVoice()}>{recording ? <Square size={15} /> : <Mic size={17} />}</button>
       </>}

@@ -191,7 +191,7 @@ button:active:not(:disabled){transform:scale(.97)}
 .chat-file{display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;min-width:0}
 .chat-file span{min-width:0;flex:1}
 .chat-file b{display:block;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.order-chat-composer{grid-template-columns:minmax(0,1fr) auto auto auto}
+.order-chat-composer{grid-template-columns:minmax(0,1fr) auto auto auto auto}
 .order-chat-composer .chat-tool{height:42px;width:42px;margin:0;padding:0;display:grid;place-items:center;border-radius:10px}
 .order-chat-composer .chat-tool.recording{background:#fbefec;border-color:#e3b9b2;color:#b3473b;animation:chat-rec 1.1s ease-in-out infinite}
 @keyframes chat-rec{50%{opacity:.55}}

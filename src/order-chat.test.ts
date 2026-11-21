@@ -7,7 +7,7 @@ import {
   demoOrderOverview,
   demoOrderSend,
   emptyOrderChat,
-  mapOrderMessageRow, attachmentKind, safeFileName,
+  mapOrderMessageRow, attachmentKind, safeFileName, orderRoleTitle,
   orderAuthorLabel,
 } from './order-chat';
 
@@ -58,8 +58,8 @@ describe('order chat demo model', () => {
 
   it('labels the author kind in Uzbek Latin', () => {
     expect(orderAuthorLabel('admin')).toBe('Menejer');
-    expect(orderAuthorLabel('worker')).toBe('Ispolateli');
-    expect(orderAuthorLabel('client')).toBe('Klient');
+    expect(orderAuthorLabel('worker')).toBe('Ijrochi');
+    expect(orderAuthorLabel('client')).toBe('Mijoz');
   });
 
   it('maps a database row to the message shape', () => {
@@ -81,6 +81,14 @@ describe('order chat demo model', () => {
     const voice = mapOrderMessageRow({ id: 'v1', order_id: 'o1', author_kind: 'worker', author_profile_id: 'p', author_name: 'Usta', author_title: 'Yig‘ish', text: 'ovoz.webm', channel: 'app', kind: 'voice', file_path: 'c/o1/x-ovoz.webm', file_name: 'ovoz.webm', file_mime: 'audio/webm', file_size: 2048, created_at: '2026-11-20T09:01:00+00:00' });
     expect(voice.authorTitle).toBe('Yig‘ish');
     expect(voice.file).toEqual({ path: 'c/o1/x-ovoz.webm', name: 'ovoz.webm', mime: 'audio/webm', size: 2048 });
+  });
+
+  it('names the worker by their part in the order', () => {
+    expect(orderRoleTitle(['O‘lchov'])).toBe('Zamerchi');
+    expect(orderRoleTitle(["Yig'ish", 'Yig‘ish'])).toBe('Yig‘uvchi');
+    expect(orderRoleTitle(['O‘rnatish', 'Montaj'])).toBe('O‘rnatuvchi');
+    expect(orderRoleTitle(['Kromka', 'Yig‘ish'])).toBe('Kromka, Yig‘uvchi');
+    expect(orderRoleTitle([])).toBe('');
   });
 
   it('classifies attachments and makes safe storage names', () => {

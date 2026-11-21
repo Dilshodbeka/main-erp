@@ -35,9 +35,26 @@ export interface OrderChatAuthor { id: string; name: string; kind: 'admin' | 'wo
 
 export function orderAuthorLabel(kind: OrderAuthorKind): string {
   if (kind === 'admin') return 'Menejer';
-  if (kind === 'worker') return 'Ispolateli';
+  if (kind === 'worker') return 'Ijrochi';
   if (kind === 'system') return 'Tizim';
-  return 'Klient';
+  return 'Mijoz';
+}
+
+const ROLE_BY_STAGE: [RegExp, string][] = [
+  [/o[‘'’`]?lchov|zamer|замер|o[‘'’`]?lcham/i, 'Zamerchi'],
+  [/o[‘'’`]?rnat|montaj|ustanov|установ|монтаж/i, 'O‘rnatuvchi'],
+  [/yig[‘'’`]?ish|sborka|сборк|yig[‘'’`]?uv/i, 'Yig‘uvchi'],
+  [/yetkaz|dostav|доставк|haydov/i, 'Yetkazuvchi'],
+];
+
+/** The worker's part in this order, from the stages assigned to them: "Zamerchi", "Yig‘uvchi", or the stage names. */
+export function orderRoleTitle(stageNames: string[]): string {
+  const roles: string[] = [];
+  for (const name of stageNames) {
+    const role = ROLE_BY_STAGE.find(([pattern]) => pattern.test(name))?.[1] ?? name.trim();
+    if (role && !roles.includes(role)) roles.push(role);
+  }
+  return roles.join(', ').slice(0, 80);
 }
 interface StampOptions { now: Date; id: () => string }
 

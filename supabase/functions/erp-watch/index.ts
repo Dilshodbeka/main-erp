@@ -127,6 +127,21 @@ async function watchCompany(target: OwnerTarget, now: Date, dry: boolean, keys: 
   return { companyId, sent: announced.length, active: result.activeKeys.length, devices: devices.length };
 }
 
+/** Files of cancelled orders' chats: removed from storage, then forgotten. Never blocks the watcher. */
+async function purgeChatTrash(): Promise<number> {
+  try {
+    const rows = await client().from('erp_order_chat_trash').select('path').limit(500);
+    if (rows.error || !rows.data?.length) return 0;
+    const paths = rows.data.map(row => row.path as string);
+    const removed = await client().storage.from('order-chat').remove(paths);
+    if (removed.error) return 0;
+    await client().from('erp_order_chat_trash').delete().in('path', paths);
+    return paths.length;
+  } catch {
+    return 0;
+  }
+}
+
 serve(async request => {
   if (request.method !== 'POST') return json({ ok: false, code: 'method_not_allowed' }, 405);
   if (!supabaseUrl || !serviceKey || !botToken || !watchSecret) return json({ ok: false, code: 'watch_not_configured' }, 500);
@@ -156,5 +171,6 @@ serve(async request => {
       if (!seen.has(companyId) && !linked.has(companyId)) await run({ companyId, chatIds: [] });
     }
   }
-  return json({ ok: results.every(row => !row.error), companies: results.length, results });
+  const purged = dry ? 0 : await purgeChatTrash();
+  return json({ ok: results.every(row => !row.error), companies: results.length, purgedFiles: purged, results });
 });
