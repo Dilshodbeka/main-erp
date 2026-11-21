@@ -536,3 +536,6 @@ button:active:not(:disabled){transform:scale(.97)}
 
 .login-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .login-top a{font-size:12px;text-decoration:none}
+.cut-row>span small{display:block;font-size:10px;color:var(--muted)}
+.cut-row>span small.cut-warn{color:#b3402f;white-space:normal}
+.cut-file-name{display:flex;align-items:center;gap:10px;font-size:13px}

@@ -509,3 +509,7 @@ Bo‘sh — butun akkaunt	Пусто — весь аккаунт
 Timepay uzilsinmi? Davomat nazorati to‘xtaydi.	Отключить Timepay? Контроль посещаемости остановится.
 Qadoqlangan tayyor mahsulot. Sotuv narxi katalogda, tannarx ishlab chiqarishdan yig‘iladi.	Упакованная готовая продукция. Цена продажи — в каталоге, себестоимость складывается из производства.
 Tizim haqida	О системе
+BAZIS-Mebelshchik hisobotini (Excel) oching yoki jadvalni nusxalab shu yerga qo‘ying. «Наименование» va «Кол-во» ustunlari o‘zi topiladi.	Откройте отчёт БАЗИС-Мебельщика (Excel) или скопируйте таблицу сюда. Столбцы «Наименование» и «Кол-во» находятся сами.
+PDF o‘qilmaydi: BAZIS’da hisobotni Excel’ga saqlang yoki jadvalni nusxalang.	PDF не читается: сохраните отчёт в БАЗИСе в Excel или скопируйте таблицу.
+Fayl o‘qilmadi: {0}	Файл не прочитан: {0}
+ombordagi o‘lchov: {0} — miqdorni tekshiring	на складе в ед.: {0} — проверьте количество

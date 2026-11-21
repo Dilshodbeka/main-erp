@@ -69,6 +69,7 @@ function chunkOf(id: string): string | undefined {
     if (/(^|\/)src\/(App|main)\.tsx$/.test(path)) return 'app';
     return path.includes('/src/') ? 'core' : undefined;
   }
+  if (path.includes('/node_modules/xlsx/')) return undefined; // Excel reader: loaded only when a report file is opened
   if (path.includes('/@supabase/')) return 'supabase';
   if (path.includes('/react-dom/') || path.includes('/react/') || path.includes('/scheduler/')) return 'react';
   if (path.includes('/lucide-react/')) return 'icons';
