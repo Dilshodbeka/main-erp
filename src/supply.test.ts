@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyCommand, emptyState } from './domain';
 import { DEMO_COMPANY_ID, migrateState } from './migrations';
-import { supplyNeeds } from './supply';
+import { planCommand, purchasePlan, supplyNeeds } from './supply';
 import { MAIN_WAREHOUSE_ID } from './warehouse-default';
 import type { Actor, Command, Item, MaterialLine, Order, State, Status, StockMovement } from './types';
 
@@ -145,5 +145,64 @@ describe('дефицит → закупка → приём', () => {
     const purchase = state.purchases[0];
     state = run(state, { type: 'purchase.receive', purchaseId: purchase.id, lines: [{ lineId: purchase.lines[0].id, qty: 5 }] });
     expect(supplyNeeds(state)).toEqual([]);
+  });
+});
+
+describe('purchasePlan', () => {
+  const supplier = (id: string, name: string) => ({ id, name, phone: '' });
+  const bought = (id: string, supplierId: string, itemId: string, qty: number, received: number, createdAt: string) => ({
+    id, number: id, supplierId, createdAt, warehouseId: MAIN_WAREHOUSE_ID, orderId: null,
+    lines: [{ id: `${id}-l`, itemId, qty, price: 100, received, previousPurchasePrice: 0, newPurchasePrice: 0, previousAverageCost: 0, newAverageCost: 0 }],
+  });
+
+  it('groups what is missing by the supplier who sold it last, at the last price', () => {
+    const state = world({
+      items: [item('paint', { name: 'Lak', lastPurchasePrice: 50000 }), item('edge', { name: 'Kromka', unit: 'm', lastPurchasePrice: 2000 })],
+      suppliers: [supplier('s1', 'Gigant'), supplier('s2', 'Yufurni')] as State['suppliers'],
+      purchases: [bought('p1', 's2', 'paint', 5, 5, '2026-10-01T00:00:00.000Z'), bought('p2', 's1', 'paint', 5, 5, '2026-11-01T00:00:00.000Z'),
+        bought('p3', 's2', 'edge', 100, 100, '2026-11-02T00:00:00.000Z')] as State['purchases'],
+      movements: [stock('paint', 3)],
+      orders: [order('A', [material('m1', 'paint', 10), material('m2', 'edge', 40)])],
+    });
+    const plan = purchasePlan(state, MAIN_WAREHOUSE_ID);
+    expect(plan.map(group => [group.supplierName, group.lines.map(line => [line.name, line.qty, line.price])])).toEqual([
+      ['Gigant', [['Lak', 7, 50000]]], ['Yufurni', [['Kromka', 40, 2000]]]]);
+    expect(plan[0].total).toBe(350000);
+    expect(planCommand(plan[0], 's1', MAIN_WAREHOUSE_ID)).toEqual({ type: 'purchase.create', supplierId: 's1', warehouseId: MAIN_WAREHOUSE_ID,
+      lines: [{ itemId: 'paint', qty: 7, price: 50000 }] });
+  });
+
+  it('does not order twice what is already on its way', () => {
+    const state = world({
+      suppliers: [supplier('s1', 'Gigant')] as State['suppliers'],
+      purchases: [bought('p1', 's1', 'paint', 6, 0, '2026-11-01T00:00:00.000Z')] as State['purchases'],
+      orders: [order('A', [material('m1', 'paint', 10)])],
+    });
+    expect(purchasePlan(state, MAIN_WAREHOUSE_ID)[0].lines[0]).toMatchObject({ qty: 4, onOrder: 6, forOrders: 4 });
+    const covered = { ...state, purchases: [bought('p1', 's1', 'paint', 10, 0, '2026-11-01T00:00:00.000Z')] as State['purchases'] };
+    expect(purchasePlan(covered, MAIN_WAREHOUSE_ID)).toEqual([]);
+  });
+
+  it('tops the stock up to the minimum and keeps never-bought materials in a group without a supplier', () => {
+    const state = world({ items: [item('paint', { name: 'Lak', minQty: 5 }), item('glue', { name: 'Yelim', minQty: 0 })], movements: [stock('paint', 2)] });
+    const plan = purchasePlan(state, MAIN_WAREHOUSE_ID);
+    expect(plan).toHaveLength(1);
+    expect(plan[0].supplierId).toBeNull();
+    expect(plan[0].lines).toEqual([expect.objectContaining({ name: 'Lak', qty: 3, forMinimum: 3, forOrders: 0 })]);
+  });
+
+  it('never plans customer materials or own products', () => {
+    const state = world({ items: [item('paint', { customerId: 'c1', cost: 0 }), item('blank', { kind: 'blank', minQty: 4 })],
+      orders: [order('A', [material('m1', 'paint', 10)])] });
+    expect(purchasePlan(state, MAIN_WAREHOUSE_ID)).toEqual([]);
+  });
+
+  it('one click creates a real purchase the kernel accepts', () => {
+    let state = run(emptyState(), { type: 'supplier.create', name: 'Gigant', phone: '' });
+    state = run(state, { type: 'item.create', name: 'Lak', unit: 'l', minQty: 8, cost: 0, customerId: null });
+    const plan = purchasePlan(state, MAIN_WAREHOUSE_ID);
+    state = run(state, planCommand(plan[0], state.suppliers[0].id, MAIN_WAREHOUSE_ID));
+    expect(state.purchases[0].lines[0]).toMatchObject({ qty: 8, received: 0 });
+    expect(purchasePlan(state, MAIN_WAREHOUSE_ID)).toEqual([]);
   });
 });

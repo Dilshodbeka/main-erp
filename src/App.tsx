@@ -455,8 +455,12 @@ export default function App() {
     commands.length === 1 ? run(commands[0]!) : (await runAll(commands, message)).error === null;
   const launchOrder = (target: Order): Promise<boolean> => {
     const canIssue = target.materials.length > 0 && orderShortage(state!, target).length === 0;
+    const short = target.materials.length > 0 && !canIssue;
     return runChain([{ type: 'order.launch', orderId: target.id }, ...(canIssue ? [{ type: 'order.issue', orderId: target.id } as Command] : [])],
-      'Buyurtma sehga tushirildi, materiallar berildi.');
+      'Buyurtma sehga tushirildi, materiallar berildi.').then(done => {
+      if (done && short) setNotice({ message: 'Buyurtma sehga tushirildi. Material yetishmaydi — Ombor → Ta’minotda xarid rejasi tayyor.', error: true });
+      return done;
+    });
   };
   const runSetupDemo = async (step: SetupStepId): Promise<boolean> => {
     if (!state || busyRef.current) return false;
@@ -789,7 +793,7 @@ export default function App() {
       <div className="metrics three"><Metric label="O‘z zaxiralari qiymati" value={money(state.items.filter(i => !i.customerId).reduce((s, i) => s + stockQty(state, i.id, scopedWarehouse) * i.cost, 0))} detail="O‘rtacha tortilgan tannarx" icon={Package} accent /><Metric label="Katalogdagi pozitsiyalar" value={state.items.length} detail={`${state.items.filter(i => i.customerId).length} mijoz pozitsiyasi`} icon={Layers} /><Metric label="To‘ldirish kerak" value={scopedLow.length} detail="Bo‘sh miqdor minimaldan past" icon={CircleAlert} /></div>
       {panel === 'tasniflagich' && <WarehouseCatalog state={state} warehouseId={scopedWarehouse} search={search} onEdit={id => show('itemEdit', id)} onCount={id => show('count', `${id}:${scopedWarehouse}`)} />}
       {panel === 'qoldiqlar' && <WarehouseAnalytics state={state} warehouseId={scopedWarehouse} search={search} />}
-      {panel === 'taminot' && <SupplyNeeds state={state} warehouseId={scopedWarehouse} search={search} onPurchase={need => show('purchase', `${need.itemId}:${need.warehouseId}`)} />}
+      {panel === 'taminot' && <SupplyNeeds state={state} warehouseId={scopedWarehouse} search={search} busy={busy} onCreate={admin || can('purchases.create') ? async (commands, message) => (await runAll(commands, message)).error === null : undefined} onPurchase={need => show('purchase', `${need.itemId}:${need.warehouseId}`)} />}
     </>}
 
     {current === 'series' && <>

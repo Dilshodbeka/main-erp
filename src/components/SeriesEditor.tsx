@@ -124,17 +124,17 @@ export function SeriesEditor({ state, busy, close, save }: {
         {route.map((line, index) => {
           const operation = operations.find(row => row.id === line.operationId);
           const employees = state.employees.filter(employee => employee.active && (!operation || operation.employeeIds.includes(employee.id)));
-          return <div className="editor-line route-editor" key={index}>
+          return <div className="editor-line route-editor route-card" key={index}>
             <span className="route-index">{index + 1}</span>
-            <OperationSelect ariaLabel={`Operatsiya ${index + 1}`} value={line.operationId}
+            <label className="rf rf-stage"><small>Bosqich</small><OperationSelect ariaLabel={`Operatsiya ${index + 1}`} value={line.operationId}
               operations={operations} machines={state.machines}
-              onChange={operationId => pickOperation(index, operationId)} />
-            <select aria-label={`Ijrochi ${index + 1}`} required value={line.employeeId} onChange={event => setRoute(route.map((row, i) => i === index ? { ...row, employeeId: event.target.value } : row))}>
+              onChange={operationId => pickOperation(index, operationId)} /></label>
+            <div className="route-executor single"><label className="rf"><small>Ijrochi</small><select aria-label={`Ijrochi ${index + 1}`} required value={line.employeeId} onChange={event => setRoute(route.map((row, i) => i === index ? { ...row, employeeId: event.target.value } : row))}>
               <option value="">Ijrochi</option>
               {employees.map(employee => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
-            </select>
-            <input aria-label={`Birlik tannarxi ${index + 1}`} type="number" min="0" step="0.01" value={line.rate} required onChange={event => setRoute(route.map((row, i) => i === index ? { ...row, rate: Number(event.target.value) } : row))} />
-            <b className="route-amount">{money(line.rate * qty)}</b>
+            </select></label></div>
+            <label className="rf rf-qty"><small>Birlik tannarxi</small><input aria-label={`Birlik tannarxi ${index + 1}`} type="number" min="0" step="0.01" value={line.rate} required onChange={event => setRoute(route.map((row, i) => i === index ? { ...row, rate: Number(event.target.value) } : row))} /></label>
+            <b className="route-amount"><small>Summa</small>{money(line.rate * qty)}</b>
             <div className="route-tools">
               <button type="button" className="icon-button" aria-label={`Bosqichni yuqoriga ko‘tarish ${index + 1}`} disabled={index === 0} onClick={() => moveStage(index, -1)}>↑</button>
               <button type="button" className="icon-button" aria-label={`Bosqichni pastga tushirish ${index + 1}`} disabled={index === route.length - 1} onClick={() => moveStage(index, 1)}>↓</button>

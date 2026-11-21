@@ -1,3 +1,5 @@
+import { CutImport } from './CutImport';
+import { mergeCut } from '../cut-import';
 import { unitLabel } from '../work-view';
 import { Fragment, useState } from 'react';
 import { Copy, Plus, X } from 'lucide-react';
@@ -179,6 +181,7 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
   onTransfer?: (row: ShortageRow) => void;
 }) {
   const floor = position.floor;
+  const [cutOpen, setCutOpen] = useState(false);
   const shortByItem = new Map(shortage.map(row => [row.itemId, row]));
   const shortageChip = (itemId: string) => {
     const row = shortByItem.get(itemId);
@@ -221,8 +224,14 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
     </p>}
     <div className="form-section-title">
       <div><h3>Materiallar</h3><small>Butun pozitsiya uchun jami miqdor</small></div>
-      <button type="button" className="secondary small" onClick={() => onChange({ materials: [...position.materials, { itemId: '', qty: 1, issuedQty: 0 }] })}><Plus size={14} />Qator</button>
+      <div className="button-group">
+        <button type="button" className="secondary small" onClick={() => setCutOpen(open => !open)}>Raskroydan</button>
+        <button type="button" className="secondary small" onClick={() => onChange({ materials: [...position.materials, { itemId: '', qty: 1, issuedQty: 0 }] })}><Plus size={14} />Qator</button>
+      </div>
     </div>
+    {cutOpen && <CutImport companyId={state.companyId} close={() => setCutOpen(false)}
+      items={state.items.filter(item => item.kind === 'material' && (item.customerId === null || item.customerId === customerId))}
+      onApply={matches => onChange({ materials: mergeCut(position.materials, matches, (itemId, qty) => ({ itemId, qty, issuedQty: 0 })) })} />}
     <ShortageNotice rows={shortage} onGo={onGo} onTransfer={onTransfer} />
     {position.materials.map((row, index) => <div className="editor-line material-editor" key={index}>
       <MaterialPicker label={`Material ${index + 1}`} value={row.itemId} disabled={row.issuedQty > 0} qty={row.qty}

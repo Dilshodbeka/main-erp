@@ -486,3 +486,35 @@ button:active:not(:disabled){transform:scale(.97)}
   .table-scroll.cardable .customer-orders td:nth-child(n+3){font-size:12px;font-weight:700}
   .table-scroll.cardable .customer-orders td:nth-child(6){display:none}
 }
+
+/* Avto-xarid rejasi */
+.plan-group{margin:0 14px 14px;border:1px solid #e6ebdf;border-radius:12px;overflow:hidden}
+.plan-group>header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:#f8faf5;border-bottom:1px solid #e6ebdf}
+.plan-group>header b{font-size:14px}
+.plan-group>header small{display:block;font-size:11px;color:var(--muted)}
+.plan-group>header select{min-width:220px;max-width:100%}
+.plan-table td{vertical-align:middle}
+.plan-table td small{display:block;font-size:11px;line-height:1.5;color:var(--muted)}
+.plan-table td.right{white-space:nowrap}
+@media(max-width:700px){.plan-group{margin:0 0 12px}.plan-group>header{flex-wrap:wrap}.plan-group>header select{min-width:0;width:100%}}
+
+/* Raskroydan import */
+.cut-import{display:flex;flex-direction:column;gap:8px;margin:0 0 12px;padding:12px;border:1px solid #dfe6d6;border-radius:12px;background:#f8faf5}
+.cut-import-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.cut-import-head small{display:block;font-size:11px;line-height:1.5;color:var(--muted)}
+.cut-import textarea{width:100%;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace;resize:vertical}
+.cut-file{position:relative;display:inline-flex;align-items:center;gap:6px;flex:none;cursor:pointer}
+.cut-file input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.cut-column{display:flex;align-items:center;gap:8px;font-size:12px}
+.cut-rows{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow:auto}
+.cut-row{display:grid;grid-template-columns:minmax(0,1.2fr) 96px minmax(0,1.3fr);gap:8px;align-items:center;font-size:12px}
+.cut-row>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cut-row input,.cut-row select{min-width:0;width:100%;padding:6px 8px;font-size:12px}
+.cut-row.unmatched select{border-color:#d9a441;background:#fffaf0}
+.cut-note{font-size:11px;color:var(--muted)}
+.cut-import>.button-group{justify-content:flex-end}
+@media(max-width:700px){.cut-row{grid-template-columns:minmax(0,1fr) 84px}.cut-row select{grid-column:1 / -1}.cut-import-head{flex-direction:column}}
+
+.route-card>.route-executor.single{grid-template-columns:minmax(0,1fr)}
+.route-card:not(:last-of-type){margin-bottom:10px}
+.settings-facts.plan-facts{grid-template-columns:repeat(3,minmax(0,1fr));margin:0 14px 12px}

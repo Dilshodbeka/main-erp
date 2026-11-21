@@ -456,3 +456,27 @@ Jami · {0} ta buyurtma	Итого · заказов: {0}
 Topshirdi: ____________________	Сдал: ____________________
 Qabul qildi: ____________________	Принял: ____________________
  · Mas’ul: {0}	 · Ответственный: {0}
+Buyurtmalarga yetishmayotgan va minimal qoldiqdan kam material. Allaqachon buyurtma qilingani hisobga olingan.	Материал, которого не хватает заказам и который ниже минимального остатка. Уже заказанное учтено.
+Hammasini yaratish ({0})	Создать все ({0})
+Taxminiy summa	Примерная сумма
+Yetkazib beruvchini tanlang…	Выберите поставщика…
+{0} ta pozitsiya	позиций: {0}
+{0} ta pozitsiya · bu materiallar hali xarid qilinmagan	позиций: {0} · эти материалы ещё не закупались
+Sotib olish	Купить
+Yetishmaydi {0}	Не хватает {0}
+Minimal qoldiq uchun {0}	Для минимального остатка {0}
+Xarid yaratildi. Kelganda «Qabul qilish» orqali omborga kiriting.	Закупка создана. Когда товар придёт, оприходуйте через «Приёмку».
+{0} ta xarid yaratildi.	Создано закупок: {0}.
+Buyurtma sehga tushirildi. Material yetishmaydi — Ombor → Ta’minotda xarid rejasi tayyor.	Заказ запущен в цех. Материала не хватает — в разделе Склад → Снабжение готов план закупки.
+Raskroydan	Из раскроя
+Raskroy hisobotidan	Из отчёта раскроя
+BAZIS, SketchCut yoki Excel hisobotidagi materiallar jadvalini nusxalab shu yerga qo‘ying (nom va miqdor).	Скопируйте таблицу материалов из отчёта БАЗИС, SketchCut или Excel и вставьте сюда (название и количество).
+Excel yoki PDF faylni ochib, jadvalni nusxalang va shu yerga qo‘ying. Fayl sifatida faqat CSV va TXT o‘qiladi.	Откройте файл Excel или PDF, скопируйте таблицу и вставьте сюда. Как файл читаются только CSV и TXT.
+Miqdor qaysi ustunda	В каком столбце количество
+Oxirgi son	Последнее число
+{0}-son	{0}-е число
+— o‘tkazib yuborish —	— пропустить —
+Topildi: {0} / {1}. Topilmaganini ro‘yxatdan tanlang — keyingi safar tizim o‘zi eslab qoladi.	Найдено: {0} / {1}. Ненайденное выберите из списка — в следующий раз система запомнит сама.
+Jadval o‘qilmadi: har bir qatorda material nomi va miqdor bo‘lishi kerak.	Таблица не прочитана: в каждой строке должны быть название материала и количество.
+Qo‘shish ({0})	Добавить ({0})
+Qo‘shish	Добавить

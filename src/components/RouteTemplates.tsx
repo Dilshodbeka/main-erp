@@ -84,19 +84,19 @@ export function RouteTemplates({ state, busy, run }: {
         <div className="form-body">
           <Field label="Shablon nomi"><input value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })} required maxLength={120} autoFocus /></Field>
           <Field label="Shablon turi"><select value={draft.kind} onChange={event => setDraft({ ...draft, kind: event.target.value as OrderLineKind })}><option value="service">Xizmat</option><option value="product">Mahsulot</option></select></Field>
-          {draft.stages.map((stage, index) => <div className="editor-line route-editor" key={index}>
+          {draft.stages.map((stage, index) => <div className="editor-line route-editor route-card" key={index}>
             <span className="route-index">{index + 1}</span>
-            <OperationSelect ariaLabel={`Shablon bosqich operatsiyasi ${index + 1}`} value={stage.operationId}
+            <label className="rf rf-stage"><small>Bosqich</small><OperationSelect ariaLabel={`Shablon bosqich operatsiyasi ${index + 1}`} value={stage.operationId}
               operations={state.operations} machines={state.machines}
-              onChange={operationId => setStage(index, { operationId })} />
+              onChange={operationId => setStage(index, { operationId })} /></label>
             <div className="route-executor">
-              <select aria-label={`Shablon bosqich ijrochi turi ${index + 1}`} value={stage.executorKind} onChange={event => setStage(index, event.target.value === 'supplier'
+              <label className="rf"><small>Kim bajaradi</small><select aria-label={`Shablon bosqich ijrochi turi ${index + 1}`} value={stage.executorKind} onChange={event => setStage(index, event.target.value === 'supplier'
                 ? { executorKind: 'supplier', employeeId: '', supplierId: state.suppliers[0]?.id ?? '' }
                 : { executorKind: 'employee', supplierId: '', employeeId: state.employees.find(emp => emp.active)?.id ?? '' })}>
                 <option value="employee">Xodim</option>
                 <option value="supplier">Pudratchi</option>
-              </select>
-              {stage.executorKind === 'employee'
+              </select></label>
+              <label className="rf"><small>{stage.executorKind === 'employee' ? 'Ijrochi' : 'Pudratchi'}</small>{stage.executorKind === 'employee'
                 ? <select aria-label={`Shablon bosqich ijrochisi ${index + 1}`} value={stage.employeeId} onChange={event => setStage(index, { employeeId: event.target.value })}>
                   <option value="">Avtomatik tanlanadi</option>
                   {state.employees.filter(emp => emp.active).map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
@@ -104,10 +104,10 @@ export function RouteTemplates({ state, busy, run }: {
                 : <select aria-label={`Shablon bosqich pudratchisi ${index + 1}`} required value={stage.supplierId} onChange={event => setStage(index, { supplierId: event.target.value })}>
                   <option value="">Pudratchini tanlang</option>
                   {state.suppliers.map(sup => <option key={sup.id} value={sup.id}>{sup.name}</option>)}
-                </select>}
+                </select>}</label>
             </div>
-            <input aria-label={`Shablon bosqich tannarxi ${index + 1}`} type="number" min="0" step="0.01" placeholder="Avtomatik" value={stage.rate ?? ''} onChange={event => setStage(index, { rate: event.target.value === '' ? null : Number(event.target.value) })} />
-            <button type="button" className="icon-button" aria-label={`Shablon bosqichini olib tashlash ${index + 1}`} onClick={() => setDraft({ ...draft, stages: draft.stages.filter((_, i) => i !== index) })}><X size={16} /></button>
+            <label className="rf rf-qty"><small>Birlik tannarxi</small><input aria-label={`Shablon bosqich tannarxi ${index + 1}`} type="number" min="0" step="0.01" placeholder="Avtomatik" value={stage.rate ?? ''} onChange={event => setStage(index, { rate: event.target.value === '' ? null : Number(event.target.value) })} /></label>
+            <div className="route-tools"><button type="button" className="icon-button" aria-label={`Shablon bosqichini olib tashlash ${index + 1}`} onClick={() => setDraft({ ...draft, stages: draft.stages.filter((_, i) => i !== index) })}><X size={16} /></button></div>
           </div>)}
           <button type="button" className="secondary small" onClick={() => setDraft({ ...draft, stages: [...draft.stages, blankStage(state)] })}><Plus size={14} />Bosqich</button>
           {draft.id && <label className="check-field"><input type="checkbox" checked={draft.active} onChange={event => setDraft({ ...draft, active: event.target.checked })} />Shablon faol</label>}
