@@ -203,3 +203,39 @@ button:active:not(:disabled){transform:scale(.97)}
 .form-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .purchase-doc{display:block;margin-top:6px;font-size:12px;font-weight:700;color:#1e5a52}
 @media (max-width:700px){.form-pair{grid-template-columns:1fr}}
+
+/* ── Ish maydoni: ixcham sarlavhalar, kamroq bezak ── */
+.sidebar .brand{font-size:17px;gap:9px;margin-bottom:18px}
+.sidebar .brand>span{width:30px;height:30px;font-size:16px;border-radius:9px}
+.topbar{height:58px}
+.page-heading h1{font-size:23px;line-height:1.25;margin-top:4px}
+.page-heading p{margin-top:5px;line-height:1.6}
+.guide-hint{padding:7px 35px;align-items:center}
+.guide-hint-text span{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.demo-banner .banner-close{margin-left:4px;width:30px;height:30px;flex-shrink:0}
+/* Profil menyusi: til va bildirishnomalar */
+.sidebar-bottom{position:relative}
+.profile-open{display:flex;align-items:center;gap:10px;flex:1;min-width:0;padding:0;border:0;background:none;text-align:left;color:inherit;border-radius:10px}
+.profile-open>div:last-child{min-width:0}
+.profile-open b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.profile-open small{display:inline-flex;align-items:center;gap:4px}
+.profile-menu{position:absolute;left:10px;right:10px;bottom:calc(100% + 6px);z-index:30;display:grid;gap:8px;padding:12px;border-radius:14px;background:#fff;border:1px solid var(--border);box-shadow:0 12px 30px rgba(20,40,30,.16)}
+.profile-menu small{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.profile-menu .lang-switch,.profile-menu .push-toggle{margin:0;width:100%}
+.profile-menu .lang-switch button{flex:1}
+.settings-prefs{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.settings-prefs>div{display:grid;gap:8px;align-content:start}
+.settings-prefs small{font-size:12px;color:var(--muted)}
+.settings-prefs .push-toggle{margin:0;width:100%}
+@media (max-width:700px){
+  .topbar{height:54px}
+  .page-heading h1{font-size:21px;max-width:none}
+  .guide-hint{padding:7px 14px}
+}
+/* Telefon: ochiq menyu pastki panel ustida turadi — profil va «Chiqish» doim ko‘rinadi */
+@media (max-width:700px){.sidebar.open{z-index:40;padding-bottom:calc(17px + env(safe-area-inset-bottom))}.menu-shade{z-index:38}}
+/* «Yordamchi» — kichik dumaloq tugma: jadval tugmalarini to‘smaydi */
+.guide-fab{padding:0;width:44px;height:44px;justify-content:center;border-radius:50%}
+.guide-fab span{display:none}
+.guide-fab b{position:absolute;top:-4px;right:-4px}
+.guide-fab{position:fixed}

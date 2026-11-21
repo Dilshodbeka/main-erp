@@ -9,8 +9,11 @@ import { SupportPanel, type SupportProps } from './Support';
 export function GuideHint({ guide, onAction, onOpen }: {
   guide: PageGuide; onAction: (action: GuideAction) => void; onOpen: () => void;
 }) {
-  const [hidden, setHidden] = useState(false);
-  useEffect(() => { setHidden(false); }, [guide.page]);
+  // Closed once — stays closed for this section; the "Yordamchi" button keeps all steps at hand.
+  const key = `aliya.guide.closed.${guide.page}`;
+  const closed = () => { try { return localStorage.getItem(key) === '1'; } catch { return false; } };
+  const [hidden, setHidden] = useState(closed);
+  useEffect(() => { setHidden(closed()); }, [guide.page]);
   const next = nextStep(guide);
   if (!next || hidden) return null;
   const action = next.action;
@@ -20,7 +23,7 @@ export function GuideHint({ guide, onAction, onOpen }: {
     <div className="guide-hint-actions">
       {action && <button className="secondary small" onClick={() => onAction(action)}>{action.label}</button>}
       <button className="text-button" onClick={onOpen}>Barcha qadamlar<ChevronRight size={14} /></button>
-      <button className="icon-button" aria-label="Maslahatni yopish" onClick={() => setHidden(true)}><X size={14} /></button>
+      <button className="icon-button" aria-label="Maslahatni yopish" onClick={() => { try { localStorage.setItem(key, '1'); } catch { /* private mode */ } setHidden(true); }}><X size={14} /></button>
     </div>
   </div>;
 }

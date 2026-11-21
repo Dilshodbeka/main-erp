@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ChevronRight, LogOut, Menu, RefreshCw } from 'lucide-react';
+import { ChevronRight, Menu, RefreshCw } from 'lucide-react';
 import { usePullToRefresh } from '../pull-refresh';
 
 export interface AppShellProps {
@@ -38,7 +38,6 @@ export function AppShell(props: AppShellProps) {
             {props.searchBox}
             <button className="icon-button" aria-label="Ma’lumotlarni yangilash" onClick={props.onRefresh} disabled={props.busy}><RefreshCw size={17} /></button>
             <button className="live-indicator" onClick={props.onLive}><i />{props.liveLabel}</button>
-            <button className="session-exit" onClick={props.onSignOut} title="Chiqish"><LogOut size={16} />Chiqish</button>
           </div>
         </header>
         {props.banners}
