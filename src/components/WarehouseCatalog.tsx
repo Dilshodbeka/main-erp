@@ -56,7 +56,7 @@ export function WarehouseCatalog({ state, warehouseId, search, onEdit, onCount }
     ? '01–07 tasniflagich: list, kromka, pogon, mahkamlagich, furnitura va sarf materiallari. Kategoriya nomenklatura kartasida o‘zgartiriladi.'
     : tab === 'blanks'
       ? 'Kesish, kromkalash va bo‘yashdan keyingi qismlar. Zagotovka seriya yoki buyurtma ichida paydo bo‘ladi.'
-      : 'Qadoqlangan tayyor mebel. Sotuv narxi katalogda, tannarx ishlab chiqarishdan yig‘iladi.';
+      : 'Qadoqlangan tayyor mahsulot. Sotuv narxi katalogda, tannarx ishlab chiqarishdan yig‘iladi.';
 
   return <>
     <Section title="Ombor tuzilmasi" hint={hint} action={<div className="section-tools"><div className="segmented tight warehouse-tabs">{tabs.map(([key, label]) => <button key={key} className={tab === key ? 'selected' : ''} onClick={() => selectTab(key)}>{label}</button>)}</div><select aria-label="Zaxira filtri" value={stockFilter} onChange={event => setStockFilter(event.target.value)}><option value="all">Barcha qoldiqlar</option><option value="low">Minimaldan past</option><option value="out">Tugagan</option><option value="ok">Yetarli</option></select><SortSelect value={stockSort} onChange={setStockSort} options={sortOptions} /></div>}>

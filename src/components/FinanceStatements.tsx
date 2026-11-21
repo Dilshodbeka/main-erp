@@ -239,7 +239,7 @@ export function FinanceStatements({ state, actor, search = '', onOpenCustomer }:
         <tbody>{orderRows.map(row => <tr key={row.orderId}>
           <td data-label="Buyurtma"><b>{row.number}</b><small>{row.title}</small></td>
           <td data-label="Mijoz">{row.customer}</td>
-          <td data-label="Holat">{statusLabel(row.status)}<small>{row.kind === 'service' ? 'Xizmat' : 'Mebel'}</small></td>
+          <td data-label="Holat">{statusLabel(row.status)}<small>{row.kind === 'service' ? 'Xizmat' : 'Mahsulot'}</small></td>
           <td data-label="Summa" className="right">{money(row.price)}</td>
           <td data-label="To‘langan" className="right positive">{money(row.paid)}</td>
           <td data-label="Qarz" className="right"><b className={row.debt > 0 ? 'debt' : ''}>{money(row.debt)}</b></td>

@@ -61,8 +61,8 @@ const within = (small: string[], big: string[]): boolean => small.length > 0 && 
  * otherwise the names must match and the match must be the only one.
  */
 export function matchPeople(data: AttendanceData, employees: { id: string; name: string }[],
-  links: { employeeId: string; chatId: string | null; timepayId: number | null }[]): StaffPerson[] {
-  const staff = companyEmployees(data).filter(row => !row.manager);
+  links: { employeeId: string; chatId: string | null; timepayId: number | null }[], words?: string[]): StaffPerson[] {
+  const staff = companyEmployees(data, words).filter(row => !row.manager);
   const byEmployee = new Map(links.map(link => [link.employeeId, link]));
   const taken = new Set<string>();
   const people: StaffPerson[] = staff.map(row => ({ timepayId: row.id, name: row.name, employeeId: null, chatId: null }));

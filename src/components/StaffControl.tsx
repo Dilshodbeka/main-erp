@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { Copy, Link2, Unlink } from 'lucide-react';
 import { kpiOf, statusLabel, type StaffCase, type StaffSettings } from '../staff-control';
-import { decideCase, loadStaffOverview, previousMonth, saveStaffSettings, staffLink, staffUnlink, type StaffOverview } from '../staff-store';
+import { decideCase, loadStaffOverview, previousMonth, saveStaffSettings, staffLink, staffUnlink, timepaySave, timepayStatus, type StaffOverview, type TimepayStatus } from '../staff-store';
 import { duration } from '../attendance';
 import { Empty, Field, Section, date, errorText, money, num } from '../ui';
 import type { State } from '../types';
@@ -22,10 +22,13 @@ export function StaffControl({ state, supabase, today }: { state: State; supabas
   const [link, setLink] = useState<{ employeeId: string; url: string } | null>(null);
   const [rules, setRules] = useState<StaffSettings | null>(null);
   const [copied, setCopied] = useState(false);
+  const [timepay, setTimepay] = useState<TimepayStatus | null>(null);
+  const [token, setToken] = useState('');
+  const [words, setWords] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    try { setData(await loadStaffOverview(supabase, month)); setError(''); } catch (e) { setError(errorText(e)); }
+    try { setData(await loadStaffOverview(supabase, month)); setTimepay(await timepayStatus(supabase)); setError(''); } catch (e) { setError(errorText(e)); }
   }, [supabase, month]);
   useEffect(() => { void load(); }, [load]);
   const act = async (job: () => Promise<unknown>) => {
@@ -109,5 +112,16 @@ export function StaffControl({ state, supabase, today }: { state: State; supabas
         </form>
       </Section>
     </div>
+    {timepay && <Section title="Timepay ulanishi" hint="Kelish-ketish Timepay (Face ID) dan olinadi. Token faqat serverda saqlanadi va qayta ko‘rsatilmaydi.">
+      <form className="staff-rules" onSubmit={event => { event.preventDefault(); void act(async () => { await timepaySave(supabase, token.trim() ? token.trim() : null, words ?? timepay.words.join(', ')); setToken(''); setWords(null); }); }}>
+        <p className={timepay.connected ? 'info-note' : 'warning'}>{timepay.connected ? 'Timepay ulangan: korxonaning o‘z tokeni ishlatilmoqda.' : 'Korxonaning o‘z tokeni kiritilmagan. Timepay kabinetidan integratsiya tokenini oling va shu yerga yozing.'}</p>
+        <div className="order-grid-3">
+          <Field label={timepay.connected ? 'Yangi token (o‘zgartirish uchun)' : 'Timepay tokeni'}><input type="password" autoComplete="off" maxLength={400} value={token} placeholder="timepay_…" onChange={event => setToken(event.target.value)} /></Field>
+          <Field label="Filial yoki bo‘lim nomidagi so‘zlar"><input maxLength={200} value={words ?? timepay.words.join(', ')} placeholder="Bo‘sh — butun akkaunt" onChange={event => setWords(event.target.value)} /></Field>
+          <div className="staff-save button-group"><button className="primary small" disabled={busy || (!token.trim() && words === null)}>Saqlash</button>
+            {timepay.connected && <button type="button" className="secondary small" disabled={busy} onClick={() => { if (window.confirm('Timepay uzilsinmi? Davomat nazorati to‘xtaydi.')) void act(() => timepaySave(supabase, '', '')); }}>Uzish</button>}</div>
+        </div>
+      </form>
+    </Section>}
   </>;
 }

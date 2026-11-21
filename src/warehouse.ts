@@ -70,7 +70,19 @@ export const warehouseGroups: WarehouseGroup[] = [
   },
 ];
 
-export const categoryCodes = warehouseGroups.flatMap(group => group.children.map(leaf => leaf.code));
+export const categoryCodes: string[] = warehouseGroups.flatMap(group => group.children.map(leaf => leaf.code));
+
+/** The furniture classifier the system started with: the default for companies that set nothing. */
+export const FURNITURE_GROUPS: WarehouseGroup[] = warehouseGroups.map(group => ({ ...group, children: group.children.map(leaf => ({ ...leaf })) }));
+
+/**
+ * Switches the classifier of the open company. The exported arrays are changed in place, so every
+ * screen that imported them sees the company's own groups after the next render.
+ */
+export function applyWarehouseGroups(groups: WarehouseGroup[]): void {
+  warehouseGroups.splice(0, warehouseGroups.length, ...groups.map(group => ({ ...group, children: group.children.map(leaf => ({ ...leaf })) })));
+  categoryCodes.splice(0, categoryCodes.length, ...warehouseGroups.flatMap(group => group.children.map(leaf => leaf.code)));
+}
 
 export const categoryPattern = /^\d{2}\.\d{2}$/;
 

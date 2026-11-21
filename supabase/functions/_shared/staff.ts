@@ -1,18 +1,42 @@
 // Attendance discipline, KPI and advance requests: the database and Telegram side of src/staff-control.ts.
 // Used by the scheduled pass (erp-watch?staff=1) and by the bot webhook. The rules themselves are pure
 // and bundled in owner-bot.generated.js; this file only reads, writes and sends.
-// Timepay is one server secret, so all of this belongs to the platform owner's company.
+// Timepay: the platform owner's company uses the server secret; any other company its own token
+// (table erp_integrations, set from the settings screen).
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import {
   BTN, STAFF_DEFAULTS, WORKER_MENU, advanceForDirector, attendanceRows, directorDecision, fetchChecks, fetchPeople, kpiOwn, kpiReport,
   matchPeople, ownerErrorText, parseAdvanceDecision, parseAmount, parseDecision, shortCode, staffBalanceLine, staffTick, sum, workerAnswer,
 } from './owner-bot.generated.js';
-import { adminClientFor, adminSnapshotFor, platformCompanyId, type AccessConfig } from './owner-access.ts';
+import { adminClientFor, adminSnapshotFor, ownerTargets, platformCompanyId, type AccessConfig } from './owner-access.ts';
 
 export type Send = (chatId: string, text: string, keyboard?: string[][]) => Promise<boolean>;
 type Row = Record<string, unknown>;
 
 const PEOPLE_TTL_MS = 60 * 60 * 1000;
+
+/** A company with its Timepay access: `words` pick its people in a Timepay account shared by several firms. */
+export interface StaffCompany { id: string; token: string; words?: string[] }
+
+/** The company's own token, or the server secret for the platform owner's company. Empty token = not connected. */
+export async function staffCompany(service: SupabaseClient, companyId: string | null, envToken: string): Promise<StaffCompany | null> {
+  const home = await platformCompanyId(service);
+  const id = companyId ?? home;
+  if (!id) return null;
+  const row = await service.from('erp_integrations').select('timepay_token, timepay_words').eq('company_id', id).maybeSingle();
+  const own = row.error ? null : row.data;
+  const words = (own?.timepay_words as string[] | undefined)?.filter(Boolean) ?? [];
+  if (own?.timepay_token) return { id, token: own.timepay_token as string, words };
+  // Without its own words the platform company keeps the built-in ones (undefined), any other firm takes the whole account.
+  return { id, token: id === home ? envToken : '', words: words.length ? words : id === home ? undefined : [] };
+}
+
+/** Owner chats of one company (the platform company also has the ids from the server secret). */
+export async function directorChatsOf(service: SupabaseClient, legacyIds: string[], companyId: string): Promise<string[]> {
+  const home = await platformCompanyId(service);
+  const targets = await ownerTargets(service, legacyIds);
+  return targets.find(target => (target.companyId ?? home) === companyId)?.chatIds ?? [];
+}
 
 interface Settings { enabled: boolean; base: number; perMinute: number; forgotFree: number; forgotFine: number; directorName: string }
 
@@ -55,38 +79,41 @@ const forgotCounts = (cases: ReturnType<typeof toCase>[]): Record<number, number
 };
 
 /** Employees and schedules from the hourly cache, today's marks always fresh. */
-async function attendanceData(service: SupabaseClient, token: string, today: string) {
-  const cached = await service.from('erp_timepay_cache').select('data, fetched_at').eq('key', 'people').maybeSingle();
+async function attendanceData(service: SupabaseClient, company: StaffCompany, today: string) {
+  const token = company.token;
+  const key = `people:${company.id}`;
+  const cached = await service.from('erp_timepay_cache').select('data, fetched_at').eq('key', key).maybeSingle();
   let people = cached.data && Date.now() - Date.parse(cached.data.fetched_at) < PEOPLE_TTL_MS ? cached.data.data as Row : null;
   if (!people) {
     people = await fetchPeople(token, fetch);
-    await service.from('erp_timepay_cache').upsert({ key: 'people', data: people, fetched_at: new Date().toISOString() });
+    await service.from('erp_timepay_cache').upsert({ key, data: people, fetched_at: new Date().toISOString() });
   }
   return { employees: people.employees, schedules: people.schedules, checks: await fetchChecks(token, today, fetch) };
 }
 
-async function peopleFor(service: SupabaseClient, companyId: string, data: Row) {
+async function peopleFor(service: SupabaseClient, company: StaffCompany, data: Row) {
+  const companyId = company.id;
   const [employees, links] = await Promise.all([
     service.from('erp_employees').select('id, name').eq('company_id', companyId).eq('active', true),
     service.from('erp_staff_links').select('employee_id, chat_id, timepay_id').eq('company_id', companyId),
   ]);
   return matchPeople(data, employees.data ?? [],
-    (links.data ?? []).map(row => ({ employeeId: row.employee_id, chatId: row.chat_id, timepayId: row.timepay_id === null ? null : Number(row.timepay_id) })));
+    (links.data ?? []).map(row => ({ employeeId: row.employee_id, chatId: row.chat_id, timepayId: row.timepay_id === null ? null : Number(row.timepay_id) })), company.words);
 }
 
 // ── Scheduled pass ───────────────────────────────────────────────────────────────────────────────
-export async function staffPass(service: SupabaseClient, token: string, directorChats: string[], send: Send,
+export async function staffPass(service: SupabaseClient, company: StaffCompany, directorChats: string[], send: Send,
   clock: { today: string; minutes: number; nowIso: string }, dry: boolean): Promise<Record<string, unknown>> {
-  const companyId = await platformCompanyId(service);
-  if (!companyId || !token) return { staff: 'not_configured' };
+  const companyId = company.id;
+  if (!company.token) return { staff: 'not_configured' };
   const settings = await staffSettings(service, companyId);
   if (!settings) return { staff: 'migration_missing' };
   if (!settings.enabled) return { staff: 'off' };
-  const data = await attendanceData(service, token, clock.today);
-  const people = await peopleFor(service, companyId, data);
+  const data = await attendanceData(service, company, clock.today);
+  const people = await peopleFor(service, company, data);
   const cases = await monthCases(service, companyId, monthOf(clock.today));
   const result = staffTick({
-    rows: attendanceRows(data, clock.today, clock.minutes), people, cases: cases.filter(row => row.workDate === clock.today),
+    rows: attendanceRows(data, clock.today, clock.minutes, undefined, undefined, company.words), people, cases: cases.filter(row => row.workDate === clock.today),
     forgot: forgotCounts(cases), settings, today: clock.today, nowMinutes: clock.minutes, nowIso: clock.nowIso, newCode: () => shortCode(),
   });
   if (dry) return { staff: 'dry', people: people.length, linked: people.filter((row: Row) => row.chatId).length, create: result.create.length, update: result.update.length, messages: result.messages.length };
@@ -176,7 +203,7 @@ export async function handleWorker(service: SupabaseClient, config: AccessConfig
       await service.from('erp_staff_dialogs').delete().eq('chat_id', chatId);
       if (saved.error) { await send(chatId, 'So‘rov saqlanmadi. Qayta urinib ko‘ring.', WORKER_MENU); return; }
       let balance = '';
-      try { balance = staffBalanceLine(await adminSnapshotFor(service, config, null), staff.employeeId); } catch { /* the request goes out without the balance */ }
+      try { balance = staffBalanceLine(await adminSnapshotFor(service, config, staff.companyId), staff.employeeId); } catch { /* the request goes out without the balance */ }
       await toDirectors(advanceForDirector({ code, name: staff.name, amount, reason }, balance));
       await send(chatId, `💵 So‘rov direktorga yuborildi: ${sum(amount)}. Javobi shu yerga keladi.`, WORKER_MENU);
       return;
@@ -218,13 +245,13 @@ export async function handleWorker(service: SupabaseClient, config: AccessConfig
 
 // ── Director's commands ──────────────────────────────────────────────────────────────────────────
 /** Returns false when the text is not one of the staff commands (the usual owner bot answers then). */
-export async function handleDirectorStaff(service: SupabaseClient, config: AccessConfig, token: string, chatId: string, text: string,
+export async function handleDirectorStaff(service: SupabaseClient, config: AccessConfig, company: StaffCompany | null, chatId: string, text: string,
   directorChats: string[], send: Send, requestId: () => Promise<string>): Promise<boolean> {
   const decision = parseDecision(text);
   const advance = parseAdvanceDecision(text);
   const wantsKpi = /^\/?kpi$/i.test(text.trim());
   if (!decision && !advance && !wantsKpi) return false;
-  const companyId = await platformCompanyId(service);
+  const companyId = company?.id ?? null;
   const settings = companyId ? await staffSettings(service, companyId) : null;
   if (!companyId || !settings) { await send(chatId, 'Davomat nazorati hali yoqilmagan (bazada jadval yo‘q).'); return true; }
   const others = directorChats.filter(id => id !== chatId);
@@ -238,7 +265,7 @@ export async function handleDirectorStaff(service: SupabaseClient, config: Acces
     const today = tashkent();
     const cases = await monthCases(service, companyId, monthOf(today));
     let people: Row[] = [];
-    try { people = token ? await peopleFor(service, companyId, await attendanceData(service, token, today)) : []; } catch { /* the report is built from the cases alone */ }
+    try { people = company!.token ? await peopleFor(service, company!, await attendanceData(service, company!, today)) : []; } catch { /* the report is built from the cases alone */ }
     await send(chatId, kpiReport(people, cases, settings, monthOf(today)));
     return true;
   }
@@ -279,8 +306,8 @@ export async function handleDirectorStaff(service: SupabaseClient, config: Acces
   // Paid: the payout goes through the same command as in the cash screen, so the cash book and the
   // employee's balance change together.
   try {
-    const snapshot = await adminSnapshotFor(service, config, null) as { state?: { revision?: number } } | null;
-    const scoped = await adminClientFor(service, config, null);
+    const snapshot = await adminSnapshotFor(service, config, companyId) as { state?: { revision?: number } } | null;
+    const scoped = await adminClientFor(service, config, companyId);
     const executed = await scoped.rpc('erp_execute', {
       p_request_id: await requestId(),
       p_expected_revision: snapshot?.state?.revision ?? -1,

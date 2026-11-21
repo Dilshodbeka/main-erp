@@ -71,3 +71,19 @@ export async function decideCase(supabase: SupabaseClient, caseId: string, appro
 export function previousMonth(month: string): string {
   return new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 2, 1)).toISOString().slice(0, 7);
 }
+
+export interface TimepayStatus { connected: boolean; words: string[] }
+
+/** Is Timepay connected for this company. The token itself never leaves the server. */
+export async function timepayStatus(supabase: SupabaseClient): Promise<TimepayStatus | null> {
+  const reply = await supabase.rpc('erp_timepay_status');
+  if (reply.error) return null; // the migration is not applied yet
+  const row = (reply.data ?? {}) as { connected?: unknown; words?: unknown };
+  return { connected: row.connected === true, words: Array.isArray(row.words) ? row.words.map(String) : [] };
+}
+
+/** `token`: null keeps the stored one, '' disconnects. `words` — parts of branch/department names, comma separated. */
+export async function timepaySave(supabase: SupabaseClient, token: string | null, words: string): Promise<void> {
+  const reply = await supabase.rpc('erp_timepay_set', { p_token: token, p_words: words.split(/[,;]+/).map(word => word.trim()).filter(Boolean) });
+  if (reply.error) throw new Error(reply.error.message);
+}

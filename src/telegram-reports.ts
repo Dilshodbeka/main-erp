@@ -48,7 +48,7 @@ export function parseOwnerCommand(input: string): ReportKey | 'menu' | null {
 
 export function ownerMenuText(): string {
   const lines = OWNER_COMMANDS.map(row => `${row.label} — ${row.command}`);
-  return ['🏭 <b>Mebel Aliya — boshqaruv</b>', '', 'Hisobot uchun buyruq tanlang:', ...lines].join('\n');
+  return ['🏭 <b>Korxona boshqaruvi</b>', '', 'Hisobot uchun buyruq tanlang:', ...lines].join('\n');
 }
 
 export function kassaReport(state: State): string {

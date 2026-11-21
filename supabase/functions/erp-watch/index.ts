@@ -12,7 +12,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 import { constantTimeEqual } from '../_shared/telegram.ts';
 import { clockMinutes, fetchAttendance, parseOwnerIds, watchRun } from '../_shared/owner-bot.generated.js';
 import { adminSnapshotFor, ownerTargets, type OwnerTarget } from '../_shared/owner-access.ts';
-import { staffPass, staffSettings } from '../_shared/staff.ts';
+import { staffCompany, staffPass, staffSettings } from '../_shared/staff.ts';
 import { companyDevices, deliverAll, pushCompanies, pushKeys, type PushKeys } from '../_shared/push.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
@@ -157,8 +157,19 @@ serve(async request => {
   if (new URL(request.url).searchParams.get('staff') === '1') {
     try {
       const { today, minutes } = localClock(now);
-      const chats = (await ownerTargets(client(), ownerIds)).find(target => target.companyId === null)?.chatIds ?? ownerIds;
-      return json({ ok: true, ...(await staffPass(client(), timepayToken, chats, send, { today, minutes, nowIso: now.toISOString() }, dry)) });
+      // Every company that has an owner chat and a Timepay token (the platform company — the server secret).
+      const passes: Record<string, unknown>[] = [];
+      for (const target of await ownerTargets(client(), ownerIds)) {
+        try {
+          const company = await staffCompany(client(), target.companyId, timepayToken);
+          if (!company?.token) continue;
+          passes.push({ companyId: company.id, ...(await staffPass(client(), company, target.chatIds, send, { today, minutes, nowIso: now.toISOString() }, dry)) });
+        } catch (error) {
+          console.error('Staff pass failed', error instanceof Error ? error.message : 'unknown');
+          passes.push({ companyId: target.companyId, error: 'staff_pass_failed' });
+        }
+      }
+      return json({ ok: passes.every(row => !row.error), passes });
     } catch (error) {
       console.error('Staff pass failed', error instanceof Error ? error.message : 'unknown');
       return json({ ok: false, code: 'staff_pass_failed' });

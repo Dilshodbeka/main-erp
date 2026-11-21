@@ -518,3 +518,21 @@ button:active:not(:disabled){transform:scale(.97)}
 .route-card>.route-executor.single{grid-template-columns:minmax(0,1fr)}
 .route-card:not(:last-of-type){margin-bottom:10px}
 .settings-facts.plan-facts{grid-template-columns:repeat(3,minmax(0,1fr));margin:0 14px 12px}
+
+/* Ombor tasniflagichi tahriri */
+.classifier-top{display:flex;align-items:flex-end;gap:12px;padding:0 14px 10px;flex-wrap:wrap}
+.classifier-top .field{min-width:240px}
+.classifier-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:0 14px 14px;align-items:start}
+.classifier-group{display:flex;flex-direction:column;gap:6px;padding:10px;border:1px solid #e6ebdf;border-radius:12px;background:#fcfdfa}
+.classifier-group label{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:6px;align-items:center}
+.classifier-group label>span{font-size:11px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums}
+.classifier-group label input{min-width:0;width:100%;padding:6px 8px;font-size:13px}
+.classifier-group label:first-child input{font-weight:700}
+.classifier-group label.leaf input{font-size:12px}
+.classifier-group .text-button{align-self:flex-start;font-size:12px}
+.classifier-add{align-self:start;justify-self:start}
+@media(max-width:1100px){.classifier-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.classifier-grid{grid-template-columns:1fr;padding:0 0 12px}.classifier-top{padding:0 0 10px}}
+
+.login-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.login-top a{font-size:12px;text-decoration:none}

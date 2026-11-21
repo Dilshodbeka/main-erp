@@ -480,3 +480,32 @@ Topildi: {0} / {1}. Topilmaganini ro‘yxatdan tanlang — keyingi safar tizim o
 Jadval o‘qilmadi: har bir qatorda material nomi va miqdor bo‘lishi kerak.	Таблица не прочитана: в каждой строке должны быть название материала и количество.
 Qo‘shish ({0})	Добавить ({0})
 Qo‘shish	Добавить
+Buyurtmadan tayyor mahsulotgacha.	От заказа до готового изделия.
+Mahsulot va alohida xizmatlar bitta hisobda. Ikki marta qarz va to‘lovsiz.	Изделия и отдельные услуги в одном учёте. Без двойных долгов и оплат.
+Masalan, shkaf yoki bo‘yash xizmati	Например, шкаф или услуга покраски
+Masalan, Baraka ishlab chiqarish	Например, производство «Барака»
+Soha	Отрасль
+Umumiy ishlab chiqarish	Производство (общее)
+Tikuvchilik	Швейное производство
+Metall buyumlar	Металлоизделия
+Eshik va deraza	Двери и окна
+Sohangizga mos to‘plamni tanlang, keyin guruh va bo‘limlar nomini o‘zingizga moslang. Pozitsiyalarda kod saqlanadi, nomni o‘zgartirish xavfsiz.	Выберите набор под вашу отрасль, затем поправьте названия групп и разделов под себя. В позициях хранится код, поэтому менять названия безопасно.
+Soha (tayyor to‘plam)	Отрасль (готовый набор)
+Har bir guruh va bo‘limga nom yozing.	Впишите название каждой группе и разделу.
+Guruh nomi	Название группы
+Bo‘lim nomi	Название раздела
+Bu bo‘limda pozitsiyalar bor	В этом разделе есть позиции
+Olib tashlash	Убрать
+Tayyor to‘plam joriy o‘zgarishlar o‘rniga qo‘yiladi. Davom etasizmi?	Готовый набор заменит текущие изменения. Продолжить?
+Tasniflagich saqlandi.	Классификатор сохранён.
+Timepay ulanishi	Подключение Timepay
+Kelish-ketish Timepay (Face ID) dan olinadi. Token faqat serverda saqlanadi va qayta ko‘rsatilmaydi.	Приход и уход берутся из Timepay (Face ID). Токен хранится только на сервере и больше не показывается.
+Timepay ulangan: korxonaning o‘z tokeni ishlatilmoqda.	Timepay подключён: используется собственный токен фирмы.
+Korxonaning o‘z tokeni kiritilmagan. Timepay kabinetidan integratsiya tokenini oling va shu yerga yozing.	Собственный токен фирмы не введён. Возьмите токен интеграции в кабинете Timepay и впишите сюда.
+Yangi token (o‘zgartirish uchun)	Новый токен (чтобы заменить)
+Timepay tokeni	Токен Timepay
+Filial yoki bo‘lim nomidagi so‘zlar	Слова из названия филиала или отдела
+Bo‘sh — butun akkaunt	Пусто — весь аккаунт
+Timepay uzilsinmi? Davomat nazorati to‘xtaydi.	Отключить Timepay? Контроль посещаемости остановится.
+Qadoqlangan tayyor mahsulot. Sotuv narxi katalogda, tannarx ishlab chiqarishdan yig‘iladi.	Упакованная готовая продукция. Цена продажи — в каталоге, себестоимость складывается из производства.
+Tizim haqida	О системе

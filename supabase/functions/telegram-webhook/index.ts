@@ -16,8 +16,8 @@ import {
   type TelegramFileRef,
 } from '../_shared/telegram.ts';
 import { clockMinutes, fetchAttendance, ownerErrorText, ownerNeedsAttendance, ownerNeedsState, ownerReply, parseOwnerIds } from '../_shared/owner-bot.generated.js';
-import { adminClientFor, adminSnapshotFor, linkOwnerChat, ownerOfChat, ownerTargets, platformCompanyId } from '../_shared/owner-access.ts';
-import { handleDirectorStaff, handleWorker, linkStaffChat, staffOfChat, type Send } from '../_shared/staff.ts';
+import { adminClientFor, adminSnapshotFor, linkOwnerChat, ownerOfChat } from '../_shared/owner-access.ts';
+import { directorChatsOf, handleDirectorStaff, handleWorker, linkStaffChat, staffCompany, staffOfChat, type Send } from '../_shared/staff.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -78,11 +78,6 @@ const sendTo: Send = async (chatId, text, keyboard) => {
   }
 };
 
-/** Everyone who acts as the director of the platform owner's company (the Timepay firm). */
-async function directorChats(): Promise<string[]> {
-  return (await ownerTargets(client(), ownerIds)).find(target => target.companyId === null)?.chatIds ?? ownerIds;
-}
-
 // ── Owner bot ───────────────────────────────────────────────────────────────
 // An owner chat is either listed in OWNER_TELEGRAM_IDS (the first, single-company setup) or linked
 // by a company's owner with "/ulash CODE" from the settings screen. Reports are computed by the
@@ -107,12 +102,12 @@ async function ownerAnswer(incoming: IncomingMessage, companyId: string | null):
   const input = incoming.startPayload !== null ? '/start' : incoming.text;
   if (!ownerNeedsState(input)) return ownerReply(input, null);
   const today = tashkentToday();
-  // Timepay is configured by one server secret, so it belongs to the platform owner's company —
-  // for every chat of that company, connected by the secret or by "/ulash".
-  if (timepayToken && ownerNeedsAttendance(input) && (companyId === null || companyId === await platformCompanyId(client()))) {
+  // Timepay: the server secret for the platform owner's company, the company's own token for any other.
+  const timepay = ownerNeedsAttendance(input) ? (await staffCompany(client(), companyId, timepayToken))?.token ?? '' : '';
+  if (timepay) {
     const clock = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
     try {
-      const data = await fetchAttendance(timepayToken, today, fetch);
+      const data = await fetchAttendance(timepay, today, fetch);
       return ownerReply(input, null, today, ownerActions, { data, nowMinutes: clockMinutes(clock) });
     } catch (error) {
       console.error('Timepay failed', error instanceof Error ? error.message : 'unknown');
@@ -346,11 +341,10 @@ serve(async request => {
     const owner = await ownerOfChat(client(), incoming.chatId, ownerIds);
     if (owner) {
       // Attendance decisions, advance requests and "/kpi" belong to the firm Timepay is connected to.
-      if (owner.companyId === null || owner.companyId === await platformCompanyId(client())) {
-        const handled = await handleDirectorStaff(client(), access, timepayToken, incoming.chatId, incoming.text, await directorChats(), sendTo,
-          () => requestIdFor(incoming, 0));
-        if (handled) return json({ ok: true });
-      }
+      const company = await staffCompany(client(), owner.companyId, timepayToken);
+      const handled = await handleDirectorStaff(client(), access, company, incoming.chatId, incoming.text,
+        company ? await directorChatsOf(client(), ownerIds, company.id) : [], sendTo, () => requestIdFor(incoming, 0));
+      if (handled) return json({ ok: true });
       await handleOwner(incoming, owner.companyId);
       return json({ ok: true });
     }
@@ -358,7 +352,7 @@ serve(async request => {
     if (incoming.startPayload && await linkStaffChat(client(), incoming.startPayload, incoming.chatId, sendTo)) return json({ ok: true });
     const staff = await staffOfChat(client(), incoming.chatId);
     if (staff) {
-      await handleWorker(client(), access, staff, incoming.chatId, incoming.text, await directorChats(), sendTo);
+      await handleWorker(client(), access, staff, incoming.chatId, incoming.text, await directorChatsOf(client(), ownerIds, staff.companyId), sendTo);
       return json({ ok: true });
     }
     if (incoming.startPayload !== null) {

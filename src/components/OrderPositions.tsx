@@ -23,7 +23,7 @@ export function OrderPositions({ state, order, busy, onIssue, onShip, onCancel }
     const shippable = (line.status === 'ready' || line.status === 'shipped') && remaining > 0;
     return <article className={`position-card ${line.status === 'cancelled' ? 'cancelled' : ''}`} key={line.id}>
       <header>
-        <div><b>{index + 1}. {line.title}</b><small>{line.kind === 'service' ? 'Xizmat' : 'Mebel / mahsulot'} · {num(line.qty)} × {money(line.qty ? round(line.total / line.qty) : line.total)} = <em>{money(line.total)}</em></small></div>
+        <div><b>{index + 1}. {line.title}</b><small>{line.kind === 'service' ? 'Xizmat' : 'Mahsulot'} · {num(line.qty)} × {money(line.qty ? round(line.total / line.qty) : line.total)} = <em>{money(line.total)}</em></small></div>
         <Badge status={line.status} />
       </header>
       {line.status !== 'cancelled' && materials.map(row => {

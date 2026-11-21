@@ -209,12 +209,12 @@ function PositionForm({ state, position, customerId, orderId, warehouseId, onCha
   };
   return <>
     <div className="position-head">
-      <div><h3>{position.title.trim() || 'Yangi pozitsiya'}</h3><small>{position.kind === 'service' ? 'Alohida xizmat' : 'Mebel / mahsulot'} · summa {money(positionTotal(position))}</small></div>
+      <div><h3>{position.title.trim() || 'Yangi pozitsiya'}</h3><small>{position.kind === 'service' ? 'Alohida xizmat' : 'Mahsulot'} · summa {money(positionTotal(position))}</small></div>
       {position.status && <Badge status={position.status} />}
     </div>
     <div className="form-grid">
-      <Field label="Pozitsiya nomi"><input value={position.title} placeholder="Masalan, oshxona yoki fasadni bo‘yash" maxLength={200} onChange={event => onChange({ title: event.target.value })} required /></Field>
-      <Field label="Pozitsiya turi"><select value={position.kind} onChange={event => onChange({ kind: event.target.value as OrderLineKind })}><option value="product">Mebel / mahsulot</option><option value="service">Alohida xizmat</option></select></Field>
+      <Field label="Pozitsiya nomi"><input value={position.title} placeholder="Masalan, shkaf yoki bo‘yash xizmati" maxLength={200} onChange={event => onChange({ title: event.target.value })} required /></Field>
+      <Field label="Pozitsiya turi"><select value={position.kind} onChange={event => onChange({ kind: event.target.value as OrderLineKind })}><option value="product">Mahsulot</option><option value="service">Alohida xizmat</option></select></Field>
       <Field label={floor > 0 ? `Miqdor · kamida ${num(floor)}` : 'Miqdor'}><input type="number" value={position.qty} min={floor > 0 ? floor : 0.001} step="0.001" onChange={event => onChange({ qty: Number(event.target.value) })} required /></Field>
       <Field label="Bitta dona narxi, UZS"><input type="number" value={position.unitPrice || ''} min="0" step="0.01" placeholder="0" onChange={event => onChange({ unitPrice: Number(event.target.value) })} /></Field>
     </div>

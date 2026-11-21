@@ -15,6 +15,9 @@ import { HealthSection } from './health';
 import { CatalogSettings } from './components/CatalogSettings';
 import { PriceBoard } from './components/PriceBoard';
 import { StaffControl } from './components/StaffControl';
+import { ClassifierEditor } from './components/ClassifierEditor';
+import { groupsOf, loadCompanySettings, parseSettings, saveCompanySettings, type CompanySettings, type Industry } from './classifier';
+import { applyWarehouseGroups } from './warehouse';
 import { CustomerPicker } from './components/CustomerPicker';
 import { OrderEditor } from './components/OrderEditor';
 import { ShortageNotice } from './components/ShortageNotice';
@@ -260,6 +263,27 @@ export default function App() {
     void loadCompanyProfile().then(profile => { if (active) setCompany(profile); });
     return () => { active = false; };
   }, [authenticated]);
+  // Korxonaning o‘z sohasi va ombor tasniflagichi: yuklangach barcha ekranlar shu guruhlarni ko‘radi.
+  const [companySettings, setCompanySettings] = useState<CompanySettings>(() => parseSettings(null));
+  useEffect(() => {
+    if (!authenticated) return;
+    let active = true;
+    void loadCompanySettings(mode === 'cloud' ? supabase : null, actor.companyId).then(loaded => {
+      if (!active) return;
+      applyWarehouseGroups(groupsOf(loaded));
+      setCompanySettings(loaded);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [authenticated, actor.companyId]);
+  const storeCompanySettings = async (next: CompanySettings): Promise<boolean> => {
+    try {
+      await saveCompanySettings(mode === 'cloud' ? supabase : null, actor.companyId, next);
+      applyWarehouseGroups(groupsOf(next));
+      setCompanySettings(next);
+      setNotice({ message: 'Tasniflagich saqlandi.', error: false });
+      return true;
+    } catch (e) { setNotice({ message: errorText(e), error: true }); return false; }
+  };
   useEffect(() => {
     if (!authenticated || actor.role === 'display') { setPurchaseDocs({}); return; }
     let active = true;
@@ -583,10 +607,12 @@ export default function App() {
     setState(null);
   };
 
-  if (mode === 'cloud' && needsCompany) return <CompanyOnboarding busy={busy} error={loginError} onSignOut={() => void exitUnlinkedSession()} onSubmit={name => { void (async () => {
+  if (mode === 'cloud' && needsCompany) return <CompanyOnboarding busy={busy} error={loginError} onSignOut={() => void exitUnlinkedSession()} onSubmit={(name, industry: Industry) => { void (async () => {
     setBusy(true);
     try {
       const result = await bootstrapCompany(name);
+      // Soha tanlovi saqlanmasa ham korxona yaratiladi: keyin Sozlamalardan o‘zgartirish mumkin.
+      if (industry !== 'furniture') await saveCompanySettings(supabase, result.actor.companyId, { industry, classifier: null }).catch(() => undefined);
       setState(result.state);
       setActor(result.actor);
       setSync(syncStatus());
@@ -599,7 +625,7 @@ export default function App() {
       setBusy(false);
     }
   })(); }} />;
-  if (!authenticated || !state) return <div className="login-shell"><div className="login-story"><div className="brand big"><span>A</span> ALIYA <small>ERP</small></div><h1>Birinchi qo‘ng‘iroqdan<br />tayyor mebelgacha.</h1><p>Buyurtmalar, seh, ombor va pul.<br />Bitta tizim. Bitta ishonchli hisob.</p><div className="story-stages">BUYURTMA <ChevronRight size={18} /> SEH <ChevronRight size={18} /> YETKAZIB BERISH</div></div><section className="login-card"><LangSwitch /><ShieldCheck size={28} /><h2>{mode === 'cloud' ? (signup ? 'Ro‘yxatdan o‘tish' : 'Korxonaga kirish') : state ? 'Tizimda kim ishlaydi?' : 'Yuklanmoqda'}</h2>{!state && mode === 'demo' && <Skeleton rows={3} />}<p>{mode === 'cloud' ? (signup ? 'Email va parol kiriting — keyingi qadamda korxonangiz nomini yozasiz. 1 kun bepul sinov.' : 'Shaxsiy kirish. Xodimlarga rolni korxona egasi tayinlaydi.') : state ? 'Demo rejim: profil tanlanadi. Huquqlar umumiy bazadagi tegishli kirish bilan bir xil.' : 'Namoyish hisobi tayyorlanmoqda.'}</p>{mode === 'cloud' && <form onSubmit={async event => { event.preventDefault(); const form = new FormData(event.currentTarget); setBusy(true); setLoginError('');
+  if (!authenticated || !state) return <div className="login-shell"><div className="login-story"><div className="brand big"><span>A</span> ALIYA <small>ERP</small></div><h1>Birinchi qo‘ng‘iroqdan<br />tayyor mahsulotgacha.</h1><p>Buyurtmalar, seh, ombor va pul.<br />Bitta tizim. Bitta ishonchli hisob.</p><div className="story-stages">BUYURTMA <ChevronRight size={18} /> SEH <ChevronRight size={18} /> YETKAZIB BERISH</div></div><section className="login-card"><div className="login-top"><LangSwitch /><a className="text-button" href="./site/">Tizim haqida</a></div><ShieldCheck size={28} /><h2>{mode === 'cloud' ? (signup ? 'Ro‘yxatdan o‘tish' : 'Korxonaga kirish') : state ? 'Tizimda kim ishlaydi?' : 'Yuklanmoqda'}</h2>{!state && mode === 'demo' && <Skeleton rows={3} />}<p>{mode === 'cloud' ? (signup ? 'Email va parol kiriting — keyingi qadamda korxonangiz nomini yozasiz. 1 kun bepul sinov.' : 'Shaxsiy kirish. Xodimlarga rolni korxona egasi tayinlaydi.') : state ? 'Demo rejim: profil tanlanadi. Huquqlar umumiy bazadagi tegishli kirish bilan bir xil.' : 'Namoyish hisobi tayyorlanmoqda.'}</p>{mode === 'cloud' && <form onSubmit={async event => { event.preventDefault(); const form = new FormData(event.currentTarget); setBusy(true); setLoginError('');
         if (signup) {
           // Yangi hisob: kirgandan keyin tizim korxona nomini so‘raydi va 1 kunlik sinov muddatini ochadi.
           const { data, error } = await supabase!.auth.signUp({ email: text(form, 'email'), password: text(form, 'password') });
@@ -619,7 +645,7 @@ export default function App() {
   const customerPhone = (id: string) => state.customers.find(c => c.id === id)?.phone || '';
   const employeeName = (id: string) => state.employees.find(c => c.id === id)?.name || 'Xodim';
   const party = (o: Order) => o.kind === 'series' ? 'Ombor seriyasi · mijozsiz' : customerName(o.customerId);
-  const kindName = (o: Order) => o.kind === 'service' ? 'Xizmat' : o.kind === 'series' ? 'Seriya' : 'Mebel';
+  const kindName = (o: Order) => o.kind === 'service' ? 'Xizmat' : o.kind === 'series' ? 'Seriya' : 'Mahsulot';
   const positionHint = (o: Order) => { const open = o.lines.filter(line => line.status !== 'cancelled').length; return open > 1 ? ` · ${open} pozitsiya` : ''; };
   const orderSortOptions: SortOption<Order, OrderSortKey>[] = [
     { value: 'number', label: 'Raqam', get: o => o.number },
@@ -765,7 +791,7 @@ export default function App() {
     </>}
 
     {current === 'orders' && <>
-      <Title eyebrow="SAVDO / CRM" title={panel === 'mijozlar' ? 'Mijozlar va ularning hisobi.' : 'Mebelga aylanadigan buyurtmalar.'} description={panel === 'mijozlar' ? 'Do‘konlar, oddiy mijozlar va xizmat buyurtmachilari — karta, qarz va Telegram chat.' : 'Mebel va alohida xizmatlar bitta hisobda. Ikki marta qarz va to‘lovsiz.'} action={panel === 'mijozlar' ? <button className="primary" onClick={() => show('customer')}><Users size={16} />Mijoz</button> : <div className="button-group"><button className="secondary" onClick={() => show('customer')}><Users size={16} />Mijoz</button><button className="primary" onClick={() => show('order')}><Plus size={17} />Buyurtma / xizmat</button></div>} />
+      <Title eyebrow="SAVDO / CRM" title={panel === 'mijozlar' ? 'Mijozlar va ularning hisobi.' : 'Buyurtmadan tayyor mahsulotgacha.'} description={panel === 'mijozlar' ? 'Do‘konlar, oddiy mijozlar va xizmat buyurtmachilari — karta, qarz va Telegram chat.' : 'Mahsulot va alohida xizmatlar bitta hisobda. Ikki marta qarz va to‘lovsiz.'} action={panel === 'mijozlar' ? <button className="primary" onClick={() => show('customer')}><Users size={16} />Mijoz</button> : <div className="button-group"><button className="secondary" onClick={() => show('customer')}><Users size={16} />Mijoz</button><button className="primary" onClick={() => show('order')}><Plus size={17} />Buyurtma / xizmat</button></div>} />
       {panel === 'buyurtmalar' && <div className="metrics three"><Metric label="Qabul qilingan buyurtmalar" value={state.orders.filter(o => o.status !== 'cancelled').length} detail={`${state.orders.filter(o => o.kind === 'service').length} alohida xizmat`} icon={Users} /><Metric label="Buyurtmalar summasi" value={money(state.orders.filter(o => o.status !== 'cancelled').reduce((s, o) => s + o.price, 0))} detail="Shartnoma qiymati, kassa tushumi emas" icon={Layers} /><Metric label="To‘lanmagan" value={money(customerDebt)} detail="To‘lovlar aniq buyurtmaga bog‘langan" icon={Wallet} accent /></div>}
       {panel === 'buyurtmalar' && <Section title="Barcha buyurtmalar" action={<div className="section-tools"><div className="segmented tight">{[['board', 'Kanban'], ['table', 'Jadval']].map(([key, name]) => <button key={key} className={orderView === key ? 'selected' : ''} onClick={() => setOrderView(key as typeof orderView)}>{name}</button>)}</div><select aria-label="Buyurtma holati filtri" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><option value="all">Barcha holatlar</option>{Object.entries(statuses).map(([key, title]) => <option key={key} value={key}>{title}</option>)}</select><SortSelect value={orderSort} onChange={setOrderSort} options={orderSortOptions} /></div>}>{orderView === 'board' ? <>{statusFilter === 'all' && <div className="kanban-jump" role="tablist" aria-label="Kanban ustunlari">{['draft', 'production', 'ready', 'shipped', 'delivered'].map(stage => <button type="button" key={stage} onClick={() => document.getElementById(`kanban-${stage}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' })}>{statuses[stage as Status]}<b>{orders.filter(o => o.status === stage).length}</b></button>)}</div>}<div className="kanban">{(statusFilter === 'all' ? ['draft', 'production', 'ready', 'shipped', 'delivered'] : [statusFilter]).map(stage => { const column = orders.filter(o => o.status === stage); return <section className="kanban-col" id={`kanban-${stage}`} key={stage}><header><Badge status={stage as Status} /><b>{column.length}</b></header><div className="kanban-cards">{column.map(o => <Swipeable key={o.id} actions={[{ label: 'Tahrirlash', onSelect: () => show('orderEdit', o.id) }, ...(admin && o.status !== 'cancelled' ? [{ label: 'Arxiv', onSelect: () => show('cancelOrder', o.id) }] : [])]}><article className="kanban-card" tabIndex={0} onClick={() => setSelectedOrder(o.id)} onKeyDown={e => { if (e.key === 'Enter') setSelectedOrder(o.id); }}><span className="eyebrow">{o.number}<ChatBadge count={orderUnread[o.id] ?? 0} className="inline" /></span><b>{o.title}</b><small>{customerName(o.customerId)} · {num(o.qty)} dona{positionHint(o)} · <span className={overdue(o) ? 'debt' : ''}>muddat {date(o.dueDate)}</span></small><div className="stage-chips">{o.route.map(t => { const info = stageInfo(t); return <span className={`stage-chip ${info.key}`} key={t.id}>{t.name} · {info.label}<i>{executorLabel(state, t).split(' ')[0]}</i></span>; })}{!o.route.length && <span className="stage-chip wait">marshrut belgilanmagan</span>}</div><div className="kanban-foot"><span>{money(o.price)}</span>{o.status !== 'cancelled' && orderDebt(state, o.id) > 0.005 && <span className="debt">qarz {money(orderDebt(state, o.id))}</span>}</div>{admin && o.status === 'draft' && <button className="secondary small full" disabled={busy} onClick={e => { e.stopPropagation(); void run({ type: 'order.launch', orderId: o.id }); }}><Factory size={14} />Sehga ishga tushirish</button>}{admin && o.status === 'production' && o.materials.some(m => m.issuedQty < m.qty) && <button className="secondary small full" disabled={busy} onClick={e => { e.stopPropagation(); void run({ type: 'order.issue', orderId: o.id }); }}><Package size={14} />Materiallarni berish</button>}{admin && shippableLines(state, o).length > 0 && <button className="primary small full" onClick={e => { e.stopPropagation(); show('shipment', o.id); }}><Truck size={14} />Yuborish</button>}</article></Swipeable>)}{!column.length && <p className="kanban-empty">Bu holatda buyurtmalar yo‘q</p>}</div></section>; })}</div></> : <div className="table-scroll cardable"><table><thead><tr><th>Buyurtma</th><th>Mijoz</th><th>Holat / muddat</th><th className="right">Qiymat</th><th className="right">Qarz</th><th /></tr></thead><tbody>{orders.map(o => <tr key={o.id}><td data-label="Buyurtma"><button className="row-link" onClick={() => setSelectedOrder(o.id)}>{o.number} · {o.title}</button><ChatBadge count={orderUnread[o.id] ?? 0} className="inline" /><small>{kindName(o)} · {num(o.qty)} dona{positionHint(o)}</small></td><td data-label="Mijoz">{customerName(o.customerId)}<ChatBadge count={chat.unread[o.customerId] ?? 0} className="inline" /></td><td data-label="Holat / muddat"><Badge status={o.status} /><small>{date(o.dueDate)}</small></td><td data-label="Qiymat" className="right">{money(o.price)}</td><td data-label="Qarz" className="right debt">{money(orderDebt(state, o.id))}</td><td data-label="Amallar"><button className="icon-button" aria-label={`Ochish ${o.number}`} onClick={() => setSelectedOrder(o.id)}><ArrowUpRight size={17} /></button></td></tr>)}</tbody></table></div>}{!orders.length && <Empty text="Buyurtmalar topilmadi" />}</Section>}
       {panel === 'mijozlar' && <Section title="Mijozlar" hint="Do‘konlar, oddiy mijozlar va xizmat buyurtmachilari alohida guruhda" action={<select aria-label="Mijoz turi filtri" value={customerFilter} onChange={event => setCustomerFilter(event.target.value)}><option value="all">Barcha mijozlar · {state.customers.length}</option>{showMineFilter && <option value="mine">Mening mijozlarim · {state.customers.filter(c => c.sellerId === actor.id).length}</option>}{customerKindOrder.map(kind => <option key={kind} value={kind}>{customerKindPlural(kind)} · {state.customers.filter(c => c.kind === kind).length}</option>)}</select>}><div className="table-scroll cardable"><table className="customer-table"><thead><tr><th>Mijoz</th><th>Telefon</th><th>Manzil</th><th className="right">Buyurtma</th><th className="right">Qarz</th><th></th></tr></thead><tbody>{state.customers.filter(c => (customerFilter === 'mine' ? c.sellerId === actor.id : customerFilter === 'all' || c.kind === customerFilter) && matchesSearch(search, [c.name, c.address], c.phone)).sort((left, right) => customerKindOrder.indexOf(left.kind) - customerKindOrder.indexOf(right.kind) || left.name.localeCompare(right.name, 'uz')).map(c => { const debt = customerBalance(state, c.id).debt; const count = state.orders.filter(o => o.customerId === c.id).length; return <tr key={c.id}><td data-label="Mijoz"><button className="row-link" onClick={() => show('customerCard', c.id)}>{c.name}</button><small>{customerKindLabel(c.kind)}{c.employeeId ? ' · Xodim' : ''}{sellerOf(c.sellerId) ? ` · Mas’ul: ${sellerOf(c.sellerId)}` : ''}</small></td><td data-label="Telefon">{c.phone || '—'}</td><td data-label="Manzil">{c.address || '—'}</td><td data-label="Buyurtma" className="right">{count || '—'}</td><td data-label="Qarz" className={debt > 0 ? 'right debt' : 'right'}>{debt > 0 ? money(debt) : '—'}</td><td data-label="Amallar" className="right"><span className="button-group">{canClaim && !c.sellerId && <button className="secondary small" disabled={busy} onClick={() => void run({ type: 'customer.claim', customerId: c.id })}>Mening mijozim</button>}<button className="secondary small" onClick={() => show('customerCard', c.id)}><BarChart3 size={14} />Karta</button><button className="icon-button chat-open" aria-label={`${c.name} bilan Telegram chat`} title="Telegram chat" onClick={() => openChat(c.id)}><MessageCircle size={15} /><ChatBadge count={chat.unread[c.id] ?? 0} /></button></span></td></tr>; })}</tbody></table></div>{!state.customers.length && <Empty text="Birinchi mijozni qo‘shing" />}</Section>}
@@ -855,6 +881,7 @@ export default function App() {
       {admin && <PriceBoard state={state} busy={busy} save={async (commands, message) => (await runAll(commands, message)).error === null} />}
       <div className="dashboard-grid"><CatalogSettings state={state} busy={busy} run={run} onAddEmployee={() => show('employee')} onEditEmployee={id => show('employeeEdit', id)} /><RouteTemplates state={state} busy={busy} run={run} /></div>
       {admin && <WarehouseSettings state={state} busy={busy} run={run} />}
+      {admin && <ClassifierEditor key={`${companySettings.industry}:${JSON.stringify(companySettings.classifier ?? null).length}`} state={state} settings={companySettings} busy={busy} save={storeCompanySettings} />}
       {admin && <WorkshopSettings state={state} busy={busy} run={run} />}
       </>}
       {panel === 'kirish' && <>

@@ -72,7 +72,7 @@ export function pageGuide(state: State, page: string, actor: Actor): PageGuide {
     },
     orders: {
       page: 'orders', title: titles.orders,
-      purpose: 'Mebel va alohida xizmatlar bitta hisobda yuritiladi. Buyurtma yaratish uchun avval mijoz, bosqich va ijrochi kerak.',
+      purpose: 'Mahsulot va alohida xizmatlar bitta hisobda yuritiladi. Buyurtma yaratish uchun avval mijoz, bosqich va ijrochi kerak.',
       steps: build([
         { id: 'customers', title: 'Mijoz qo‘shing', detail: 'Har bir buyurtma mijoz kartasiga bog‘lanadi — qarz va to‘lovlar shu kartada yuritiladi.', done: state.customers.length > 0, action: { kind: 'modal', modal: 'customer', label: 'Mijoz qo‘shish' } },
         { id: 'operations', title: 'Bosqichlarni yarating', detail: 'Marshrut faqat ma’lumotnomadagi bosqichlardan tuziladi. Stavka buyurtma tannarxiga, narx mijozga.', done: operations.length > 0, action: { kind: 'page', page: 'settings', label: 'Sozlamalarga o‘tish' } },

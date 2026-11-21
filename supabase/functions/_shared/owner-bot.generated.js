@@ -60,7 +60,7 @@ var messages = {
   taskInProgress: "Bajarilmoqda",
   taskSubmitted: "Tekshiruvda",
   taskCompleted: "Topshirilgan",
-  orderProduct: "Mebel",
+  orderProduct: "Mahsulot",
   orderService: "Xizmat",
   orderSeries: "Seriya",
   orderComposite: "Aralash",
@@ -3183,7 +3183,7 @@ function parseOwnerCommand(input) {
 }
 function ownerMenuText() {
   const lines = OWNER_COMMANDS.map((row) => `${row.label} — ${row.command}`);
-  return ["🏭 <b>Mebel Aliya — boshqaruv</b>", "", "Hisobot uchun buyruq tanlang:", ...lines].join("\n");
+  return ["🏭 <b>Korxona boshqaruvi</b>", "", "Hisobot uchun buyruq tanlang:", ...lines].join("\n");
 }
 function kassaReport(state) {
   const cash = cashBalance(state, "cash");
@@ -4565,8 +4565,8 @@ function nameWords(name) {
   return latin.split(/[^a-z0-9]+/).filter((word) => word.length > 1);
 }
 var within = (small, big) => small.length > 0 && small.every((word) => big.includes(word));
-function matchPeople(data, employees, links) {
-  const staff = companyEmployees(data).filter((row) => !row.manager);
+function matchPeople(data, employees, links, words) {
+  const staff = companyEmployees(data, words).filter((row) => !row.manager);
   const byEmployee = new Map(links.map((link) => [link.employeeId, link]));
   const taken = /* @__PURE__ */ new Set();
   const people = staff.map((row) => ({ timepayId: row.id, name: row.name, employeeId: null, chatId: null }));
@@ -4579,10 +4579,10 @@ function matchPeople(data, employees, links) {
   }
   for (const person of people) {
     if (person.employeeId) continue;
-    const words = nameWords(person.name);
+    const words2 = nameWords(person.name);
     const candidates = employees.filter((row) => !taken.has(row.id) && byEmployee.get(row.id)?.timepayId == null).filter((row) => {
       const own = nameWords(row.name);
-      return within(own, words) || within(words, own);
+      return within(own, words2) || within(words2, own);
     });
     const rivals = people.filter((other) => other !== person && !other.employeeId && candidates.length === 1 && (() => {
       const own = nameWords(candidates[0].name);

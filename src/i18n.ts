@@ -25,7 +25,7 @@ export const messages = {
   taskInProgress: 'Bajarilmoqda',
   taskSubmitted: 'Tekshiruvda',
   taskCompleted: 'Topshirilgan',
-  orderProduct: 'Mebel',
+  orderProduct: 'Mahsulot',
   orderService: 'Xizmat',
   orderSeries: 'Seriya',
   orderComposite: 'Aralash',
