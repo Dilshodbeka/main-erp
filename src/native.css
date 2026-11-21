@@ -429,3 +429,21 @@ button:active:not(:disabled){transform:scale(.97)}
 .route-card+.assembly-editor .assembly-toggle input{min-height:0;width:18px;height:18px;margin:0}
 .route-card>.route-supplier-cost{text-align:left;justify-self:start}
 @media(max-width:700px){.route-card+.assembly-editor{padding-left:28px}}
+
+/* Davomat va KPI */
+.staff-linked{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:#3f6b2c}
+.staff-cut{color:#b3402f}
+.staff-link{margin:10px 14px 4px;padding:10px 12px;border:1px solid #dfe6d6;border-radius:10px;background:#f8faf5}
+.staff-link>div{display:flex;gap:8px;margin-top:6px}
+.staff-link input{flex:1;min-width:0;font-size:12px}
+.staff-status{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:#eef1e8;color:#5c6b56;white-space:nowrap}
+.staff-status.approved{background:#e6f1dc;color:#3f6b2c}
+.staff-status.fined{background:#f8e3df;color:#a3382a}
+.staff-status.warned{background:#fbf0d6;color:#8a6410}
+.staff-status.claimed,.staff-status.asked{background:#e3eef5;color:#2f5f7a}
+.staff-advances article{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid #eef1e8}
+.staff-advances article:first-child{border-top:0}
+.staff-advances small{display:block}
+.staff-rules{display:flex;flex-direction:column;gap:10px;padding:4px 14px 14px}
+.staff-save{display:flex;align-items:flex-end}
+@media(max-width:700px){.staff-advances article{grid-template-columns:minmax(0,1fr) auto}.staff-advances article>.staff-status{grid-column:1 / -1;justify-self:start}}

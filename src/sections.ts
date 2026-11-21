@@ -17,7 +17,7 @@ const registry: SectionDef[] = [
   { id: 'warehouse', title: 'Ombor', panels: [{ id: 'tasniflagich', title: 'Tasniflagich' }, { id: 'qoldiqlar', title: 'Qoldiqlar tahlili' }, { id: 'taminot', title: 'Ta’minot ehtiyoji' }] },
   { id: 'series', title: 'Seriyalar', panels: [{ id: 'seriyalar', title: 'Seriyalar' }, { id: 'retseptlar', title: 'Retseptlar' }] },
   { id: 'purchases', title: 'Ta’minot', panels: [{ id: 'xaridlar', title: 'Xaridlar' }, { id: 'yetkazib-beruvchilar', title: 'Yetkazib beruvchilar' }, { id: 'narxlar', title: 'Narxlar tarixi' }] },
-  { id: 'people', title: 'Xodimlar', panels: [{ id: 'xodimlar', title: 'Xodimlar' }, { id: 'stavkalar', title: 'Bosqich tannarxi' }, { id: 'oylik', title: 'Oylik va qarzlar' }] },
+  { id: 'people', title: 'Xodimlar', panels: [{ id: 'xodimlar', title: 'Xodimlar' }, { id: 'stavkalar', title: 'Bosqich tannarxi' }, { id: 'oylik', title: 'Oylik va qarzlar' }, { id: 'davomat', title: 'Davomat va KPI' }] },
   { id: 'logistics', title: 'Yetkazib berish', panels: [] },
   { id: 'cash', title: 'Moliya', panels: [{ id: 'kassa', title: 'Kassa' }, { id: 'xarajatlar', title: 'Oylik xarajatlar' }, { id: 'zaymlar', title: 'Zaymlar va investitsiyalar' }, { id: 'pult', title: 'Direktor pulti' }, { id: 'hisobotlar', title: 'Hisobotlar' }] },
   { id: 'analytics', title: 'Hisobotlar', panels: [{ id: 'moliyaviy', title: 'Moliyaviy natija' }, { id: 'sogliq', title: 'Xodimlar va sog‘liq' }] },

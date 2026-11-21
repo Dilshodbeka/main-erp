@@ -37,3 +37,17 @@ export async function fetchAttendance(token: string, today: string, fetcher: Fet
   ]);
   return { employees, schedules, checks };
 }
+
+/** Employees and schedules change rarely: fetched apart so they can be cached between frequent checks. */
+export async function fetchPeople(token: string, fetcher: Fetch): Promise<Pick<AttendanceData, 'employees' | 'schedules'>> {
+  const [employees, schedules] = await Promise.all([
+    list<AttendanceData['employees'][number]>('/employees/', token, fetcher),
+    list<AttendanceData['schedules'][number]>('/schedules/', token, fetcher).catch(() => []),
+  ]);
+  return { employees, schedules };
+}
+
+/** Only the check-ins and check-outs of one day. */
+export function fetchChecks(token: string, today: string, fetcher: Fetch): Promise<AttendanceData['checks']> {
+  return list<AttendanceData['checks'][number]>(`/checkinouts/?date=${encodeURIComponent(today)}`, token, fetcher);
+}

@@ -3,6 +3,7 @@
 // (supabase/functions/_shared/owner-bot.generated.js, built by `npm run build:bot`).
 import { translateError } from './i18n';
 import { migrateState } from './migrations';
+import { payrollDebt } from './domain';
 import { planOwnerAction } from './telegram-actions';
 import type { Actor, Command } from './types';
 import { attendanceFindings, attendanceReport, attendanceStructure, type AttendanceData } from './attendance';
@@ -133,7 +134,23 @@ export function watchRun(rawSnapshot: unknown, sent: Record<string, string>, now
 }
 
 export { generateVapidKeys, pushRequest, pushGone, allowedPushEndpoint } from './webpush';
-export { fetchAttendance } from './timepay';
+export { fetchAttendance, fetchChecks, fetchPeople } from './timepay';
+export { attendanceRows } from './attendance';
+export * from './staff-control';
+
+/** Active employees of the company, for matching with Timepay and Telegram chats. */
+export function staffEmployees(rawSnapshot: unknown): { id: string; name: string }[] {
+  const state = migrateState((rawSnapshot as { state?: unknown } | null)?.state);
+  return state.employees.filter(row => row.active).map(row => ({ id: row.id, name: row.name }));
+}
+
+/** What the company still owes the employee by the salary ledger — shown to the director with an advance request. */
+export function staffBalanceLine(rawSnapshot: unknown, employeeId: string): string {
+  const state = migrateState((rawSnapshot as { state?: unknown } | null)?.state);
+  if (!state.employees.some(row => row.id === employeeId)) return '';
+  const owed = payrollDebt(state, employeeId);
+  return `Oylik bo‘yicha to‘lanmagan: ${Math.round(owed).toLocaleString('ru-RU').replace(/\u00a0/g, ' ')} so‘m`;
+}
 
 /** "HH:MM" local clock → minutes from midnight (for the attendance rules). */
 export function clockMinutes(hhmm: string): number {

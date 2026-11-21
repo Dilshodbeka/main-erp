@@ -401,3 +401,51 @@ Hajm, {0}	Объём, {0}
 Narx, 1 {0}	Цена за 1 {0}
 Narx, 1 {0} · bajarilgan {1}	Цена за 1 {0} · выполнено {1}
 Bu bosqichni brigada bajaradi (yig‘ish)	Этот этап выполняет бригада (сборка)
+Davomat va KPI	Посещаемость и KPI
+Bu bo‘lim umumiy bazada ishlaydi: Telegram-bot va Timepay ulangan korxona uchun.	Раздел работает в общей базе: для фирмы, к которой подключены Telegram-бот и Timepay.
+Ma’lumot olinmadi: {0}	Не удалось получить данные: {0}
+Asos {0} · 1 daqiqa = {1}	База {0} · 1 минута = {1}
+Nazorat o‘chirilgan: bot savol bermaydi va hisoblamaydi.	Контроль выключен: бот не спрашивает и не считает.
+Hal qilinmagan holatlar: {0} ta — qaror berilmaguncha jarima hisoblanmaydi.	Нерешённых случаев: {0} — пока нет решения, штраф не считается.
+Daqiqa	Минуты
+Unutgan	Забыл
+tizimda topilmadi	не найден в системе
+Ulangan	Подключён
+Havola	Ссылка
+Xodimning Telegrami uzilsinmi?	Отключить Telegram работника?
+Faol xodim yo‘q.	Нет активных работников.
+{0}: havolani xodimga yuboring — u ochib «Start» bosadi. 7 kun amal qiladi.	{0}: отправьте ссылку работнику — он откроет её и нажмёт «Start». Действует 7 дней.
+Holatlar	Случаи
+Kechikish, erta ketish va belgilashni unutish. Ochiq holatni shu yerda ham hal qilish mumkin.	Опоздания, ранний уход и забытые отметки. Открытый случай можно решить и здесь.
+Qaror	Решение
+Kechikkan	Опоздал
+Kelmagan	Не пришёл
+Ketishni belgilamagan	Не отметил уход
+Erta ketgan · {0}	Ушёл раньше · {0}
+aniqlanmoqda	уточняется
+Uzrli	Уважительно
+Jarima	Штраф
+uzrli	уважительно
+jarima	штраф
+unutgan — ogohlantirish	забыл — предупреждение
+unutgan — jarima {0}	забыл — штраф {0}
+direktor javobi kutilmoqda (unutgan)	ждёт ответа директора (забыл)
+direktor javobi kutilmoqda (ruxsat)	ждёт ответа директора (отпросился)
+xodim javobi kutilmoqda	ждёт ответа работника
+Bu oyda holat yo‘q.	В этом месяце случаев нет.
+Avans so‘rovlari	Запросы аванса
+Xodim botga yozadi, direktor Telegramda javob beradi. Tasdiqlangani kassaga yoziladi.	Работник пишет боту, директор отвечает в Telegram. Одобренный аванс записывается в кассу.
+Kartaga berildi	Выдан на карту
+Naqd berildi	Выдан наличными
+Rad etildi	Отказано
+So‘rov yo‘q.	Запросов нет.
+Qoidalar	Правила
+Bot shu qoidalar bo‘yicha so‘raydi va hisoblaydi.	Бот спрашивает и считает по этим правилам.
+Nazorat yoqilgan	Контроль включён
+KPI asosi, so‘m	База KPI, сум
+1 daqiqa jarimasi, so‘m	Штраф за 1 минуту, сум
+Direktor ismi (savolda chiqadi)	Имя директора (показывается в вопросе)
+Unutganda ogohlantirishlar soni	Сколько предупреждений за «забыл»
+Undan keyingi jarima, so‘m	Штраф после них, сум
+{0} daqiqa	{0} мин
+{0} soat {1} daqiqa	{0} ч {1} мин

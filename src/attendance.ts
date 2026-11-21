@@ -64,6 +64,8 @@ export interface AttendanceRow {
   employeeId: number; name: string; shiftStart: number; shiftEnd: number | null;
   firstIn: number | null; lateMinutes: number; lastAction: 'IN' | 'OUT' | null; lastAt: number | null;
   state: 'on_time' | 'late' | 'absent' | 'waiting' | 'left_early';
+  /** The shift comes from the person's own Timepay schedule (or the usual hours when Timepay has no schedules at all). */
+  hasShift: boolean;
 }
 
 /** Working hours used when Timepay gives no schedule for an employee (local time, minutes from midnight). */
@@ -156,7 +158,7 @@ export function attendanceRows(data: AttendanceData, today: string, nowMinutes: 
       && last.at <= shift.end - config.earlyLeaveMinutes && nowMinutes >= last.at + config.earlyLeaveGraceMinutes
       && nowMinutes < shift.end) state = 'left_early';
     else state = lateMinutes > 0 ? 'late' : 'on_time';
-    rows.push({ employeeId: employee.id, name: employee.name, shiftStart: shift.start, shiftEnd: shift.end, firstIn: firstIn?.at ?? null, lateMinutes, lastAction: last?.action ?? null, lastAt: last?.at ?? null, state });
+    rows.push({ employeeId: employee.id, name: employee.name, shiftStart: shift.start, shiftEnd: shift.end, firstIn: firstIn?.at ?? null, lateMinutes, lastAction: last?.action ?? null, lastAt: last?.at ?? null, state, hasShift: Boolean(own) || !scheduled });
   }
   return rows.sort((a, b) => a.name.localeCompare(b.name));
 }

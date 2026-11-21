@@ -381,9 +381,9 @@ function acceptReportedWork(orders, reports, payroll) {
   }
 }
 function legacyShipmentLine(shipmentId, order, qty2, payroll) {
-  const material = order.materials.reduce((sum2, line) => sum2 + line.issuedQty * line.actualCost, 0);
-  const outsourced = order.route.reduce((sum2, row) => row.executorKind === "supplier" && row.status === "completed" ? sum2 + row.completed * row.rate : sum2, 0);
-  const labor = payroll.reduce((sum2, row) => row.orderId === order.id && row.status === "accepted" ? sum2 + row.amount : sum2, 0) + outsourced;
+  const material = order.materials.reduce((sum3, line) => sum3 + line.issuedQty * line.actualCost, 0);
+  const outsourced = order.route.reduce((sum3, row) => row.executorKind === "supplier" && row.status === "completed" ? sum3 + row.completed * row.rate : sum3, 0);
+  const labor = payroll.reduce((sum3, row) => row.orderId === order.id && row.status === "accepted" ? sum3 + row.amount : sum3, 0) + outsourced;
   const cost = material + labor;
   const perUnit = (total) => order.qty > 0 ? total / order.qty : 0;
   return {
@@ -413,8 +413,8 @@ function shipmentQty(shipment) {
   return shipment.lines.reduce((total, line) => total + line.qty, 0);
 }
 function shipmentTotals(shipment) {
-  const sum2 = (pick2) => round(shipment.lines.reduce((total, line) => total + line.qty * pick2(line), 0));
-  return { revenue: sum2((line) => line.salePrice), cost: sum2((line) => line.unitCost), materialCost: sum2((line) => line.materialCost), laborCost: sum2((line) => line.laborCost) };
+  const sum3 = (pick2) => round(shipment.lines.reduce((total, line) => total + line.qty * pick2(line), 0));
+  return { revenue: sum3((line) => line.salePrice), cost: sum3((line) => line.unitCost), materialCost: sum3((line) => line.materialCost), laborCost: sum3((line) => line.laborCost) };
 }
 
 // src/receivables.ts
@@ -447,9 +447,9 @@ function customerBalance(state, customerId) {
   });
   return {
     customerId,
-    contract: round2(obligations.reduce((sum2, row) => sum2 + row.total, 0)),
+    contract: round2(obligations.reduce((sum3, row) => sum3 + row.total, 0)),
     paid: received,
-    debt: round2(obligations.reduce((sum2, row) => sum2 + row.outstanding, 0)),
+    debt: round2(obligations.reduce((sum3, row) => sum3 + row.outstanding, 0)),
     advance: Math.max(0, pool),
     obligations
   };
@@ -520,7 +520,7 @@ function expenseLedger(state, planId, asOf) {
     months.push({ month, obliged: round3(amount), paid: 0, unpaid: round3(amount) });
     month = nextMonth(month);
   }
-  const plannedTotal = round3(months.reduce((sum2, row) => sum2 + row.obliged, 0));
+  const plannedTotal = round3(months.reduce((sum3, row) => sum3 + row.obliged, 0));
   let pool = paidTotal;
   for (const row of months) {
     const paid = Math.min(Math.max(0, pool), row.unpaid);
@@ -534,16 +534,16 @@ function expenseLedger(state, planId, asOf) {
 }
 function expensesDebt(state) {
   const ids = new Set(state.expensePlans.map((row) => row.planId));
-  return round3([...ids].reduce((sum2, id) => sum2 + expenseLedger(state, id).owed, 0));
+  return round3([...ids].reduce((sum3, id) => sum3 + expenseLedger(state, id).owed, 0));
 }
 
 // src/loans.ts
 var round4 = (value) => Math.sign(value) * Math.round((Math.abs(value) + Number.EPSILON) * 100) / 100;
 function loanLedger(state, loanId) {
   const loan = state.loans.find((row) => row.id === loanId);
-  const sum2 = (category, direction) => round4(state.cash.reduce((total, row) => row.source === "loan" && row.sourceId === loanId && row.category === category && row.direction === direction ? total + row.amount : total, 0));
-  const drawn = round4(sum2("loan-draw", "in") - sum2("loan-draw", "out"));
-  const repaid = round4(sum2("loan-repay", "out") - sum2("loan-repay", "in"));
+  const sum3 = (category, direction) => round4(state.cash.reduce((total, row) => row.source === "loan" && row.sourceId === loanId && row.category === category && row.direction === direction ? total + row.amount : total, 0));
+  const drawn = round4(sum3("loan-draw", "in") - sum3("loan-draw", "out"));
+  const repaid = round4(sum3("loan-repay", "out") - sum3("loan-repay", "in"));
   const principal = round4(loan?.amount ?? 0);
   return {
     id: loanId,
@@ -611,9 +611,9 @@ function salaryLedger(state, employeeId, asOf) {
     employeeId,
     months,
     prepaid: available,
-    owed: months.reduce((sum2, month) => sum2 + month.unpaid, 0),
+    owed: months.reduce((sum3, month) => sum3 + month.unpaid, 0),
     paidTotal: payments,
-    plannedTotal: months.reduce((sum2, month) => sum2 + month.obliged, 0)
+    plannedTotal: months.reduce((sum3, month) => sum3 + month.obliged, 0)
   };
 }
 
@@ -1278,7 +1278,7 @@ function stagePlanCost(task) {
   return task.executorKind === "supplier" ? supplierStagePlan(task) : round6(task.planned * task.rate);
 }
 function acceptedOutsourceCost(state, supplierId) {
-  return round6(state.orders.reduce((total, order) => total + order.route.reduce((sum2, task) => task.executorKind === "supplier" && task.supplierId === supplierId && task.status === "completed" ? sum2 + supplierStageActual(task) : sum2, 0), 0));
+  return round6(state.orders.reduce((total, order) => total + order.route.reduce((sum3, task) => task.executorKind === "supplier" && task.supplierId === supplierId && task.status === "completed" ? sum3 + supplierStageActual(task) : sum3, 0), 0));
 }
 function supplierDebt(state, supplierId) {
   const purchases = new Set(state.purchases.filter((row) => row.supplierId === supplierId).map((row) => row.id));
@@ -1292,7 +1292,7 @@ function estimatedCost(_state, order) {
   return round6(order.materials.reduce((total, row) => total + round6(row.qty * row.estimatedCost), 0) + order.route.reduce((total, row) => total + stagePlanCost(row), 0) + order.overhead);
 }
 function acceptedRouteCost(order, lineId) {
-  return round6(order.route.reduce((sum2, task) => task.executorKind === "supplier" && task.status === "completed" && (lineId === void 0 || task.lineId === lineId) ? sum2 + supplierStageActual(task) : sum2, 0));
+  return round6(order.route.reduce((sum3, task) => task.executorKind === "supplier" && task.status === "completed" && (lineId === void 0 || task.lineId === lineId) ? sum3 + supplierStageActual(task) : sum3, 0));
 }
 function actualCost(state, order) {
   return round6(order.materials.reduce((total, row) => total + round6(row.issuedQty * row.actualCost), 0) + state.payroll.reduce((total, row) => row.orderId === order.id && row.status === "accepted" ? total + row.amount : total, 0) + acceptedRouteCost(order));
@@ -1309,7 +1309,7 @@ function countsLine(order, entry, line) {
 function qtyForLine(state, order, line, statuses2) {
   return state.shipments.reduce((total, row) => {
     if (row.orderId !== order.id || row.kind !== "order" || !statuses2.includes(row.status)) return total;
-    return total + row.lines.reduce((sum2, entry) => countsLine(order, entry, line) ? sum2 + entry.qty : sum2, 0);
+    return total + row.lines.reduce((sum3, entry) => countsLine(order, entry, line) ? sum3 + entry.qty : sum3, 0);
   }, 0);
 }
 function shippedForLine(state, order, line) {
@@ -1319,9 +1319,9 @@ function deliveredForLine(state, order, line) {
   return qtyForLine(state, order, line, ["delivered"]);
 }
 function orderShipmentLine(state, order, line, beforeQty, qty2) {
-  const materialTotal = round6(lineMaterials(order, line.id).reduce((sum2, row) => sum2 + round6(row.issuedQty * row.actualCost), 0));
+  const materialTotal = round6(lineMaterials(order, line.id).reduce((sum3, row) => sum3 + round6(row.issuedQty * row.actualCost), 0));
   const tasks = new Set(lineRoute(order, line.id).map((row) => row.id));
-  const laborTotal = round6(state.payroll.reduce((sum2, row) => row.orderId === order.id && tasks.has(row.taskId) && row.status === "accepted" ? sum2 + row.amount : sum2, 0) + acceptedRouteCost(order, line.id));
+  const laborTotal = round6(state.payroll.reduce((sum3, row) => row.orderId === order.id && tasks.has(row.taskId) && row.status === "accepted" ? sum3 + row.amount : sum3, 0) + acceptedRouteCost(order, line.id));
   const costTotal = round6(materialTotal + laborTotal);
   const slice = (total) => round6(total * (beforeQty + qty2) / line.qty) - round6(total * beforeQty / line.qty);
   const material = slice(materialTotal);
@@ -1486,10 +1486,10 @@ function ready(state, order) {
   syncOrder(order);
 }
 function actualSeriesMaterialCost(state, order) {
-  return round6(order.materials.reduce((sum2, line) => sum2 + round6(line.issuedQty * line.actualCost), 0));
+  return round6(order.materials.reduce((sum3, line) => sum3 + round6(line.issuedQty * line.actualCost), 0));
 }
 function actualSeriesLaborCost(state, order) {
-  return round6(state.payroll.filter((row) => row.orderId === order.id && row.status === "accepted").reduce((sum2, entry) => sum2 + entry.amount, 0));
+  return round6(state.payroll.filter((row) => row.orderId === order.id && row.status === "accepted").reduce((sum3, entry) => sum3 + entry.amount, 0));
 }
 function actualSeriesCost(state, order) {
   return round6(actualSeriesMaterialCost(state, order) + actualSeriesLaborCost(state, order));
@@ -1520,11 +1520,11 @@ function receiveSeriesOutput(state, order) {
   });
 }
 function lineMaterialCost(order, lineId) {
-  return round6(lineMaterials(order, lineId).reduce((sum2, row) => sum2 + round6(row.issuedQty * row.actualCost), 0));
+  return round6(lineMaterials(order, lineId).reduce((sum3, row) => sum3 + round6(row.issuedQty * row.actualCost), 0));
 }
 function lineLaborCost(state, order, lineId) {
   const tasks = new Set(lineRoute(order, lineId).map((row) => row.id));
-  return round6(state.payroll.reduce((sum2, row) => row.orderId === order.id && tasks.has(row.taskId) && row.status === "accepted" ? sum2 + row.amount : sum2, 0) + acceptedRouteCost(order, lineId));
+  return round6(state.payroll.reduce((sum3, row) => row.orderId === order.id && tasks.has(row.taskId) && row.status === "accepted" ? sum3 + row.amount : sum3, 0) + acceptedRouteCost(order, lineId));
 }
 function receiveAssemblyOutput(state, order, line) {
   if (state.movements.some((row) => row.source === "production" && row.sourceId === order.id)) return;
@@ -1566,7 +1566,7 @@ function outputItem(state, itemId) {
 }
 function payCrew(state, order, task, total) {
   const crew = task.crew !== void 0 && task.crew.length > 0 ? task.crew : [{ employeeId: task.employeeId, weight: 1 }];
-  const weight = crew.reduce((sum2, member) => sum2 + member.weight, 0);
+  const weight = crew.reduce((sum3, member) => sum3 + member.weight, 0);
   let paid = 0;
   crew.forEach((member, index) => {
     const employee = find(state.employees, member.employeeId, "Employee");
@@ -2829,7 +2829,7 @@ function mutate(state, command, actor) {
         return stockShipmentLine(item, qty2);
       });
       check(typeof command.allowDebt === "boolean", "Invalid debt approval");
-      const total = round6(lines.reduce((sum2, line) => sum2 + line.qty * line.salePrice, 0));
+      const total = round6(lines.reduce((sum3, line) => sum3 + line.qty * line.salePrice, 0));
       check(command.allowDebt || !exceeds(total, customerAdvance(state, customer.id)), "Unpaid stock shipment");
       const row = {
         id: uuid(),
@@ -3188,9 +3188,9 @@ function ownerMenuText() {
 function kassaReport(state) {
   const cash = cashBalance(state, "cash");
   const bank = cashBalance(state, "bank");
-  const customerDebt = state.customers.reduce((sum2, c) => sum2 + Math.max(0, customerBalance(state, c.id).debt), 0);
-  const supplier = state.suppliers.reduce((sum2, s) => sum2 + Math.max(0, supplierDebt(state, s.id)), 0);
-  const payroll = state.employees.reduce((sum2, e) => sum2 + Math.max(0, payrollDebt(state, e.id)), 0);
+  const customerDebt = state.customers.reduce((sum3, c) => sum3 + Math.max(0, customerBalance(state, c.id).debt), 0);
+  const supplier = state.suppliers.reduce((sum3, s) => sum3 + Math.max(0, supplierDebt(state, s.id)), 0);
+  const payroll = state.employees.reduce((sum3, e) => sum3 + Math.max(0, payrollDebt(state, e.id)), 0);
   return [
     "💵 <b>Kassa holati</b>",
     "",
@@ -3206,7 +3206,7 @@ function kassaReport(state) {
 function mijozQarzReport(state) {
   const rows = state.customers.map((c) => ({ name: c.name, debt: round7(customerBalance(state, c.id).debt) })).filter((row) => row.debt > 0).sort((a, b) => b.debt - a.debt);
   if (!rows.length) return "👤 <b>Mijozlar qarzi</b>\n\nQarzdor mijoz yoʻq.";
-  const total = rows.reduce((sum2, row) => sum2 + row.debt, 0);
+  const total = rows.reduce((sum3, row) => sum3 + row.debt, 0);
   const lines = rows.slice(0, 30).map((row, i) => `${i + 1}. ${esc2(row.name)} — <b>${uzs(row.debt)}</b>`);
   const tail = rows.length > 30 ? [`…va yana ${rows.length - 30} ta`] : [];
   return ["👤 <b>Mijozlar qarzi</b>", "", ...lines, ...tail, "", `Jami: <b>${uzs(total)}</b>`].join("\n");
@@ -3214,7 +3214,7 @@ function mijozQarzReport(state) {
 function taminotQarzReport(state) {
   const rows = state.suppliers.map((s) => ({ name: s.name, debt: round7(supplierDebt(state, s.id)) })).filter((row) => row.debt > 0).sort((a, b) => b.debt - a.debt);
   if (!rows.length) return "🚚 <b>Taʼminotchilarga qarz</b>\n\nQarz yoʻq.";
-  const total = rows.reduce((sum2, row) => sum2 + row.debt, 0);
+  const total = rows.reduce((sum3, row) => sum3 + row.debt, 0);
   const lines = rows.slice(0, 30).map((row, i) => `${i + 1}. ${esc2(row.name)} — <b>${uzs(row.debt)}</b>`);
   return ["🚚 <b>Taʼminotchilarga qarz</b>", "", ...lines, "", `Jami: <b>${uzs(total)}</b>`].join("\n");
 }
@@ -3243,8 +3243,8 @@ function omborReport(state) {
 function hisobotReport(state) {
   const cash = cashBalance(state, "cash") + cashBalance(state, "bank");
   const activeOrders = state.orders.filter((o) => ACTIVE_STATUSES.includes(o.status)).length;
-  const customerDebt = state.customers.reduce((sum2, c) => sum2 + Math.max(0, customerBalance(state, c.id).debt), 0);
-  const supplier = state.suppliers.reduce((sum2, s) => sum2 + Math.max(0, supplierDebt(state, s.id)), 0);
+  const customerDebt = state.customers.reduce((sum3, c) => sum3 + Math.max(0, customerBalance(state, c.id).debt), 0);
+  const supplier = state.suppliers.reduce((sum3, s) => sum3 + Math.max(0, supplierDebt(state, s.id)), 0);
   const shortage = state.items.filter((item) => item.minQty > 0 && stockQty(state, item.id) < item.minQty).length;
   return [
     "📊 <b>Umumiy hisobot</b>",
@@ -3575,7 +3575,7 @@ function attendanceRows(data, today, nowMinutes, config = ATTENDANCE_DEFAULTS, h
     if (!firstIn) state = nowMinutes >= shift.start + config.absentAfterMinutes ? "absent" : "waiting";
     else if (last?.action === "OUT" && (own || !scheduled) && shift.end !== null && last.at <= shift.end - config.earlyLeaveMinutes && nowMinutes >= last.at + config.earlyLeaveGraceMinutes && nowMinutes < shift.end) state = "left_early";
     else state = lateMinutes > 0 ? "late" : "on_time";
-    rows.push({ employeeId: employee.id, name: employee.name, shiftStart: shift.start, shiftEnd: shift.end, firstIn: firstIn?.at ?? null, lateMinutes, lastAction: last?.action ?? null, lastAt: last?.at ?? null, state });
+    rows.push({ employeeId: employee.id, name: employee.name, shiftStart: shift.start, shiftEnd: shift.end, firstIn: firstIn?.at ?? null, lateMinutes, lastAction: last?.action ?? null, lastAt: last?.at ?? null, state, hasShift: Boolean(own) || !scheduled });
   }
   return rows.sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -3710,18 +3710,18 @@ function directorConsole(state, asOf) {
   const day = Number(iso.slice(8, 10));
   const cash = round8(cashBalance(state, "cash"));
   const bank = round8(cashBalance(state, "bank"));
-  const customers = round8(state.customers.filter((row) => row.kind !== "shop").reduce((sum2, row) => sum2 + customerBalance(state, row.id).debt, 0));
-  const shops = round8(state.customers.filter((row) => row.kind === "shop").reduce((sum2, row) => sum2 + customerBalance(state, row.id).debt, 0));
-  const payroll = round8(state.employees.reduce((sum2, row) => sum2 + payrollDebt(state, row.id), 0));
-  const suppliers = round8(state.suppliers.reduce((sum2, row) => sum2 + Math.max(0, supplierDebt(state, row.id)), 0));
+  const customers = round8(state.customers.filter((row) => row.kind !== "shop").reduce((sum3, row) => sum3 + customerBalance(state, row.id).debt, 0));
+  const shops = round8(state.customers.filter((row) => row.kind === "shop").reduce((sum3, row) => sum3 + customerBalance(state, row.id).debt, 0));
+  const payroll = round8(state.employees.reduce((sum3, row) => sum3 + payrollDebt(state, row.id), 0));
+  const suppliers = round8(state.suppliers.reduce((sum3, row) => sum3 + Math.max(0, supplierDebt(state, row.id)), 0));
   const expenses = round8(expensesDebt(state));
   const loans = round8(loansDebt(state));
   const future = [];
   let cursor = month;
   for (let i = 0; i < 3; i++) {
     const at = `${cursor}-01T00:00:00.000Z`;
-    const salary = round8(state.employees.reduce((sum2, row) => sum2 + (salaryLedger(state, row.id, at).months.at(-1)?.obliged ?? 0), 0));
-    const monthlyExpenses = round8([...new Set(state.expensePlans.map((row) => row.planId))].reduce((sum2, planId) => sum2 + (expenseLedger(state, planId, at).months.at(-1)?.obliged ?? 0), 0));
+    const salary = round8(state.employees.reduce((sum3, row) => sum3 + (salaryLedger(state, row.id, at).months.at(-1)?.obliged ?? 0), 0));
+    const monthlyExpenses = round8([...new Set(state.expensePlans.map((row) => row.planId))].reduce((sum3, planId) => sum3 + (expenseLedger(state, planId, at).months.at(-1)?.obliged ?? 0), 0));
     future.push({ month: cursor, salary, expenses: monthlyExpenses, total: round8(salary + monthlyExpenses) });
     cursor = nextMonth3(cursor);
   }
@@ -3814,7 +3814,7 @@ function supplyNeeds(state) {
   }
   const rows = [];
   for (const need of needs.values()) {
-    need.short = need.orders.reduce((sum2, row) => sum2 + row.short, 0) - stockQty(state, need.itemId, need.warehouseId);
+    need.short = need.orders.reduce((sum3, row) => sum3 + row.short, 0) - stockQty(state, need.itemId, need.warehouseId);
     if (need.short <= 0) continue;
     need.orders.sort((left, right) => left.dueDate.localeCompare(right.dueDate));
     rows.push(need);
@@ -3968,7 +3968,7 @@ function stockInsights(state, now2, cfg) {
     return days >= cfg.deadDays ? [{ item, stock, value, days }] : [];
   }).sort((a, b) => b.value - a.value);
   if (dead.length) {
-    const total = dead.reduce((sum2, row) => sum2 + row.value, 0);
+    const total = dead.reduce((sum3, row) => sum3 + row.value, 0);
     const keep = (100 - cfg.saleDiscount) / 100;
     found.push({
       key: "dead-stock",
@@ -3992,7 +3992,7 @@ function stockInsights(state, now2, cfg) {
       key: `need:${need.itemId}`,
       area: "stock",
       priority: "critical",
-      effect: round9(orders.reduce((sum2, order) => sum2 + order.price, 0)),
+      effect: round9(orders.reduce((sum3, order) => sum3 + order.price, 0)),
       effectLabel: T.atRisk,
       title: fill(T.needTitle, need.name),
       facts: fill(T.needFacts, need.orders.length, qty(need.short, need.unit), formatDate(need.orders[0].dueDate)),
@@ -4053,7 +4053,7 @@ function productionInsights(state, now2, today) {
       continue;
     }
     if (!remaining.length) continue;
-    const hours = remaining.reduce((sum2, task) => sum2 + taskHours(state, task), 0);
+    const hours = remaining.reduce((sum3, task) => sum3 + taskHours(state, task), 0);
     const risky = hours > 0 ? hours > Math.max(left, 0.5) * 8 : remaining.length > left;
     const draftLate = order.status === "draft" && left <= 2;
     if (!risky && !draftLate) continue;
@@ -4091,7 +4091,7 @@ function productionInsights(state, now2, today) {
       key: `queue:${operationId}`,
       area: "production",
       priority: "attention",
-      effect: round9([...new Set(row.orders)].reduce((sum2, order) => sum2 + order.price, 0)),
+      effect: round9([...new Set(row.orders)].reduce((sum3, order) => sum3 + order.price, 0)),
       effectLabel: T.queued,
       title: fill(T.queueTitle, row.name, row.orders.length),
       facts: row.hours > 0 ? fill(T.queueFactsHours, people, Math.ceil(row.hours), formatDate(nearest)) : fill(T.queueFacts, people, formatDate(nearest)),
@@ -4168,7 +4168,7 @@ function staffInsights(state, now2, cfg) {
     if (now2 - Date.parse(row.createdAt) > 30 * DAY) continue;
     const entry = defects.get(row.employeeId) ?? { count: 0, cost: 0, reasons: /* @__PURE__ */ new Map() };
     entry.count += 1;
-    entry.cost += row.materials.reduce((sum2, material) => sum2 + material.qty * (state.items.find((item) => item.id === material.itemId)?.cost ?? 0), 0);
+    entry.cost += row.materials.reduce((sum3, material) => sum3 + material.qty * (state.items.find((item) => item.id === material.itemId)?.cost ?? 0), 0);
     entry.reasons.set(row.reason, (entry.reasons.get(row.reason) ?? 0) + 1);
     defects.set(row.employeeId, entry);
   }
@@ -4293,7 +4293,7 @@ function financeInsights(state, now2, nowIso, cfg) {
   }
   const stale = state.orders.filter((order) => order.status === "draft" && order.kind !== "series" && daysSince(order.createdAt, now2) >= cfg.staleDraftDays);
   if (stale.length) {
-    const total = stale.reduce((sum2, order) => sum2 + order.price, 0);
+    const total = stale.reduce((sum3, order) => sum3 + order.price, 0);
     found.push({
       key: "stale-drafts",
       area: "finance",
@@ -4309,8 +4309,8 @@ function financeInsights(state, now2, nowIso, cfg) {
   }
   const ready2 = state.orders.filter((order) => order.status === "ready" && order.kind !== "series");
   if (ready2.length) {
-    const revenue = ready2.reduce((sum2, order) => sum2 + order.price, 0);
-    const toCollect = ready2.reduce((sum2, order) => sum2 + Math.max(0, customerBalance(state, order.customerId).obligations.find((row) => row.orderId === order.id)?.outstanding ?? 0), 0);
+    const revenue = ready2.reduce((sum3, order) => sum3 + order.price, 0);
+    const toCollect = ready2.reduce((sum3, order) => sum3 + Math.max(0, customerBalance(state, order.customerId).obligations.find((row) => row.orderId === order.id)?.outstanding ?? 0), 0);
     found.push({
       key: "ready-orders",
       area: "finance",
@@ -4388,7 +4388,7 @@ function fromBase64Url(text2) {
   return bytes;
 }
 function concat(...parts) {
-  const out = new Uint8Array(parts.reduce((sum2, part) => sum2 + part.length, 0));
+  const out = new Uint8Array(parts.reduce((sum3, part) => sum3 + part.length, 0));
   let offset = 0;
   for (const part of parts) {
     out.set(part, offset);
@@ -4489,6 +4489,410 @@ async function fetchAttendance(token, today, fetcher) {
   ]);
   return { employees, schedules, checks };
 }
+async function fetchPeople(token, fetcher) {
+  const [employees, schedules] = await Promise.all([
+    list("/employees/", token, fetcher),
+    list("/schedules/", token, fetcher).catch(() => [])
+  ]);
+  return { employees, schedules };
+}
+function fetchChecks(token, today, fetcher) {
+  return list(`/checkinouts/?date=${encodeURIComponent(today)}`, token, fetcher);
+}
+
+// src/staff-control.ts
+var STAFF_DEFAULTS = { enabled: true, base: 5e5, perMinute: 1e3, forgotFree: 3, forgotFine: 1e4, directorName: "" };
+var BTN = {
+  forgot: "✅ Ishdaman, belgilashni unutdim",
+  leave: "🙋 Ruxsat olganman",
+  late: "⏱ Kechikyapman",
+  no: "❌ Ruxsat olmaganman",
+  kpi: "📊 Mening KPI",
+  advance: "💵 Avans so‘rash",
+  skip: "O‘tkazib yuborish",
+  cancel: "Bekor qilish"
+};
+var WORKER_MENU = [[BTN.kpi, BTN.advance]];
+var PING_EVERY_MINUTES = 30;
+var MAX_PINGS = 8;
+var ESCALATE_AFTER_PINGS = 2;
+var EARLY_GRACE_MINUTES = 60;
+var NO_OUT_AFTER_MINUTES = 60;
+var hhmm2 = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+var sum2 = (value) => `${Math.round(value).toLocaleString("ru-RU").replace(/ /g, " ")} so‘m`;
+var director = (settings) => settings.directorName ? `direktor (${settings.directorName})` : "direktor";
+var CYRILLIC = {
+  а: "a",
+  б: "b",
+  в: "v",
+  г: "g",
+  д: "d",
+  е: "e",
+  ё: "yo",
+  ж: "j",
+  з: "z",
+  и: "i",
+  й: "y",
+  к: "k",
+  л: "l",
+  м: "m",
+  н: "n",
+  о: "o",
+  п: "p",
+  р: "r",
+  с: "s",
+  т: "t",
+  у: "u",
+  ф: "f",
+  х: "x",
+  ц: "s",
+  ч: "ch",
+  ш: "sh",
+  щ: "sh",
+  ъ: "",
+  ы: "i",
+  ь: "",
+  э: "e",
+  ю: "yu",
+  я: "ya",
+  ў: "o",
+  қ: "q",
+  ғ: "g",
+  ҳ: "h"
+};
+function nameWords(name) {
+  const latin = name.toLowerCase().replace(/&[a-z]+;/g, " ").replace(/[ʻʼ‘’'`]/g, "").replace(/[а-яёўқғҳ]/g, (letter) => CYRILLIC[letter] ?? letter).replace(/kh/g, "x");
+  return latin.split(/[^a-z0-9]+/).filter((word) => word.length > 1);
+}
+var within = (small, big) => small.length > 0 && small.every((word) => big.includes(word));
+function matchPeople(data, employees, links) {
+  const staff = companyEmployees(data).filter((row) => !row.manager);
+  const byEmployee = new Map(links.map((link) => [link.employeeId, link]));
+  const taken = /* @__PURE__ */ new Set();
+  const people = staff.map((row) => ({ timepayId: row.id, name: row.name, employeeId: null, chatId: null }));
+  for (const person of people) {
+    const explicit = links.find((link) => link.timepayId === person.timepayId);
+    if (explicit) {
+      person.employeeId = explicit.employeeId;
+      taken.add(explicit.employeeId);
+    }
+  }
+  for (const person of people) {
+    if (person.employeeId) continue;
+    const words = nameWords(person.name);
+    const candidates = employees.filter((row) => !taken.has(row.id) && byEmployee.get(row.id)?.timepayId == null).filter((row) => {
+      const own = nameWords(row.name);
+      return within(own, words) || within(words, own);
+    });
+    const rivals = people.filter((other) => other !== person && !other.employeeId && candidates.length === 1 && (() => {
+      const own = nameWords(candidates[0].name);
+      const theirs = nameWords(other.name);
+      return within(own, theirs) || within(theirs, own);
+    })());
+    if (candidates.length === 1 && !rivals.length) {
+      person.employeeId = candidates[0].id;
+      taken.add(candidates[0].id);
+    }
+  }
+  for (const person of people) person.chatId = person.employeeId ? byEmployee.get(person.employeeId)?.chatId ?? null : null;
+  return people;
+}
+var decideLinks = (code) => `✅ Ha, uzrli: /ha_${code}
+❌ Yo‘q, jarima: /yoq_${code}`;
+function question(item, shiftEnd, settings) {
+  if (item.kind === "early") {
+    return {
+      text: `🚪 Siz ${hhmm2(item.atMinutes)} da chiqdingiz${shiftEnd !== null ? `, smena ${hhmm2(shiftEnd)} gacha` : ""}.
+Siz ${director(settings)}dan ruxsat olganmisiz?`,
+      keyboard: [[BTN.leave], [BTN.no]]
+    };
+  }
+  if (item.final) {
+    return { text: `⏱ Siz bugun ${duration(item.minutes)} kechikdingiz.
+Siz ${director(settings)}dan ruxsat olganmisiz?`, keyboard: [[BTN.leave], [BTN.no]] };
+  }
+  return {
+    text: `⏱ Smena ${hhmm2(item.atMinutes)} da boshlandi, Timepay’da kelganingiz belgilanmagan.
+Ishga kelib Face ID’ni unutdingizmi yoki ${director(settings)}dan ruxsat olganmisiz?`,
+    keyboard: [[BTN.forgot], [BTN.leave], [BTN.late]]
+  };
+}
+function situation(item) {
+  if (item.kind === "early") return `${hhmm2(item.atMinutes)} da chiqib ketgan${item.final ? ` (${duration(item.minutes)})` : ""}`;
+  return item.final ? `${duration(item.minutes)} kechikdi` : `ishga kelmagan (smena ${hhmm2(item.atMinutes)})`;
+}
+var fineLine = (item, settings) => item.final ? `KPI’dan −${sum2(item.minutes * settings.perMinute)} (${item.minutes} daqiqa × ${sum2(settings.perMinute)}).` : `Har daqiqa uchun KPI’dan −${sum2(settings.perMinute)}; aniq summa Timepay belgisi bo‘yicha hisoblanadi.`;
+function forgotOutcome(alreadyThisMonth, settings) {
+  const number = alreadyThisMonth + 1;
+  return number <= settings.forgotFree ? { fine: 0, text: `ogohlantirish ${number}/${settings.forgotFree}` } : { fine: settings.forgotFine, text: `${number}-marta — jarima ${sum2(settings.forgotFine)}` };
+}
+var lateOf = (row) => row.firstIn === null ? null : Math.max(row.lateMinutes, row.firstIn - row.shiftStart, 0);
+function staffTick(input) {
+  const out = { create: [], update: [], messages: [] };
+  const { settings, today, nowMinutes, nowIso } = input;
+  if (!settings.enabled) return out;
+  const forgot = { ...input.forgot };
+  const ask = (person, item, shiftEnd) => {
+    if (!person.chatId) return false;
+    out.messages.push({ to: "worker", chatId: person.chatId, ...question(item, shiftEnd, settings) });
+    return true;
+  };
+  const toDirector = (person, item, lead) => {
+    out.messages.push({ to: "director", text: `${lead}
+<b>${person.name}</b> — ${situation(item)}.
+${decideLinks(item.code)}` });
+  };
+  const blank = (person, kind, atMinutes) => ({
+    timepayId: person.timepayId,
+    employeeId: person.employeeId,
+    name: person.name,
+    workDate: today,
+    kind,
+    atMinutes,
+    minutes: 0,
+    final: false,
+    status: "asked",
+    claim: null,
+    fine: 0,
+    code: input.newCode(),
+    pings: 0,
+    pingedAt: nowIso,
+    escalated: false
+  });
+  const settled = (person, item) => {
+    const text2 = `<b>${person.name}</b> — ${situation(item)}. ${fineLine(item, settings)}`;
+    out.messages.push({ to: "director", text: `📌 ${text2}` });
+    if (person.chatId) out.messages.push({ to: "worker", chatId: person.chatId, text: `📌 ${situation(item)}. ${fineLine(item, settings)}`, keyboard: WORKER_MENU });
+  };
+  for (const row of input.rows) {
+    if (!row.hasShift) continue;
+    const person = input.people.find((entry) => entry.timepayId === row.employeeId);
+    if (!person) continue;
+    const own = input.cases.filter((entry) => entry.timepayId === row.employeeId && entry.workDate === today);
+    const shiftEnd = row.shiftEnd;
+    const late = lateOf(row);
+    const arrival = own.find((entry) => entry.kind === "late");
+    if (!arrival) {
+      if (late === null && nowMinutes >= row.shiftStart + 1 || late !== null && late > 0) {
+        const item = blank(person, "late", row.shiftStart);
+        if (late !== null) {
+          item.minutes = late;
+          item.final = true;
+        }
+        if (!ask(person, item, shiftEnd)) {
+          item.escalated = true;
+          toDirector(person, item, "🕘 Xodim Telegram’ga ulanmagan — qarorni o‘zingiz bering.");
+        }
+        out.create.push(item);
+      }
+    } else if (!arrival.final) {
+      const patch = {};
+      if (late !== null) {
+        Object.assign(patch, { minutes: late, final: true });
+        if (late === 0) Object.assign(patch, { status: "approved" });
+      } else if (nowMinutes >= (shiftEnd ?? 23 * 60)) {
+        Object.assign(patch, { minutes: Math.max(0, (shiftEnd ?? 23 * 60) - row.shiftStart), final: true });
+      }
+      if (patch.final) {
+        const next = { ...arrival, ...patch };
+        if (next.status === "fined") settled(person, next);
+        else if (next.status === "asked" && late !== null && late > 0 && ask(person, next, shiftEnd)) Object.assign(patch, { pings: arrival.pings + 1, pingedAt: nowIso });
+        out.update.push({ id: arrival.id, patch });
+      }
+    }
+    const early = own.find((entry) => entry.kind === "early");
+    if (shiftEnd !== null && row.firstIn !== null) {
+      if (!early && row.lastAction === "OUT" && row.lastAt !== null && row.lastAt < shiftEnd && (nowMinutes >= row.lastAt + EARLY_GRACE_MINUTES || nowMinutes >= shiftEnd)) {
+        const item = blank(person, "early", row.lastAt);
+        item.minutes = shiftEnd - row.lastAt;
+        item.final = nowMinutes >= shiftEnd;
+        if (!ask(person, item, shiftEnd)) {
+          item.escalated = true;
+          toDirector(person, item, "🚪 Xodim Telegram’ga ulanmagan — qarorni o‘zingiz bering.");
+        }
+        out.create.push(item);
+      } else if (early && !early.final) {
+        const back = row.lastAction === "IN" && row.lastAt !== null && row.lastAt > early.atMinutes;
+        if (back || nowMinutes >= shiftEnd) {
+          const patch = { minutes: back ? Math.max(0, row.lastAt - early.atMinutes) : shiftEnd - early.atMinutes, final: true };
+          const next = { ...early, ...patch };
+          if (next.status === "fined") settled(person, next);
+          out.update.push({ id: early.id, patch });
+        }
+      }
+    }
+    if (shiftEnd !== null && row.firstIn !== null && row.lastAction === "IN" && nowMinutes >= shiftEnd + NO_OUT_AFTER_MINUTES && !own.some((entry) => entry.kind === "no_out")) {
+      const outcome = forgotOutcome(forgot[row.employeeId] ?? 0, settings);
+      forgot[row.employeeId] = (forgot[row.employeeId] ?? 0) + 1;
+      out.create.push({ ...blank(person, "no_out", shiftEnd), status: "warned", final: true, fine: outcome.fine, escalated: true });
+      out.messages.push({ to: "director", text: `🔕 <b>${person.name}</b> — ketishni Timepay’da belgilamadi: ${outcome.text}.` });
+      if (person.chatId) out.messages.push({
+        to: "worker",
+        chatId: person.chatId,
+        keyboard: WORKER_MENU,
+        text: `🔕 Bugun ketishni Timepay’da belgilamadingiz: ${outcome.text}.
+Har kuni kelish va ketishni Face ID orqali belgilang.`
+      });
+    }
+  }
+  const patched = new Set(out.update.map((row) => row.id));
+  for (const item of input.cases) {
+    if (item.status !== "asked" || item.workDate !== today) continue;
+    const person = input.people.find((entry) => entry.timepayId === item.timepayId);
+    if (!person) continue;
+    const silent = item.pingedAt ? (Date.parse(nowIso) - Date.parse(item.pingedAt)) / 6e4 : Infinity;
+    if (silent < PING_EVERY_MINUTES || patched.has(item.id)) continue;
+    const row = input.rows.find((entry) => entry.employeeId === item.timepayId);
+    const patch = {};
+    if (item.pings < MAX_PINGS && ask(person, item, row?.shiftEnd ?? null)) Object.assign(patch, { pings: item.pings + 1, pingedAt: nowIso });
+    if (!item.escalated && item.pings + 1 >= ESCALATE_AFTER_PINGS) {
+      toDirector(person, item, "🤷 Xodim botga javob bermayapti.");
+      patch.escalated = true;
+    }
+    if (Object.keys(patch).length) out.update.push({ id: item.id, patch });
+  }
+  return out;
+}
+function workerAnswer(text2, open, settings) {
+  const choice = text2.trim();
+  if (!open || ![BTN.forgot, BTN.leave, BTN.late, BTN.no].includes(choice)) return null;
+  if (choice === BTN.forgot && (open.kind !== "late" || open.final)) return null;
+  if (choice === BTN.forgot) {
+    return {
+      patch: { status: "claimed", claim: "forgot" },
+      worker: { text: `Qabul qilindi. ${director(settings)} tasdiqlashi kutilmoqda. Hozir Timepay’da belgilab qo‘ying.`, keyboard: WORKER_MENU },
+      director: `❓ <b>${open.name}</b>: «Ishdaman, Face ID’ni unutdim» deydi (${situation(open)}).
+Rostdan ham ishdami?
+✅ Ha, ishda: /ha_${open.code}
+❌ Yo‘q: /yoq_${open.code}`
+    };
+  }
+  if (choice === BTN.leave) {
+    return {
+      patch: { status: "claimed", claim: "leave" },
+      worker: { text: `Qabul qilindi. ${director(settings)} tasdiqlasa — KPI’dan ushlanmaydi.`, keyboard: WORKER_MENU },
+      director: `❓ <b>${open.name}</b>: «Ruxsat olganman» deydi (${situation(open)}).
+Sizdan ruxsat olganmi?
+${decideLinks(open.code)}`
+    };
+  }
+  return {
+    patch: { status: "fined", claim: choice === BTN.late ? "late" : open.claim },
+    worker: { text: `Qayd etildi. ${fineLine(open, settings)}`, keyboard: WORKER_MENU },
+    director: `📌 <b>${open.name}</b> — ${situation(open)}, ruxsatsiz. ${fineLine(open, settings)}`
+  };
+}
+function directorDecision(approve, item, forgotThisMonth, settings) {
+  if (!item) return { director: "Bunday so‘rov topilmadi." };
+  if (item.status !== "asked" && item.status !== "claimed") {
+    return { director: `<b>${item.name}</b> bo‘yicha qaror allaqachon berilgan: ${statusLabel2(item)}.` };
+  }
+  if (approve && item.claim === "forgot") {
+    const outcome = forgotOutcome(forgotThisMonth, settings);
+    return {
+      patch: { status: "warned", fine: outcome.fine, minutes: 0, final: true },
+      director: `✅ <b>${item.name}</b> — ishda edi, belgilashni unutgan: ${outcome.text}.`,
+      worker: `✅ Direktor tasdiqladi: kechikish hisoblanmaydi. Belgilashni unutganingiz uchun — ${outcome.text}.`
+    };
+  }
+  if (approve) {
+    return {
+      patch: { status: "approved" },
+      director: `✅ <b>${item.name}</b> — uzrli deb belgilandi, KPI’dan ushlanmaydi.`,
+      worker: "✅ Direktor tasdiqladi: KPI’dan ushlanmaydi."
+    };
+  }
+  return {
+    patch: { status: "fined" },
+    director: `❌ <b>${item.name}</b> — uzrsiz. ${fineLine(item, settings)}`,
+    worker: `❌ Direktor tasdiqlamadi. ${fineLine(item, settings)}`
+  };
+}
+function statusLabel2(item) {
+  if (item.status === "approved") return "uzrli";
+  if (item.status === "fined") return "jarima";
+  if (item.status === "warned") return item.fine > 0 ? `unutgan — jarima ${sum2(item.fine)}` : "unutgan — ogohlantirish";
+  if (item.status === "claimed") return item.claim === "forgot" ? "direktor javobi kutilmoqda (unutgan)" : "direktor javobi kutilmoqda (ruxsat)";
+  return "xodim javobi kutilmoqda";
+}
+function parseDecision(text2) {
+  const match = /^\/(ha|yoq)_([a-z0-9]{4,12})$/.exec(text2.trim().toLowerCase());
+  return match ? { approve: match[1] === "ha", code: match[2] } : null;
+}
+function kpiOf(cases, settings) {
+  const fined = cases.filter((row) => row.status === "fined" && row.final && row.kind !== "no_out");
+  const minutes = fined.reduce((total, row) => total + row.minutes, 0);
+  const forgotten = cases.filter((row) => row.status === "warned");
+  const forgotFine = forgotten.reduce((total, row) => total + row.fine, 0);
+  const minuteFine = minutes * settings.perMinute;
+  return {
+    minutes,
+    minuteFine,
+    warnings: forgotten.length,
+    forgotFine,
+    open: cases.filter((row) => row.status === "asked" || row.status === "claimed" || row.status === "fined" && !row.final).length,
+    amount: settings.base - minuteFine - forgotFine
+  };
+}
+var kpiDetails = (line, settings) => [
+  line.minutes ? `kechikish/erta ketish ${line.minutes} daqiqa (−${sum2(line.minuteFine)})` : "",
+  line.warnings ? `belgilashni unutgan ${line.warnings} marta${line.forgotFine ? ` (−${sum2(line.forgotFine)})` : ""}` : "",
+  line.open ? `hal qilinmagan ${line.open} ta` : ""
+].filter(Boolean).join(", ") || "kamchiliksiz";
+function kpiReport(people, cases, settings, month) {
+  const names = new Map(people.map((row) => [row.timepayId, row.name]));
+  for (const row of cases) if (!names.has(row.timepayId)) names.set(row.timepayId, row.name);
+  const lines = [...names].map(([id, name]) => ({ name, line: kpiOf(cases.filter((row) => row.timepayId === id), settings) })).sort((a, b) => a.line.amount - b.line.amount || a.name.localeCompare(b.name));
+  if (!lines.length) return `📊 <b>KPI · ${month}</b>
+
+Xodimlar topilmadi.`;
+  return [
+    `📊 <b>KPI · ${month}</b>`,
+    `Asos ${sum2(settings.base)} · 1 daqiqa = ${sum2(settings.perMinute)}`,
+    "",
+    ...lines.map((row) => `• <b>${row.name}</b> — ${sum2(row.line.amount)}
+   ${kpiDetails(row.line, settings)}`),
+    "",
+    `Jami: ${sum2(lines.reduce((total, row) => total + row.line.amount, 0))}`
+  ].join("\n");
+}
+function kpiOwn(cases, settings, month) {
+  const line = kpiOf(cases, settings);
+  return `📊 <b>KPI · ${month}</b>
+Hozircha: <b>${sum2(line.amount)}</b> (asos ${sum2(settings.base)})
+${kpiDetails(line, settings)}`;
+}
+function parseAmount(text2) {
+  const clean = text2.trim().toLowerCase().replace(/so[‘'ʻ`]?m|sum|сум|uzs/g, "").trim();
+  const match = /^(\d[\d\s.,]*)\s*(mln|million|млн|ming|мин|минг|тыс|k|к|m)?$/.exec(clean);
+  if (!match) return null;
+  const unit = match[2] ?? "";
+  const scale = /^(mln|million|млн|m)$/.test(unit) ? 1e6 : unit ? 1e3 : 1;
+  const digits = match[1].replace(/\s/g, "");
+  const value = scale > 1 ? Number(digits.replace(",", ".")) * scale : Number(digits.replace(/[.,]/g, ""));
+  return Number.isFinite(value) && value >= 1e3 && value <= 1e9 ? Math.round(value) : null;
+}
+function advanceForDirector(request, balance) {
+  return [
+    `💵 <b>Avans so‘rovi</b>`,
+    `<b>${request.name}</b> — ${sum2(request.amount)}`,
+    ...request.reason ? [`Sabab: ${request.reason}`] : [],
+    ...balance ? [balance] : [],
+    "",
+    `✅ Naqd berildi: /avans_naqd_${request.code}`,
+    `✅ Kartaga o‘tkazildi: /avans_bank_${request.code}`,
+    `❌ Rad etish: /avans_yoq_${request.code}`
+  ].join("\n");
+}
+function parseAdvanceDecision(text2) {
+  const match = /^\/avans_(naqd|bank|yoq)_([a-z0-9]{4,12})$/.exec(text2.trim().toLowerCase());
+  return match ? { action: match[1] === "naqd" ? "cash" : match[1] === "bank" ? "bank" : "reject", code: match[2] } : null;
+}
+function shortCode(random = Math.random) {
+  const alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
+  return Array.from({ length: 6 }, () => alphabet[Math.floor(random() * alphabet.length)]).join("");
+}
+var isStaffDirectorCommand = (text2) => parseDecision(text2) !== null || parseAdvanceDecision(text2) !== null || /^\/?kpi$/i.test(text2.trim());
 
 // src/telegram-owner.ts
 function ownerKeyboard() {
@@ -4559,24 +4963,59 @@ function watchRun(rawSnapshot, sent, nowIso, today, localHour, attendance = null
   if (!due.length) return { text: null, sentKeys: [], activeKeys, push: null, workers, digest };
   return { text: watchDigest(due, "🔔 <b>Nazorat: e’tibor bering</b>"), sentKeys: due.map((row) => row.key), activeKeys, push: ownerPush(due), workers, digest };
 }
-function clockMinutes(hhmm2) {
-  const [hours, minutes] = hhmm2.split(":").map(Number);
+function staffEmployees(rawSnapshot) {
+  const state = migrateState(rawSnapshot?.state);
+  return state.employees.filter((row) => row.active).map((row) => ({ id: row.id, name: row.name }));
+}
+function staffBalanceLine(rawSnapshot, employeeId) {
+  const state = migrateState(rawSnapshot?.state);
+  if (!state.employees.some((row) => row.id === employeeId)) return "";
+  const owed = payrollDebt(state, employeeId);
+  return `Oylik bo‘yicha to‘lanmagan: ${Math.round(owed).toLocaleString("ru-RU").replace(/\u00a0/g, " ")} so‘m`;
+}
+function clockMinutes(hhmm3) {
+  const [hours, minutes] = hhmm3.split(":").map(Number);
   return hours % 24 * 60 + (minutes || 0);
 }
 export {
+  BTN,
+  STAFF_DEFAULTS,
+  WORKER_MENU,
+  advanceForDirector,
   allowedPushEndpoint,
+  attendanceRows,
   clockMinutes,
+  directorDecision,
   fetchAttendance,
+  fetchChecks,
+  fetchPeople,
+  forgotOutcome,
   generateVapidKeys,
+  isStaffDirectorCommand,
   isTimepayProbe,
+  kpiOf,
+  kpiOwn,
+  kpiReport,
+  matchPeople,
+  nameWords,
   ownerErrorText,
   ownerKeyboard,
   ownerNeedsAttendance,
   ownerNeedsState,
   ownerReply,
+  parseAdvanceDecision,
+  parseAmount,
+  parseDecision,
   parseOwnerIds,
   pushGone,
   pushRequest,
   resolveOwnerInput,
-  watchRun
+  shortCode,
+  staffBalanceLine,
+  staffEmployees,
+  staffTick,
+  statusLabel2 as statusLabel,
+  sum2 as sum,
+  watchRun,
+  workerAnswer
 };

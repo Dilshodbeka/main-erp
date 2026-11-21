@@ -16,7 +16,8 @@ import {
   type TelegramFileRef,
 } from '../_shared/telegram.ts';
 import { clockMinutes, fetchAttendance, ownerErrorText, ownerNeedsAttendance, ownerNeedsState, ownerReply, parseOwnerIds } from '../_shared/owner-bot.generated.js';
-import { adminClientFor, adminSnapshotFor, linkOwnerChat, ownerOfChat, platformCompanyId } from '../_shared/owner-access.ts';
+import { adminClientFor, adminSnapshotFor, linkOwnerChat, ownerOfChat, ownerTargets, platformCompanyId } from '../_shared/owner-access.ts';
+import { handleDirectorStaff, handleWorker, linkStaffChat, staffOfChat, type Send } from '../_shared/staff.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -62,6 +63,24 @@ async function reply(chatId: string, text: string) {
   } catch {
     // A reply to an unlinked or blocked chat is best effort.
   }
+}
+
+/** HTML message with an optional reply keyboard (taps arrive as plain text). Used by the staff dialogs. */
+const sendTo: Send = async (chatId, text, keyboard) => {
+  try {
+    await telegram('sendMessage', {
+      chat_id: chatId, text, parse_mode: 'HTML', link_preview_options: { is_disabled: true },
+      ...(keyboard?.length ? { reply_markup: { keyboard: keyboard.map(row => row.map(label => ({ text: label }))), resize_keyboard: true, is_persistent: true } } : {}),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** Everyone who acts as the director of the platform owner's company (the Timepay firm). */
+async function directorChats(): Promise<string[]> {
+  return (await ownerTargets(client(), ownerIds)).find(target => target.companyId === null)?.chatIds ?? ownerIds;
 }
 
 // ── Owner bot ───────────────────────────────────────────────────────────────
@@ -326,7 +345,20 @@ serve(async request => {
     }
     const owner = await ownerOfChat(client(), incoming.chatId, ownerIds);
     if (owner) {
+      // Attendance decisions, advance requests and "/kpi" belong to the firm Timepay is connected to.
+      if (owner.companyId === null || owner.companyId === await platformCompanyId(client())) {
+        const handled = await handleDirectorStaff(client(), access, timepayToken, incoming.chatId, incoming.text, await directorChats(), sendTo,
+          () => requestIdFor(incoming, 0));
+        if (handled) return json({ ok: true });
+      }
       await handleOwner(incoming, owner.companyId);
+      return json({ ok: true });
+    }
+    // An employee: the one-time link from the card, then the dialog (attendance questions, KPI, advance).
+    if (incoming.startPayload && await linkStaffChat(client(), incoming.startPayload, incoming.chatId, sendTo)) return json({ ok: true });
+    const staff = await staffOfChat(client(), incoming.chatId);
+    if (staff) {
+      await handleWorker(client(), access, staff, incoming.chatId, incoming.text, await directorChats(), sendTo);
       return json({ ok: true });
     }
     if (incoming.startPayload !== null) {

@@ -12,6 +12,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 import { constantTimeEqual } from '../_shared/telegram.ts';
 import { clockMinutes, fetchAttendance, parseOwnerIds, watchRun } from '../_shared/owner-bot.generated.js';
 import { adminSnapshotFor, ownerTargets, type OwnerTarget } from '../_shared/owner-access.ts';
+import { staffPass, staffSettings } from '../_shared/staff.ts';
 import { companyDevices, deliverAll, pushCompanies, pushKeys, type PushKeys } from '../_shared/push.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
@@ -44,13 +45,14 @@ function chunks(text: string, limit = 3800): string[] {
   return parts;
 }
 
-async function send(chatId: string, text: string): Promise<boolean> {
+async function send(chatId: string, text: string, keyboard?: string[][]): Promise<boolean> {
   let delivered = true;
   for (const part of chunks(text)) {
     const response = await fetch(`${apiBase}/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: part, parse_mode: 'HTML', link_preview_options: { is_disabled: true } }),
+      body: JSON.stringify({ chat_id: chatId, text: part, parse_mode: 'HTML', link_preview_options: { is_disabled: true },
+        ...(keyboard?.length ? { reply_markup: { keyboard: keyboard.map(row => row.map(label => ({ text: label }))), resize_keyboard: true, is_persistent: true } } : {}) }),
     });
     if (!response.ok) delivered = false;
   }
@@ -88,7 +90,10 @@ async function watchCompany(target: OwnerTarget, now: Date, dry: boolean, keys: 
   const sent = Object.fromEntries((stored.data ?? []).map(row => [row.key, row.sent_at]));
 
   // Timepay is one server secret, so attendance belongs to the legacy (platform owner's) company.
-  const staff = target.companyId === null ? await attendance(today, minutes) : null;
+  // With the attendance dialog switched on (migration 20261208) the bot asks the worker and the director
+  // itself, so the plain "late / absent" notices would only repeat it.
+  const dialog = target.companyId === null && timepayToken ? await staffSettings(client(), companyId) : null;
+  const staff = target.companyId === null && !dialog?.enabled ? await attendance(today, minutes) : null;
   // Recommendations the owner already handled or postponed stay out of the morning digest.
   const marks = await client().from('erp_insights').select('key').eq('company_id', companyId).gt('hidden_until', now.toISOString());
   const result = watchRun(snapshot, sent, now.toISOString(), today, hour, staff, marks.error ? [] : (marks.data ?? []).map(row => row.key as string));
@@ -148,6 +153,17 @@ serve(async request => {
   if (!constantTimeEqual(request.headers.get('x-watch-secret') ?? '', watchSecret)) return json({ ok: false }, 401);
   const dry = new URL(request.url).searchParams.get('dry') === '1';
   const now = new Date();
+  // "?staff=1" — the frequent pass (every 2 minutes): attendance questions and KPI only.
+  if (new URL(request.url).searchParams.get('staff') === '1') {
+    try {
+      const { today, minutes } = localClock(now);
+      const chats = (await ownerTargets(client(), ownerIds)).find(target => target.companyId === null)?.chatIds ?? ownerIds;
+      return json({ ok: true, ...(await staffPass(client(), timepayToken, chats, send, { today, minutes, nowIso: now.toISOString() }, dry)) });
+    } catch (error) {
+      console.error('Staff pass failed', error instanceof Error ? error.message : 'unknown');
+      return json({ ok: false, code: 'staff_pass_failed' });
+    }
+  }
   const results: Record<string, unknown>[] = [];
   const keys = await pushKeys(client());
   const seen = new Set<string>();

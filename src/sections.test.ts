@@ -11,7 +11,7 @@ describe('section panels', () => {
   });
 
   it('offers the salary balance panel to the director only', () => {
-    expect(panelsFor('people', true).map(panel => panel.id)).toEqual(['xodimlar', 'stavkalar', 'oylik']);
+    expect(panelsFor('people', true).map(panel => panel.id)).toEqual(['xodimlar', 'stavkalar', 'oylik', 'davomat']);
     expect(panelsFor('people', false)).toEqual([]);
   });
 
