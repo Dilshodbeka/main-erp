@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeReport, matchCutRows, matchWorks, matchWords, mergeCut, numberColumns, parseCutTable, parseCutText, parseCutWorks, qtyOf, readCutNames, readSpreadsheet, rememberCutNames, unitKey, unitMismatch } from './cut-import';
+import { convertUnits, decodeReport, matchCutRows, matchWorks, sheetArea, matchWords, mergeCut, numberColumns, parseCutTable, parseCutText, parseCutWorks, qtyOf, readCutNames, readSpreadsheet, rememberCutNames, unitKey, unitMismatch } from './cut-import';
 
 // Names as they are on the real stock of the company (21.11.2026).
 const items = [
@@ -139,5 +139,30 @@ describe('BAZIS «Смета»', () => {
     expect(works).toEqual([{ name: 'Резка под углом на ФРС', unit: 'м', qty: 5.074, rate: 5000 }, { name: 'Сверловка', unit: 'шт', qty: 100, rate: 800 }]);
     const operations = [{ id: 'nest', name: 'Nesting raskroy', unit: 'sheet' }, { id: 'drill', name: 'teshish', unit: 'hole' }, { id: 'edge', name: 'Kromka 1 lik', unit: 'meter' }];
     expect(matchWorks(works, operations).map(row => [row.operationId, row.sure])).toEqual([[null, false], ['drill', true]]);
+  });
+});
+
+describe('m² ↔ sheets', () => {
+  it('knows the sheet area from the name or the material', () => {
+    expect(sheetArea('Akril Craftwood F-023 2440×1220×18 (14845)')).toBe(2.977);
+    expect(sheetArea('LDSP qora 16mm')).toBe(5.796);
+    expect(sheetArea('XDF')).toBe(5.796);
+    expect(sheetArea('kromka 2mm')).toBeNull();
+  });
+
+  it('a report in m² becomes sheets for a material kept in sheets, rounded up', () => {
+    const [row] = matchCutRows(parseCutText('ЛДСП черный 16мм\t12,4 м2'), items, 'last');
+    const converted = convertUnits(row, items);
+    expect(converted).toMatchObject({ itemId: 'ldsp-black', qty: 2.14, unit: 'list', from: { qty: 12.4, unit: 'м2', area: 5.796 } });
+    expect(unitMismatch(converted, items)).toBe(false);
+    expect(convertUnits(converted, items)).toBe(converted);
+  });
+
+  it('sheets become m² for a material kept in m²; same units and unknown sizes stay', () => {
+    expect(convertUnits({ name: 'ЛДСП', qty: 2, unit: 'лист', itemId: 'ldsp-m2', sure: true }, items)).toMatchObject({ qty: 11.592, unit: 'm²' });
+    const same = { name: 'ЛДСП', qty: 5, unit: 'м2', itemId: 'ldsp-m2', sure: true };
+    expect(convertUnits(same, items)).toBe(same);
+    const edge = { name: 'Кромка', qty: 5, unit: 'м2', itemId: 'edge-2', sure: true };
+    expect(convertUnits(edge, items)).toBe(edge);
   });
 });

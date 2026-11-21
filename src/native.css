@@ -540,3 +540,4 @@ button:active:not(:disabled){transform:scale(.97)}
 .cut-row>span small.cut-warn{color:#b3402f;white-space:normal}
 .cut-file-name{display:flex;align-items:center;gap:10px;font-size:13px}
 .cut-subhead{font-size:12px;margin-top:4px}
+.cut-row>span small.cut-conv{color:#2f5f7a;white-space:normal}

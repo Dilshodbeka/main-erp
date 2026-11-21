@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { FileUp } from 'lucide-react';
-import { decodeReport, matchCutRows, matchWorks, numberColumns, parseCutTable, parseCutText, parseCutWorks, readCutNames, readSpreadsheet, rememberCutNames, rememberWorkNames, unitMismatch, type CutMatch, type QtyColumn, type WorkMatch } from '../cut-import';
+import { convertUnits, decodeReport, matchCutRows, matchWorks, numberColumns, parseCutTable, parseCutText, parseCutWorks, readCutNames, readSpreadsheet, rememberCutNames, rememberWorkNames, unitMismatch, type CutMatch, type QtyColumn, type WorkMatch } from '../cut-import';
 import type { Operation } from '../types';
 import type { Item } from '../types';
 import { errorText, num } from '../ui';
@@ -15,7 +15,12 @@ export function CutImport({ items, operations, companyId, onApply, close }: {
   const [error, setError] = useState('');
   const [file, setFile] = useState<{ name: string; table: string[][] } | null>(null);
   const rows = useMemo(() => file ? parseCutTable(file.table) : parseCutText(text), [text, file]);
-  const matches = useMemo(() => matchCutRows(rows, items, column, readCutNames(companyId)).map((row, index) => ({ ...row, ...edits[index] })), [rows, items, column, companyId, edits]);
+  // Avval tanlangan material bo‘yicha m² ↔ list qayta hisoblanadi, keyin qo‘lda o‘zgartirilgan son ustun.
+  const matches = useMemo(() => matchCutRows(rows, items, column, readCutNames(companyId)).map((row, index) => {
+    const picked = { ...row, ...(edits[index]?.itemId !== undefined ? { itemId: edits[index].itemId ?? null } : {}) };
+    const converted = convertUnits(picked, items);
+    return edits[index]?.qty !== undefined ? { ...converted, qty: edits[index].qty! } : converted;
+  }), [rows, items, column, companyId, edits]);
   const chosen = matches.filter(row => row.itemId && row.qty > 0);
   const [workEdits, setWorkEdits] = useState<Record<number, Partial<WorkMatch>>>({});
   const works = useMemo(() => file ? matchWorks(parseCutWorks(file.table), operations, readCutNames(companyId)).map((row, index) => ({ ...row, ...workEdits[index] })) : [],
@@ -43,7 +48,8 @@ export function CutImport({ items, operations, companyId, onApply, close }: {
       {columns > 1 && <label className="cut-column"><span>Miqdor qaysi ustunda</span><select value={String(column)} onChange={event => { setColumn(event.target.value === 'last' ? 'last' : Number(event.target.value)); setEdits({}); }}>
         <option value="last">Oxirgi son</option>{Array.from({ length: columns }, (_, index) => <option key={index} value={index}>{`${index + 1}-son`}</option>)}</select></label>}
       <div className="cut-rows">{matches.map((row, index) => <div className={row.itemId ? 'cut-row' : 'cut-row unmatched'} key={index}>
-        <span title={row.name}>{row.name}{row.unit ? <small>{row.unit}</small> : null}{unitMismatch(row, items) ? <small className="cut-warn">{`ombordagi o‘lchov: ${items.find(item => item.id === row.itemId)?.unit ?? ''} — miqdorni tekshiring`}</small> : null}</span>
+        <span title={row.name}>{row.name}{row.unit ? <small>{row.unit}</small> : null}{row.from ? <small className="cut-conv">{`${num(row.from.qty)} ${row.from.unit} → ${num(row.qty)} ${row.unit} (list ${num(row.from.area)} m²)`}</small>
+          : unitMismatch(row, items) ? <small className="cut-warn">{`ombordagi o‘lchov: ${items.find(item => item.id === row.itemId)?.unit ?? ''} — miqdorni tekshiring`}</small> : null}</span>
         <input aria-label={`Miqdor: ${row.name}`} type="number" min="0" step="0.001" value={row.qty || ''} onChange={event => edit(index, { qty: Number(event.target.value) })} />
         <select aria-label={`Material: ${row.name}`} value={row.itemId ?? ''} onChange={event => edit(index, { itemId: event.target.value || null })}>
           <option value="">— o‘tkazib yuborish —</option>{items.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>

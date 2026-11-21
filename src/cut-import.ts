@@ -7,7 +7,7 @@ import { nameWords } from './staff-control';
 import type { Item } from './types';
 
 export interface CutRow { name: string; numbers: number[]; unit?: string; article?: string; qty?: number }
-export interface CutMatch { name: string; qty: number; itemId: string | null; sure: boolean; unit?: string }
+export interface CutMatch { name: string; qty: number; itemId: string | null; sure: boolean; unit?: string; /** m² ↔ sheets recalculated: what the report said. */ from?: { qty: number; unit: string; area: number } }
 /** Which number of a row is the quantity: 'last' or a zero-based position. */
 export type QtyColumn = 'last' | number;
 
@@ -294,6 +294,34 @@ export function mergeCut<T extends { itemId: string; qty: number; issuedQty: num
 }
 
 /** The report unit differs from the stock unit (m² vs sheets): the quantity has to be checked by hand. */
+/**
+ * Sheet area in m²: the size in the stock name («2440×1220×18») or the usual sheet of the material
+ * (LDSP, MDF, XDF/DVP 2800×2070; acrylic 2440×1220). null — unknown, nothing is recalculated.
+ */
+export function sheetArea(name: string): number | null {
+  const size = /(\d{3,4})\s*[x×х*]\s*(\d{3,4})/i.exec(name);
+  if (size) return Math.round(Number(size[1]) * Number(size[2]) / 1000) / 1000;
+  const words = matchWords(name);
+  if (words.some(word => ['ldsp', 'mdf', 'xdf', 'dsp'].includes(word))) return 5.796;
+  if (words.includes('akril')) return 2.977;
+  return null;
+}
+
+/**
+ * Report in m², stock in sheets (or back): the quantity is recalculated by the sheet area, rounded
+ * up to hundredths so the issue is never short. Rows the user already changed are left as they are.
+ */
+export function convertUnits(match: CutMatch, items: Pick<Item, 'id' | 'name' | 'unit'>[]): CutMatch {
+  if (!match.unit || !match.itemId || match.from) return match;
+  const item = items.find(row => row.id === match.itemId);
+  if (!item) return match;
+  const from = unitKey(match.unit), to = stockUnit(item.unit);
+  const area = from !== to && ((from === 'm2' && to === 'sheet') || (from === 'sheet' && to === 'm2')) ? sheetArea(item.name) : null;
+  if (!area) return match;
+  const qty = from === 'm2' ? Math.ceil(match.qty / area * 100) / 100 : Math.round(match.qty * area * 1000) / 1000;
+  return { ...match, qty, unit: item.unit, from: { qty: match.qty, unit: match.unit, area } };
+}
+
 export function unitMismatch(match: CutMatch, items: Pick<Item, 'id' | 'unit'>[]): boolean {
   if (!match.unit || !match.itemId) return false;
   const item = items.find(row => row.id === match.itemId);
