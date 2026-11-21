@@ -1900,6 +1900,7 @@ RETURNS text LANGUAGE sql IMMUTABLE AS $$
     WHEN 'shipment.createStock' THEN 'shipments.create'
     WHEN 'shipment.deliver' THEN 'shipments.deliver'
     WHEN 'work.review' THEN 'work.review'
+    WHEN 'work.defect' THEN 'work.review'
     WHEN 'machine.create' THEN 'settings.catalog'
     WHEN 'machine.update' THEN 'settings.catalog'
     WHEN 'operation.create' THEN 'settings.catalog'
@@ -3025,6 +3026,9 @@ BEGIN
         WHERE company_id = v_company AND source = 'production' AND source_id = v_entity) THEN
         RAISE EXCEPTION 'Produced stock cannot be cancelled' USING ERRCODE = '23514';
       END IF;
+      IF EXISTS (SELECT 1 FROM public.erp_tasks WHERE company_id = v_company AND order_id = v_entity AND completed > 0) THEN
+        RAISE EXCEPTION 'Ish bajarilgan buyurtmani bekor qilib bo‘lmaydi' USING ERRCODE = '23514';
+      END IF;
       FOR v_material IN SELECT * FROM public.erp_order_materials
         WHERE company_id = v_company AND order_id = v_entity AND issued_qty > 0 ORDER BY position LOOP
         IF NOT EXISTS (SELECT 1 FROM public.erp_items WHERE company_id = v_company AND id = v_material.item_id) THEN
@@ -3058,6 +3062,9 @@ BEGIN
       IF EXISTS (SELECT 1 FROM public.erp_tasks WHERE company_id = v_company AND line_id = v_line_id
         AND executor_kind = 'supplier' AND status = 'completed') THEN
         RAISE EXCEPTION 'Accepted outsourced work cannot be cancelled' USING ERRCODE = '23514';
+      END IF;
+      IF EXISTS (SELECT 1 FROM public.erp_tasks WHERE company_id = v_company AND line_id = v_line_id AND completed > 0) THEN
+        RAISE EXCEPTION 'Ish bajarilgan pozitsiyani bekor qilib bo‘lmaydi' USING ERRCODE = '23514';
       END IF;
       FOR v_material IN SELECT * FROM public.erp_order_materials
         WHERE company_id = v_company AND line_id = v_line_id AND issued_qty > 0 ORDER BY position LOOP
@@ -3371,6 +3378,67 @@ BEGIN
               WHERE EXISTS (SELECT 1 FROM public.erp_items i WHERE i.company_id = v_company AND i.id = public.erp_uuid(n.value -> 'itemId', 'itemId'))
             ) ELSE '[]'::jsonb END);
       END IF;
+    WHEN 'work.defect' THEN
+      -- Brak qabul qilingandan keyin aniqlandi: hajm qayta ishlashga qaytadi, bosqich haqi kamayadi.
+      v_entity := public.erp_uuid(p_command -> 'reportId', 'reportId');
+      v_reason := p_command ->> 'reason';
+      v_note := btrim(coalesce(p_command ->> 'note', ''));
+      IF v_reason IS NULL OR v_reason NOT IN ('quality', 'measurement', 'drawing', 'customer', 'other') THEN
+        RAISE EXCEPTION 'Defect reason is required' USING ERRCODE = '23514';
+      END IF;
+      IF v_reason = 'other' AND v_note = '' THEN RAISE EXCEPTION 'Defect note is required' USING ERRCODE = '23514'; END IF;
+      IF length(v_note) > 500 THEN RAISE EXCEPTION 'Defect note is too long' USING ERRCODE = '23514'; END IF;
+      SELECT * INTO v_report FROM public.erp_work_reports WHERE company_id = v_company AND id = v_entity FOR UPDATE;
+      IF NOT FOUND THEN RAISE EXCEPTION 'Report not found' USING ERRCODE = '22023'; END IF;
+      IF v_report.status <> 'accepted' THEN RAISE EXCEPTION 'Faqat qabul qilingan ishga brak yoziladi' USING ERRCODE = '23514'; END IF;
+      SELECT * INTO v_order FROM public.erp_orders WHERE company_id = v_company AND id = v_report.order_id FOR UPDATE;
+      IF NOT FOUND THEN RAISE EXCEPTION 'Order not found' USING ERRCODE = '22023'; END IF;
+      SELECT * INTO v_task FROM public.erp_tasks WHERE company_id = v_company AND id = v_report.task_id FOR UPDATE;
+      IF NOT FOUND THEN RAISE EXCEPTION 'Task not found' USING ERRCODE = '22023'; END IF;
+      IF v_task.assembly OR v_task.executor_kind <> 'employee' THEN
+        RAISE EXCEPTION 'Bu bosqichga brak yozib bo‘lmaydi' USING ERRCODE = '23514';
+      END IF;
+      IF v_actor.role = 'worker' AND cardinality(v_workshop_scope) > 0
+         AND NOT (v_task.workshop_id = ANY(v_workshop_scope)) THEN
+        RAISE EXCEPTION 'Bu bosqich boshqa sexga tegishli' USING ERRCODE = '42501';
+      END IF;
+      SELECT * INTO v_line_row FROM public.erp_order_items WHERE company_id = v_company AND id = v_task.line_id FOR UPDATE;
+      IF v_order.status NOT IN ('production', 'ready') OR v_line_row.status NOT IN ('production', 'ready')
+         OR public.erp_line_shipped(v_company, v_task.line_id) > 0 THEN
+        RAISE EXCEPTION 'Yuborilgan ishga brak yozib bo‘lmaydi' USING ERRCODE = '23514';
+      END IF;
+      IF EXISTS (SELECT 1 FROM public.erp_stock_movements
+        WHERE company_id = v_company AND source = 'production' AND source_id = v_order.id) THEN
+        RAISE EXCEPTION 'Omborga kirgan mahsulotga brak yozib bo‘lmaydi' USING ERRCODE = '23514';
+      END IF;
+      v_defect := round(public.erp_num(p_command -> 'defectQty', 'defectQty'), 2);
+      IF v_defect <= 0 THEN RAISE EXCEPTION 'Nothing to reject' USING ERRCODE = '23514'; END IF;
+      IF v_defect > v_report.qty OR v_defect > v_task.completed THEN
+        RAISE EXCEPTION 'Defect quantity exceeds report' USING ERRCODE = '23514';
+      END IF;
+      SELECT * INTO STRICT v_operation FROM public.erp_operations WHERE company_id = v_company AND id = v_task.operation_id;
+      INSERT INTO public.erp_defects(company_id, report_id, order_id, line_id, task_id, employee_id, operation_id, qty, reason, note, materials)
+        VALUES (v_company, v_report.id, v_order.id, v_task.line_id, v_task.id, v_report.employee_id, v_task.operation_id,
+          v_defect, v_reason, v_note,
+          CASE WHEN v_operation.unit = 'squareMeter' AND jsonb_array_length(v_operation.norms) > 0 THEN (
+            SELECT coalesce(jsonb_agg(jsonb_build_object('itemId', n.value -> 'itemId',
+              'qty', round(public.erp_num(n.value -> 'qtyPerM2', 'qtyPerM2') * v_defect, 3)) ORDER BY n.ord), '[]'::jsonb)
+            FROM jsonb_array_elements(v_operation.norms) WITH ORDINALITY AS n(value, ord)
+            WHERE EXISTS (SELECT 1 FROM public.erp_items i WHERE i.company_id = v_company AND i.id = public.erp_uuid(n.value -> 'itemId', 'itemId'))
+          ) ELSE '[]'::jsonb END);
+      IF v_report.qty - v_defect > 0 THEN
+        UPDATE public.erp_work_reports SET qty = round(v_report.qty - v_defect, 2) WHERE id = v_entity;
+      ELSE
+        UPDATE public.erp_work_reports SET status = 'rejected' WHERE id = v_entity;
+      END IF;
+      v_new_completed := greatest(0, round(v_task.completed - v_defect, 2));
+      UPDATE public.erp_tasks SET completed = v_new_completed, status = 'in_progress' WHERE id = v_task.id;
+      UPDATE public.erp_payroll SET amount = round(v_task.rate * v_new_completed, 2)
+        WHERE company_id = v_company AND order_id = v_task.order_id AND task_id = v_task.id AND employee_id = v_task.employee_id;
+      IF v_line_row.status = 'ready' THEN
+        UPDATE public.erp_order_items SET status = 'production' WHERE company_id = v_company AND id = v_line_row.id;
+      END IF;
+      PERFORM public.erp_sync_order(v_company, v_order.id);
     WHEN 'purchase.create' THEN
       v_id := public.erp_uuid(p_command -> 'supplierId', 'supplierId');
       IF NOT EXISTS (SELECT 1 FROM public.erp_suppliers WHERE company_id = v_company AND id = v_id) THEN

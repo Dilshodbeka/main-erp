@@ -74,9 +74,19 @@ export function AssemblyComplete({ state, orderId, taskId, busy, close, save }: 
   </Dialog>;
 }
 
-export function WorkTasks({ state, actor, busy, run }: {
+// Bitta tugma: topshiriq hali qabul qilinmagan yoki boshlanmagan bo‘lsa, oraliq qadamlar o‘zi bajariladi.
+export function stepsBefore(row: Pick<WorkTaskRow, 'status' | 'orderId' | 'taskId'>): Command[] {
+  const steps: Command[] = [];
+  if (row.status === 'assigned') steps.push({ type: 'work.accept', orderId: row.orderId, taskId: row.taskId });
+  if (row.status === 'assigned' || row.status === 'accepted') steps.push({ type: 'work.start', orderId: row.orderId, taskId: row.taskId });
+  return steps;
+}
+
+export function WorkTasks({ state, actor, busy, run, runChain }: {
   state: State; actor: Actor; busy: boolean; run: (command: Command) => Promise<boolean>;
+  runChain?: (commands: Command[], message: string) => Promise<boolean>;
 }) {
+  const chain = runChain ?? (async (commands: Command[]) => { for (const command of commands) if (!(await run(command))) return false; return true; });
   const tasks = workTaskRows(state, actor);
   const history = workHistoryRows(state, actor);
   const [target, setTarget] = useState<WorkTaskRow | null>(null);
@@ -86,7 +96,8 @@ export function WorkTasks({ state, actor, busy, run }: {
   const open = (row: WorkTaskRow) => { setTarget(row); setQty(Math.max(0, row.planned - row.completed)); setNote(''); };
   const submit = async () => {
     if (!target) return;
-    const done = await run({ type: 'work.submit', orderId: target.orderId, taskId: target.taskId, qty, note });
+    const done = await chain([...stepsBefore(target), { type: 'work.submit', orderId: target.orderId, taskId: target.taskId, qty, note }],
+      target.autoAccept ? 'Natija topshirildi va qabul qilindi.' : 'Natija qabulga yuborildi.');
     if (done) setTarget(null);
   };
 
@@ -115,9 +126,8 @@ export function WorkTasks({ state, actor, busy, run }: {
             {row.assembly
               ? row.available && <button className="primary" disabled={busy} onClick={() => setAssembly(row)}><Check size={16} />Tayyor</button>
               : <>
-                {row.available && row.status === 'assigned' && <button className="primary" disabled={busy} onClick={() => void run({ type: 'work.accept', orderId: row.orderId, taskId: row.taskId })}><Check size={16} />Topshiriqni qabul qilish</button>}
-                {row.available && row.status === 'accepted' && <button className="primary" disabled={busy} onClick={() => void run({ type: 'work.start', orderId: row.orderId, taskId: row.taskId })}><Play size={16} />Ishni boshlash</button>}
-                {row.available && row.status === 'in_progress' && <button className="primary" disabled={busy} onClick={() => open(row)}><Send size={16} />Natijani topshirish</button>}
+                {row.available && row.status !== 'in_progress' && row.status !== 'submitted' && <button className="secondary" disabled={busy} onClick={() => void chain(stepsBefore(row), 'Ish boshlandi.')}><Play size={16} />Boshladim</button>}
+                {row.available && row.status !== 'submitted' && <button className="primary" disabled={busy} onClick={() => open(row)}><Send size={16} />Natijani topshirish</button>}
               </>}
           </footer>
         </article>;

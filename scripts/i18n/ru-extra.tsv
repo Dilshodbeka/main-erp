@@ -363,3 +363,36 @@ Chat	Чат
 To‘lovlar hali yo‘q.	Оплат пока нет.
 Guruh	Группа
 Material guruhi	Группа материалов
+Bekor qilishda berilgan materiallar omborga qaytadi. Kiritilgan pul mijoz hisobida avans bo‘lib qoladi. Ish qabul qilingan, yuborilgan yoki mahsuloti omborga kirgan buyurtmani bekor qilib bo‘lmaydi.	При отмене выданные материалы возвращаются на склад. Внесённые деньги остаются авансом клиента. Нельзя отменить заказ, по которому уже принята работа, есть отгрузка или продукция оприходована на склад.
+Ish bajarilgan buyurtmani bekor qilib bo‘lmaydi	Нельзя отменить заказ, по которому уже принята работа
+Ish bajarilgan pozitsiyani bekor qilib bo‘lmaydi	Нельзя отменить позицию, по которой уже принята работа
+Faqat qabul qilingan ishga brak yoziladi	Брак записывается только на принятую работу
+Bu bosqichga brak yozib bo‘lmaydi	На этот этап брак записать нельзя
+Yuborilgan ishga brak yozib bo‘lmaydi	Нельзя записать брак по отгруженной работе
+Omborga kirgan mahsulotga brak yozib bo‘lmaydi	Нельзя записать брак по продукции, оприходованной на склад
+Brak — {0} · {1}	Брак — {0} · {1}
+Brakni yozish	Записать брак
+Brakdan keyin	После брака
+Bosqich haqi kamayadi	Оплата этапа уменьшится
+Brak miqdori (ko‘pi bilan {0})	Количество брака (не больше {0})
+Brak hajmi xodimga qayta ishlashga qaytadi. Bosqich yana ochiladi, buyurtma «Tayyor» bo‘lsa — ishlab chiqarishga qaytadi.	Объём брака возвращается работнику на переделку. Этап снова открывается; если заказ был «Готов» — он возвращается в производство.
+Boshladim	Начал
+Ish boshlandi.	Работа начата.
+Natija topshirildi va qabul qilindi.	Результат сдан и принят.
+Natija qabulga yuborildi.	Результат отправлен на приёмку.
+Buyurtma sehga tushirildi, materiallar berildi.	Заказ запущен в цех, материалы выданы.
+Narx va stavkalar	Цены и ставки
+{0} ta joy to‘ldirilmagan — kalkulyatsiya shu sabab noaniq.	Не заполнено мест: {0} — поэтому калькуляция неточная.
+Hamma narx va stavkalar to‘ldirilgan.	Все цены и ставки заполнены.
+Faqat bo‘shlari	Только пустые
+Saqlash ({0})	Сохранить ({0})
+Ishchi stavkasi	Ставка работника
+kerak emas	не нужна
+{0} ta material	материалов: {0}
+norma yo‘q	нормы нет
+Bo‘sh operatsiya yo‘q.	Пустых операций нет.
+Operatsiyalar hali yaratilmagan.	Операции ещё не созданы.
+Mahsulot / material	Изделие / материал
+xarid qilinmagan	не закупался
+Material tannarxi xarid qabulidan o‘zi hisoblanadi ({0} ta material hali xarid qilinmagan). m² bosqich normasi operatsiyani tahrirlash oynasida kiritiladi.	Себестоимость материала считается сама по приходу закупки (ещё не закупалось материалов: {0}). Норма на м² вводится в окне редактирования операции.
+{0} ta narx saqlandi.	Сохранено цен: {0}.

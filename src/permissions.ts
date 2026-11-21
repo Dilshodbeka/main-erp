@@ -58,6 +58,7 @@ const GATE: Record<string, Gate> = {
   'shipment.createStock': { kind: 'permission', key: 'shipments.create' },
   'shipment.deliver': { kind: 'permission', key: 'shipments.deliver' },
   'work.review': { kind: 'permission', key: 'work.review' },
+  'work.defect': { kind: 'permission', key: 'work.review' },
   'machine.create': { kind: 'permission', key: 'settings.catalog' },
   'machine.update': { kind: 'permission', key: 'settings.catalog' },
   'operation.create': { kind: 'permission', key: 'settings.catalog' },

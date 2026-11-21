@@ -377,3 +377,14 @@ button:active:not(:disabled){transform:scale(.97)}
   .panel-bar+.page-heading>*{pointer-events:auto}
   .panel-bar+.page-heading button{min-height:34px;padding:7px 12px;font-size:12px}
 }
+
+/* Brak qabuldan keyin */
+.task .task-defect{flex:none;margin-left:8px;font-size:12px;color:#b3402f}
+
+/* Narx va stavkalar */
+.price-table .price-input{width:130px;max-width:100%;padding:6px 8px;text-align:right;font-variant-numeric:tabular-nums}
+.price-table .price-input.is-empty{border-color:#d9a441;background:#fffaf0}
+.price-table td{vertical-align:middle}
+.price-missing{color:#b3402f}
+.check-inline{display:inline-flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap}
+@media(max-width:700px){.price-table .price-input{width:94px;padding:6px}.price-table th:nth-child(2),.price-table td:nth-child(2),.price-table th:nth-child(5),.price-table td:nth-child(5){display:none}.price-table th,.price-table td{padding:8px 6px}.price-table td:first-child{white-space:normal;min-width:96px}}

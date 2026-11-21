@@ -324,7 +324,7 @@ describe('outsourced stages in orders', () => {
     } });
   });
 
-  it('keeps accepted work on order cancellation and blocks line cancellation', () => {
+  it('blocks order and line cancellation once outsourced work is accepted', () => {
     const f = fixture();
     let state = run(f.state, { type: 'order.create', input: { ...f.input, materials: [], route: [{
       operationId: f.operationId, executorKind: 'supplier', employeeId: null,
@@ -334,7 +334,8 @@ describe('outsourced stages in orders', () => {
     state = run(state, { type: 'order.launch', orderId: order.id });
     state = run(state, { type: 'outsource.accept', taskId: order.route[0].id });
     atomic(state, { type: 'orderLine.cancel', orderId: order.id, lineId: order.lines[0].id });
-    state = run(state, { type: 'order.cancel', orderId: order.id });
+    atomic(state, { type: 'order.cancel', orderId: order.id });
+    expect(state.orders.at(-1)!.status).not.toBe('cancelled');
     expect(state.orders.at(-1)!.route[0].status).toBe('completed');
     expect(state.orders.at(-1)!.route).toHaveLength(1);
   });
@@ -396,7 +397,7 @@ describe('outsourced stages in orders', () => {
       amount: 1000, account: 'cash', allowPrepay: true, category: 'outsourcing' });
   });
 
-  it('keeps the accepted obligation and advance after cancelling the whole order', () => {
+  it('refuses to cancel the whole order after accepted outsourcing and keeps the obligation', () => {
     const f = fixture();
     let state = funds(f.state, 1000000);
     state = run(state, { type: 'order.create', input: { ...f.input, materials: [],
@@ -406,7 +407,7 @@ describe('outsourced stages in orders', () => {
     state = run(state, { type: 'outsource.accept', taskId: order.route[0].id });
     state = run(state, { type: 'supplier.pay', supplierId: f.supplierId, amount: 100000,
       account: 'cash', allowPrepay: true, category: 'outsourcing' });
-    state = run(state, { type: 'order.cancel', orderId: order.id });
+    atomic(state, { type: 'order.cancel', orderId: order.id });
     expect(supplierDebt(state, f.supplierId)).toBe(400000);
   });
 
@@ -1082,11 +1083,10 @@ describe('workers, pending quantities and review', () => {
     expect(state.payroll).toHaveLength(1);
     expect(acceptedPayroll(state, f.employeeId)).toBe(20);
     expect(availableTask(state, f.orderId, f.state.orders[0].route[1].id)).toBe(true);
-    state = run(state, { type: 'order.cancel', orderId: f.orderId });
-    expect(state.orders[0].status).toBe('cancelled');
+    atomic(state, { type: 'order.cancel', orderId: f.orderId });
     expect(acceptedPayroll(state, f.employeeId)).toBe(20);
     expect(state.reports).toHaveLength(3);
-    expect(stockQty(state, f.itemId)).toBe(20);
+    expect(stockQty(state, f.itemId)).toBe(10);
   });
 
   it('accepted payroll uses the route rate snapshot instead of the current operation rate', () => {
@@ -1949,35 +1949,53 @@ describe('order revisions after launch', () => {
     expect(state.payroll.map(row => row.amount)).toEqual([20, 30]);
   });
 
-  it('cancels a started order, returns issued stock and keeps accepted payroll', () => {
+  it('refuses to cancel an order with accepted work: stock and payroll stay untouched', () => {
     const f = production();
-    let state = report(f.state, f.orderId, f.taskId, 4);
+    const state = report(f.state, f.orderId, f.taskId, 4);
     expect(acceptedPayroll(state, f.employeeId)).toBe(8);
     expect(stockQty(state, f.itemId)).toBe(10);
-    state = run(state, { type: 'order.cancel', orderId: f.orderId });
+    expect(() => run(state, { type: 'order.cancel', orderId: f.orderId })).toThrow('Ish bajarilgan buyurtmani bekor qilib bo‘lmaydi');
+    expect(() => run(state, { type: 'orderLine.cancel', orderId: f.orderId, lineId: state.orders[0].lines[0].id })).toThrow('Ish bajarilgan pozitsiyani bekor qilib bo‘lmaydi');
+    expect(state.orders[0].status).toBe('production');
+    expect(stockQty(state, f.itemId)).toBe(10);
+    expect(acceptedPayroll(state, f.employeeId)).toBe(8);
+  });
+
+  it('cancels a launched order without accepted work and returns issued stock', () => {
+    const f = production();
+    expect(stockQty(f.state, f.itemId)).toBe(10);
+    const state = run(f.state, { type: 'order.cancel', orderId: f.orderId });
     expect(state.orders[0].status).toBe('cancelled');
     expect(state.orders[0].materials.every(row => row.issuedQty === 0 && row.actualCost === 0)).toBe(true);
     expect(stockQty(state, f.itemId)).toBe(20);
     expect(reservedQty(state, f.itemId)).toBe(0);
-    expect(acceptedPayroll(state, f.employeeId)).toBe(8);
-    expect(state.payroll).toHaveLength(1);
-    expect(state.reports).toHaveLength(1);
-    expect(state.movements.at(-1)).toMatchObject({
-      itemId: f.itemId, direction: 'in', qty: 10, unitCost: 5, source: 'order', sourceId: f.orderId,
-    });
+    expect(state.payroll).toHaveLength(0);
   });
 
-  it('cancels a ready order and keeps the whole accepted payroll', () => {
+  it('records a defect after acceptance: the stage reopens, payroll shrinks, a ready order returns to production', () => {
     const f = production();
     let state = report(f.state, f.orderId, f.taskId, 10);
     state = report(state, f.orderId, f.state.orders[0].route[1].id, 10);
     expect(state.orders[0].status).toBe('ready');
-    state = run(state, { type: 'order.cancel', orderId: f.orderId });
-    expect(state.orders[0].status).toBe('cancelled');
     expect(acceptedPayroll(state, f.employeeId)).toBe(20);
+    const reportId = state.reports.find(row => row.taskId === f.taskId)!.id;
+    atomic(state, { type: 'work.defect', reportId, defectQty: 11, reason: 'quality' });
+    atomic(state, { type: 'work.defect', reportId, defectQty: 1, reason: 'other' });
+    state = run(state, { type: 'work.defect', reportId, defectQty: 3, reason: 'quality', note: 'skol' });
+    expect(state.orders[0].status).toBe('production');
+    expect(state.orders[0].route[0]).toMatchObject({ completed: 7, status: 'in_progress' });
+    expect(acceptedPayroll(state, f.employeeId)).toBe(14);
     expect(acceptedPayroll(state, f.otherEmployeeId)).toBe(30);
-    expect(stockQty(state, f.itemId)).toBe(20);
-    expect(state.reports).toHaveLength(2);
+    expect(state.defects.at(-1)).toMatchObject({ qty: 3, reason: 'quality', note: 'skol', taskId: f.taskId });
+    expect(state.reports.find(row => row.id === reportId)).toMatchObject({ qty: 7, status: 'accepted' });
+    state = run(state, { type: 'work.submit', orderId: f.orderId, taskId: f.taskId, qty: 3, note: '' }, f.worker);
+    const again = state.reports.at(-1)!;
+    if (again.status === 'submitted') state = run(state, { type: 'work.review', reportId: again.id, accept: true });
+    expect(state.orders[0].status).toBe('ready');
+    expect(acceptedPayroll(state, f.employeeId)).toBe(20);
+    state = run(state, { type: 'work.defect', reportId: again.id, defectQty: 3, reason: 'measurement' });
+    expect(state.reports.find(row => row.id === again.id)!.status).toBe('rejected');
+    atomic(state, { type: 'work.defect', reportId: again.id, defectQty: 1, reason: 'quality' });
   });
 
   it('blocks revisions and cancellation after shipping', () => {

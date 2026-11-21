@@ -233,6 +233,7 @@ export type Command =
   | { type: 'work.start'; orderId: string; taskId: string }
   | { type: 'work.submit'; orderId: string; taskId: string; qty: number; note: string }
   | { type: 'work.review'; reportId: string; accept: boolean; defectQty?: number; reason?: DefectReason; note?: string }
+  | { type: 'work.defect'; reportId: string; defectQty: number; reason: DefectReason; note?: string }
   | { type: 'assembly.complete'; orderId: string; taskId: string; materials: { id: string; qty: number; itemId?: string }[]; output: 'client' | 'stock'; outputItemId?: string }
   | { type: 'outsource.accept'; taskId: string }
   | { type: 'purchase.create'; supplierId: string; lines: { itemId: string; qty: number; price: number }[]; warehouseId?: string; orderId?: string | null }

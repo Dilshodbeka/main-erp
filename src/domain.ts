@@ -1416,6 +1416,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
       check(order.status === 'draft' || order.status === 'production' || order.status === 'ready', 'Order cannot be cancelled');
       check(!state.shipments.some(row => row.orderId === order.id && row.status !== 'cancelled'), 'Shipped orders cannot be cancelled');
       check(!state.movements.some(row => row.source === 'production' && row.sourceId === order.id), 'Produced stock cannot be cancelled');
+      check(!order.route.some(task => task.completed > 0), 'Ish bajarilgan buyurtmani bekor qilib bo‘lmaydi');
       for (const row of order.materials.filter(row => row.issuedQty > 0)) {
         find(state.items, row.itemId, 'Item');
         movement(state, {
@@ -1440,6 +1441,7 @@ function mutate(state: State, command: Command, actor: Actor): string {
       check(!lineRoute(order, line.id).some(task =>
         task.executorKind === 'supplier' && task.status === 'completed'
       ), 'Accepted outsourced work cannot be cancelled');
+      check(!lineRoute(order, line.id).some(task => task.completed > 0), 'Ish bajarilgan pozitsiyani bekor qilib bo‘lmaydi');
       for (const row of lineMaterials(order, line.id).filter(row => row.issuedQty > 0)) {
         find(state.items, row.itemId, 'Item');
         movement(state, {
@@ -1599,6 +1601,47 @@ function mutate(state: State, command: Command, actor: Actor): string {
           if (payroll.status !== 'accepted') payroll.status = 'rejected';
         }
       }
+      return report.id;
+    }
+    case 'work.defect': {
+      // Brak qabul qilingandan keyin aniqlandi: hajm xodimga qayta ishlashga qaytadi, bosqich haqi kamayadi.
+      check(command.reason !== undefined && defectReasons.includes(command.reason), 'Defect reason is required');
+      const note = command.note === undefined ? '' : command.note.trim();
+      if (command.reason === 'other') check(note.length > 0, 'Defect note is required');
+      check(note.length <= 500, 'Defect note is too long');
+      const report = find(state.reports, command.reportId, 'Report');
+      check(report.status === 'accepted', 'Faqat qabul qilingan ishga brak yoziladi');
+      const order = find(state.orders, report.orderId, 'Order');
+      const task = find(order.route, report.taskId, 'Task');
+      check(task.assembly !== true && task.executorKind === 'employee', 'Bu bosqichga brak yozib bo‘lmaydi');
+      const workshopScope = actor.workshopIds ?? [];
+      if (actor.role === 'worker' && workshopScope.length > 0) {
+        const operation = find(state.operations, task.operationId, 'Operation');
+        check(workshopScope.includes(task.workshopId ?? operation.workshopId ?? MAIN_WORKSHOP_ID),
+          'Bu bosqich boshqa sehga tegishli');
+      }
+      const line = orderLineOf(order, task.lineId);
+      check((order.status === 'production' || order.status === 'ready')
+        && (line.status === 'production' || line.status === 'ready')
+        && shippedForLine(state, order, line) === 0, 'Yuborilgan ishga brak yozib bo‘lmaydi');
+      check(!state.movements.some(row => row.source === 'production' && row.sourceId === order.id), 'Omborga kirgan mahsulotga brak yozib bo‘lmaydi');
+      check(typeof command.defectQty === 'number' && Number.isFinite(command.defectQty), 'Defect quantity is invalid');
+      const defect = round(command.defectQty);
+      check(defect > 0, 'Nothing to reject');
+      check(!exceeds(defect, report.qty) && !exceeds(defect, task.completed), 'Defect quantity exceeds report');
+      state.defects.push({
+        id: uuid(), reportId: report.id, orderId: order.id, lineId: task.lineId, taskId: task.id,
+        employeeId: report.employeeId, operationId: task.operationId,
+        qty: defect, reason: command.reason, note, materials: defectMaterials(state, task, defect), createdAt: now(),
+      });
+      const good = round(report.qty - defect);
+      if (good > 0) report.qty = good; else report.status = 'rejected';
+      task.completed = Math.max(0, round(task.completed - defect));
+      task.status = 'in_progress';
+      const payroll = state.payroll.find(row => row.orderId === order.id && row.taskId === task.id && row.employeeId === task.employeeId);
+      if (payroll) payroll.amount = round(task.rate * task.completed);
+      if (line.status === 'ready') line.status = 'production';
+      syncOrder(order);
       return report.id;
     }
     case 'assembly.complete': {
